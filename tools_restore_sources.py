@@ -22,7 +22,7 @@ def restore_late_bundles():
  if manifest.get('version')!=1:
   raise SystemExit('Unknown Stage 1 archive format')
  expected={x['path']:x for x in manifest['files']}
- assert len(expected)==len(manifest['files']), 'duplicate archive path'
+ # Directly committed, SHA-256-verified payloads take priority over optional\n # restoration archives; avoid requiring duplicate archives in clean checkouts.\n if all((ROOT/x['path']).is_file() and (ROOT/x['path']).stat().st_size==x['bytes'] and hashlib.sha256((ROOT/x['path']).read_bytes()).hexdigest()==x['sha256'] for x in manifest['files']):\n  print('Stage 1 direct payloads verified:',len(manifest['files']))\n  return\n assert len(expected)==len(manifest['files']), 'duplicate archive path'
  archives={}
  for info in manifest['files']:
   name=info['archive']
