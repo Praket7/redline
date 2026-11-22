@@ -28,10 +28,12 @@ try:
         page.on('pageerror', lambda e: report['errors'].append(str(e)))
         page.on('requestfailed', lambda r: report['requestFailures'].append({'url':r.url,'failure':r.failure}))
         # Suppress a one-time tutorial overlay; no game-state objects are modified.
-        page.add_init_script("""() => {
-          try { localStorage.setItem('redline_raven_training_v22_done','1'); }
-          catch (e) {}
-        }""")
+        page.add_init_script("""
+          try {
+            localStorage.setItem('redline_raven_training_v22_done','1');
+            localStorage.setItem('redline_v16_options',JSON.stringify({course:'grand',autoPointerLock:false}));
+          } catch (e) {}
+        """)
         page.goto(url,wait_until='domcontentloaded',timeout=25000)
         page.wait_for_function('window.REDLINE_E2E?.status()?.ready===true', timeout=60000)
         report['state']='RUNNING'
@@ -47,7 +49,9 @@ try:
                 page.evaluate('(model)=>window.REDLINE_E2E.select(model)',craft)
                 page.wait_for_timeout(1600)
                 page.screenshot(path=str(QA/f'FULL_HANGAR_{craft.upper()}.png'),animations='disabled')
-                assert page.evaluate('()=>window.REDLINE_E2E.launch()')=='race',f'UI failed to start race: {craft}'
+                page.evaluate('()=>window.REDLINE_E2E.launch()')
+                page.wait_for_function("window.REDLINE_E2E?.status()?.screen==='race'",timeout=30000)
+                page.wait_for_function("window.REDLINE_UI_STATUS?.()?.mode==='run'",timeout=20000)
                 page.wait_for_function('window.REDLINE_E2E?.status()?.renderer?.drawCalls>0', timeout=30000)
                 before=page.evaluate('()=>window.REDLINE_E2E.status()')
                 assert before['simulation'] and before['renderer'],f'no game simulation or render state: {craft}'
@@ -65,6 +69,9 @@ try:
                 page.wait_for_timeout(600)
                 page.screenshot(path=str(QA/f'FULL_FPV_{craft.upper()}.png'),animations='disabled')
                 case['fpvClass']=page.evaluate('()=>document.body.className')
+                assert 'rl-cockpit' in case['fpvClass'],f'FPV class not activated: {craft}'
+                expected_class={'kestrel':'rl67-kestrel-cockpit','blade':'rl65-blade-cockpit','copper':'rl62-tie-cockpit','spirit':'rl63-spirit-cockpit'}[craft]
+                assert expected_class in case['fpvClass'],f'Incorrect FPV cockpit: {craft}: {case["fpvClass"]}'
                 case['hudVisible']=page.evaluate('''()=>{
                    const candidates=['rl74FpvHud','rl70TieHud','rl63SpiritDeck','rl65BladeDash','rl67KestrelPhoto'];
                    return candidates.filter(id=>{const el=document.getElementById(id);return el&&getComputedStyle(el).display!=='none'&&getComputedStyle(el).visibility!=='hidden'})}''')

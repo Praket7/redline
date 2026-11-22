@@ -38,6 +38,7 @@ The `full_game_e2e.py` suite actually loads the Three.js world, launches **all f
 - `src/scripts/999_stage1_diagnostics.js` — F8 diagnostics
 - `assets/images/` — 19 extracted cockpit assets
 - `bundles/chunks/` — losslessly rebuilds large asset/source payloads via `tools_restore_sources.py`
+- `bundles/late/` and `bundles/late_manifest.json` — checked-in hash-verified split archives restoring 28 missing original payloads
 - `originals/v77_archive/` — compressed pieces of frozen source, verified and restored by SHA-256
 - `tests/` — runtime, asset, regression, HUD and WebGL test suites
 - `dist/` — **generated** outputs from `build.py`, not the source to edit
@@ -55,3 +56,9 @@ A production-ready REDLINE release needs all source tests, actual WebGL startup/
 ## Technical constraints
 
 The original v77 flight and AI behavior is intentionally preserved. Renderer modernization, deep simulation extraction, and deleting legacy CSS are gated on real browser regression results. They are not silently treated as complete if the corresponding tests cannot run. The source project supports a modernized renderer canary but does not force it on the playable build.
+
+## Stage 1 release status
+
+The real WebGL flight matrix is mandatory. `qa/FULL_GAME_E2E_REPORT.json` and `qa/BENCHMARK_RESULTS.json` must both say PASS on an actual graphics-capable test run. A build is **not certified** just because source, mock UI, or unit tests pass.
+
+Local environments that disallow browser navigation cannot complete that gate; CI runs it using Chromium/SwiftShader. Avoid bypassing this gate or silently replacing it with a mocked renderer.

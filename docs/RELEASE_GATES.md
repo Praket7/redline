@@ -3,7 +3,7 @@
 | Stage 1 task | State | Evidence and remaining gate |
 |---|---|---|
 | 1 Frozen v77 | Done | SHA-256 original in manifest, original unchanged. |
-| 2 Modular source/build | Done | 40 original scripts (including CDN and deferred blobs), 36 original styles, 19 extracted image assets, two output types. Deferred GLBs remain inline in generated HTML intentionally. |
+| 2 Modular source/build | Done | 40 original scripts (including CDN and deferred blobs), with 28 missing initial-transfer files recovered from hash-verified split archives, 36 original styles, 19 extracted image assets, two output types. Deferred GLBs remain inline in generated HTML intentionally. |
 | 3 Modern Three.js | Partial | Stepwise r138 canary prepared; release stays r128. Requires live WebGL screenshots and upgrade beyond r138. |
 | 4 Full-game browser QA | Partial | Playwright E2E implemented; current environment blocks localhost. Must pass on actual browser and CI before release promotion. |
 | 5 Graphics telemetry | Done, CPU-only | F8 dashboard: fps, p50/p95, CPU update/render, draw calls, triangles, geometry/texture counts. GPU timing not yet instrumented. |

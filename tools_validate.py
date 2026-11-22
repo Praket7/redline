@@ -3,6 +3,7 @@
 from pathlib import Path
 import re,base64,gzip,json,struct,hashlib
 ROOT=Path(__file__).resolve().parent
+(ROOT/'qa').mkdir(parents=True,exist_ok=True)
 models=[('Kestrel','scripts/022_module.js','GLB_B64'),('Blade','scripts/023_module.js','REDLINE_BLADE_B64'),('Copper','data/024_redlineCopperDeferred.js','REDLINE_COPPER_B64'),('Spirit','data/026_redlineSpiritDeferred.js','REDLINE_SPIRIT_B64')]
 report={}
 for name,file,key in models:
@@ -32,4 +33,5 @@ for name,file,key in models:
  out={'glb_sha256':hashlib.sha256(raw).hexdigest(),'glb_bytes':len(raw),'meshes':meshes,'primitives':primitives,'vertices':vertices,'estimated_triangles':estimated_triangles,'materials':len(materials),'textures':len(gltf.get('textures',[])),'embedded_images':len(gltf.get('images',[])),'warnings':warnings,'structural_validation':'PASS'}
  report[name]=out
  print(name,out)
+(ROOT/'qa').mkdir(exist_ok=True)
 (ROOT/'qa/MODEL_AUDIT.json').write_text(json.dumps(report,indent=2))
