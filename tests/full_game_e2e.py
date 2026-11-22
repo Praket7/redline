@@ -51,11 +51,28 @@ try:
                 page.screenshot(path=str(QA/f'FULL_HANGAR_{craft.upper()}.png'),animations='disabled')
                 page.evaluate('()=>window.REDLINE_E2E.launch()')
                 page.wait_for_function("window.REDLINE_E2E?.status()?.screen==='race'",timeout=30000)
-                page.wait_for_function("window.REDLINE_UI_STATUS?.()?.mode==='run'",timeout=20000)
+                # SwiftShader may render only a few complex frames per wall-clock
+                # second. Advance the *real* production fixed-step simulation
+                # during the countdown rather than waiting for 64 slow rAF draws.
+                countdown = page.evaluate('''() => {
+                  if (typeof window.redlineSimulateFrame !== 'function') throw Error('real 60Hz simulation unavailable');
+                  let steps=0;
+                  while (window.REDLINE_UI_STATUS()?.mode==='count' && steps<100) {
+                    window.redlineSimulateFrame(.05); steps++;
+                  }
+                  return {steps,mode:window.REDLINE_UI_STATUS()?.mode,tick:window.REDLINE_SIM_STATE?.()?.tick};
+                }''')
+                case['countdown']=countdown
+                assert countdown['mode']=='run',f'countdown failed in real simulation: {countdown}'
                 page.wait_for_function('window.REDLINE_E2E?.status()?.renderer?.drawCalls>0', timeout=30000)
                 before=page.evaluate('()=>window.REDLINE_E2E.status()')
                 assert before['simulation'] and before['renderer'],f'no game simulation or render state: {craft}'
-                page.keyboard.down('w');page.wait_for_timeout(1200);page.keyboard.up('w')
+                page.keyboard.down('w')
+                page.evaluate('''() => {
+                  for(let i=0;i<30;i++) window.redlineSimulateFrame(.05);
+                }''')
+                page.keyboard.up('w')
+                page.wait_for_timeout(350)
                 after=page.evaluate('()=>window.REDLINE_E2E.status()')
                 case['tickDelta']=after['simulation']['tick']-before['simulation']['tick']
                 case['drawCalls']=after['renderer']['drawCalls']
@@ -66,7 +83,10 @@ try:
                 assert case['craftMotion']>0.05,f'no flight motion under thrust: {craft}: {case}'
                 page.screenshot(path=str(QA/f'FULL_CHASE_{craft.upper()}.png'),animations='disabled')
                 page.evaluate('()=>window.REDLINE_E2E.view(true)')
-                page.wait_for_timeout(600)
+                # Draw the real scene immediately; software WebGL can be far
+                # slower than real-time at 1600x900 on CI hosts.
+                page.evaluate('()=>window.redlineRenderInterpolated(1/60,0)')
+                page.wait_for_timeout(250)
                 page.screenshot(path=str(QA/f'FULL_FPV_{craft.upper()}.png'),animations='disabled')
                 case['fpvClass']=page.evaluate('()=>document.body.className')
                 assert 'rl-cockpit' in case['fpvClass'],f'FPV class not activated: {craft}'
