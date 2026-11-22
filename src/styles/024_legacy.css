@@ -1,0 +1,50 @@
+
+/* REDLINE v66: photographic Spirit Nocturne panoramic cockpit, FPV only. */
+#rl66SpiritOverlay{
+ position:absolute;inset:0;z-index:3;pointer-events:none;user-select:none;
+ display:none;overflow:hidden;isolation:isolate;
+}
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rl66SpiritOverlay{display:block!important}
+#rl66SpiritSVG{display:block;width:100%;height:100%;overflow:hidden;filter:drop-shadow(0 2px 10px #0006)}
+#rl66SpiritSVG .rl66Label{font:500 19px/1 Arial,Helvetica,sans-serif;letter-spacing:.1em;fill:#deefff;filter:url(#rl66TextGlow)}
+#rl66SpiritSVG .rl66Unit{font:500 16px/1 Arial,sans-serif;fill:#c2dcfa}
+#rl66SpiritSVG .rl66Big{font:600 58px/1 Arial,Helvetica,sans-serif;letter-spacing:-.045em;fill:#ebf7ff;filter:url(#rl66TextGlow)}
+#rl66SpiritSVG .rl66Med{font:600 43px/1 Arial,Helvetica,sans-serif;letter-spacing:-.03em;fill:#e4f6ff;filter:url(#rl66TextGlow)}
+#rl66SpiritSVG .rl66Tiny{font:700 13px/1 Arial,sans-serif;letter-spacing:.07em;fill:#90b4d3}
+#rl66SpiritSVG .rl66GlassLabel{font:500 18px/1 Arial,sans-serif;letter-spacing:.08em;fill:#d0eaff;filter:url(#rl66TextGlow)}
+#rl66SpiritSVG .rl66GlassValue{font:600 27px/1 Arial,sans-serif;fill:#e4f4ff;filter:url(#rl66TextGlow)}
+/* Disable legacy flight boxes that caused the overlapping v61-v65 dashboard. */
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rl63SpiritOverlay,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rl61CockpitReadout,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlSpeedBox,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlSpeedDial,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlFpTelemetry,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlCockpitVis,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlKeys,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlTutorial,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlFlowModule{display:none!important}
+/* Track placement and race result visibility remain independent of cockpit image. */
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlPositions{
+ position:absolute!important;left:clamp(10px,1.8vw,26px)!important;
+ right:auto!important;top:clamp(100px,12vh,132px)!important;
+ bottom:auto!important;width:212px!important;z-index:45!important;
+}
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlMouseUnlock{
+ position:absolute!important;left:50%!important;top:88px!important;bottom:auto!important;
+ transform:translateX(-50%)!important;background:#06111ec9!important;
+ border:1px solid #365065!important;padding:7px 12px!important;
+ font-size:10px!important;max-width:260px!important;
+}
+/* Keep critical input actions above the photo, but make photo transparent to clicks. */
+body.rl63-spirit-cockpit #rlGameTop,
+body.rl63-spirit-cockpit #rlGameButtons,
+body.rl63-spirit-cockpit #rlCountdown,
+body.rl63-spirit-cockpit #rlReticle,
+body.rl63-spirit-cockpit #rlAimHint,
+body.rl63-spirit-cockpit #rlToast{z-index:50!important}
+@media(max-width:800px){
+ #rl66SpiritSVG{min-width:850px;width:850px;position:absolute;left:50%;transform:translateX(-50%)}
+ #rl66SpiritSVG .rl66GlassValue{font-size:22px}
+ body.rl-play.rl-cockpit.rl63-spirit-cockpit #rlPositions{width:160px!important;top:100px!important;font-size:10px!important}
+}
+

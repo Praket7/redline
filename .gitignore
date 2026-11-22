@@ -1,0 +1,12 @@
+node_modules/
+__pycache__/
+.pytest_cache/
+qa/FULL_RACE_*.png
+qa/SHOWCASE_RAVEN_SLALOM_LIVE.png
+qa/BENCHMARK_RESULTS.json
+qa/FULL_GAME_E2E_REPORT.json
+qa/HUD_*.png
+qa/*_console.log
+*.log
+.DS_Store
+originals/REDLINE_v77_FROZEN.html

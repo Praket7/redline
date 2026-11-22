@@ -1,0 +1,4 @@
+
+body.rl67-kestrel-cockpit #rl68Telemetry{display:none!important}
+body.rl67-kestrel-cockpit #rl67KestrelOverlay{pointer-events:none!important}
+#rl67KestrelSVG{width:100%;height:100%;display:block}

@@ -1,0 +1,20 @@
+/* REDLINE v50 — ghosted navigation, no panel/background/type. */
+body.rl-play #maphud,body.rl-play.rl-hud-race #maphud,body.rl-play.rl-hud-cinematic #maphud,
+body.rl-play.rl-hud-tactical #maphud{
+ display:block!important;background:transparent!important;background-image:none!important;
+ border:0!important;border-radius:0!important;padding:0!important;margin:0!important;
+ backdrop-filter:none!important;box-shadow:none!important;outline:0!important;
+ filter:drop-shadow(0 1px 3px rgba(0,0,0,.35))!important;
+ pointer-events:none!important;
+}
+body.rl-play #maphud canvas,body.rl-play.rl-hud-race #maphud canvas,
+body.rl-play.rl-hud-cinematic #maphud canvas{
+ background:transparent!important;border:none!important;outline:none!important;
+ border-radius:0!important;box-shadow:none!important;filter:none!important;
+}
+body.rl-play #maphud .lbl{display:none!important}
+
+/* v51: keep the whole-course line visible on bright rock while retaining a clear HUD. */
+body.rl-play #maphud{filter:drop-shadow(0 1px 1px rgba(0,0,0,.65))!important;}
+body.rl-play #maphud canvas{width:clamp(178px,16.5vw,250px)!important;height:clamp(178px,16.5vw,250px)!important;}
+@media(max-width:740px){body.rl-play #maphud canvas{width:136px!important;height:136px!important;}}

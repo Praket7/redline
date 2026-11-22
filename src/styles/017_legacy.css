@@ -1,0 +1,37 @@
+/* REDLINE v46 — A single choreography for aircraft, controls and page. */
+#rlScreens .rl45-airframe-track {
+ scroll-snap-type:none!important;scroll-behavior:auto!important;
+ overscroll-behavior-x:contain;
+}
+#rlScreens .rl45-airframe {scroll-snap-align:none!important;}
+#rlScreens .rl45-vehicle-page {
+ animation:rl46-page-enter .72s cubic-bezier(.18,.76,.2,1) both!important;
+}
+@keyframes rl46-page-enter {
+ from {opacity:0;transform:translate3d(0,18px,0);filter:blur(2px)}
+ to {opacity:1;transform:translate3d(0,0,0);filter:blur(0)}
+}
+#rlScreens .rl45-vehicle-page.rl45-leaving {
+ pointer-events:none!important;animation:rl46-page-exit .64s cubic-bezier(.35,0,.65,1) both!important;
+}
+@keyframes rl46-page-exit {
+ 0% {opacity:1;transform:translate3d(0,0,0);filter:blur(0)}
+ 36% {opacity:1;transform:translate3d(-6px,0,0);filter:blur(0)}
+ 100% {opacity:0;transform:translate3d(-28px,0,0);filter:blur(3px)}
+}
+#rlScreens .rl45-airframe {
+ transition:border-color .24s ease,background .24s ease,box-shadow .24s ease,opacity .24s ease!important;
+ will-change:auto;
+}
+#rlScreens .rl45-airframe:hover {transform:none!important;}
+#rlScreens .rl45-title {
+ transition:opacity .18s ease,transform .25s ease!important;
+}
+@media(prefers-reduced-motion:reduce){
+ #rlScreens .rl45-vehicle-page,#rlScreens .rl45-vehicle-page.rl45-leaving {animation:none!important;}
+ #rlScreens .rl45-airframe,#rlScreens .rl45-title {transition:none!important;}
+}
+body.rl-reduced-motion #rlScreens .rl45-vehicle-page,
+body.rl-reduced-motion #rlScreens .rl45-vehicle-page.rl45-leaving {animation:none!important;}
+
+@media(max-width:720px){#rlBootCurtain .rl-boot-sub{letter-spacing:2px;line-height:1.8}}

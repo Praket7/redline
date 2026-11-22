@@ -1,0 +1,23 @@
+
+/* Photographic cockpits have their own instruments; no duplicate floating panels. */
+body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit) #rl68Telemetry,
+body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit) #rl61CockpitReadout,
+body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit) #rlSpeedBox,
+body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit) #rlSpeedDial,
+body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit) #rlFpTelemetry,
+body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit) #rlCockpitVis {display:none!important}
+/* Race information remains above cockpit art, without obscuring center flight path. */
+body.rl-play.rl-cockpit #rlGameTop {z-index:80!important;left:clamp(12px,2vw,28px)!important;top:clamp(8px,1.3vh,18px)!important}
+body.rl-play.rl-cockpit #rlGameButtons {z-index:81!important}
+body.rl-play.rl-cockpit #rlPositions {z-index:80!important;left:clamp(12px,1.6vw,24px)!important;bottom:clamp(14px,2.5vh,28px)!important;top:auto!important;max-width:220px!important}
+body.rl-play.rl-cockpit #rlMapHud,body.rl-play.rl-cockpit #maphud{z-index:80!important}
+body.rl-play.rl-cockpit #rlMouseUnlock {z-index:90!important;bottom:clamp(18px,3vh,34px)!important}
+/* Copper's actual live windshield instruments, not an extra panel. */
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud {z-index:48!important}
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70top {top:29%!important}
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70middle {top:40%!important}
+@media(max-width:800px) {
+ body.rl-play.rl-cockpit #rlPositions{max-width:135px!important;font-size:10px!important;bottom:12px!important}
+ body.rl-play.rl-cockpit #rlGameTop{transform:scale(.82);transform-origin:top left}
+ body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70middle{width:58vw!important;top:39%!important}
+}
