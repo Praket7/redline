@@ -1,0 +1,321 @@
+
+/* REDLINE v30 — one design vocabulary for every screen.
+   Typography, rules and motion replace cards.  Keep panels only for deliberate dialogs. */
+:root{
+  --v30-red:#ff3d50;--v30-white:#fff8f3;--v30-muted:#c7c1c2;
+  --v30-dim:#aca3a6;--v30-ink:#05080d;
+  --v30-rule:rgba(255,255,255,.24);
+  --v30-shadow:0 2px 3px rgba(0,0,0,.9),0 4px 13px rgba(0,0,0,.72);
+  --v30-ease:cubic-bezier(.22,1,.36,1);
+}
+#rlShell{font-family:'Arial Narrow',Arial,'Helvetica Neue',sans-serif!important;color:var(--v30-white)!important;-webkit-font-smoothing:antialiased}
+#rlShell button{cursor:pointer;touch-action:manipulation}
+#rlShell button:focus-visible,#rlShell input:focus-visible,#rlShell select:focus-visible{outline:2px solid var(--v30-red)!important;outline-offset:4px!important}
+
+/* Page motion: short, composited, legible. No perpetual text movement or blocking intro. */
+body.rl-menu #rlScreens .rl-layout{animation:rl30PageIn .55s var(--v30-ease) both;will-change:opacity,transform}
+body.rl-menu #rlScreens .rl-overline{animation:rl30TextReveal .64s .06s var(--v30-ease) both}
+body.rl-menu #rlScreens .rl-section-title,
+body.rl-menu #rlScreens .rl-logo{animation:rl30HeroReveal .78s .07s var(--v30-ease) both}
+body.rl-menu #rlScreens .rl-section-desc,body.rl-menu #rlScreens .rl-tagline{animation:rl30TextReveal .75s .16s var(--v30-ease) both}
+body.rl-menu #rlScreens .rl-stack,body.rl-menu #rlScreens .rl-select-layout,
+body.rl-menu #rlScreens .rl-track-picker,body.rl-menu #rlScreens .rl-track-controls,
+body.rl-menu #rlScreens .rl-settings-panel,body.rl-menu #rlScreens .rl-scoreboard{
+  animation:rl30TextReveal .78s .23s var(--v30-ease) both
+}
+@keyframes rl30PageIn{from{opacity:.62;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rl30TextReveal{from{opacity:0;transform:translateY(23px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rl30HeroReveal{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(29px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:translateY(0)}}
+@keyframes rl30FlowFlash{0%{filter:brightness(1.6)}100%{filter:brightness(1)}}
+
+/* Consistent screen composition. No frame or scanline filters obscuring the hangar. */
+body.rl-menu #rlScreens{background:linear-gradient(90deg,rgba(3,6,12,.96) 0%,rgba(3,6,12,.91) 28%,rgba(3,6,12,.45) 54%,rgba(5,7,11,.07) 100%)!important;isolation:isolate}
+body.rl-menu #rlScreens::before{content:none!important;display:none!important}
+body.rl-menu #rlScreens::after{content:''!important;display:block!important;position:fixed!important;inset:0!important;z-index:0!important;pointer-events:none!important;background:linear-gradient(0deg,rgba(3,6,12,.4),transparent 30%)!important}
+body.rl-menu #rlScreens:has(.rl-track-select),body.rl-menu #rlScreens:has(.rl-settings-panel),body.rl-menu #rlScreens:has(.rl-net),body.rl-menu #rlScreens:has(.rl-scoreboard){background:linear-gradient(108deg,rgba(5,7,12,.985),rgba(5,7,12,.94) 52%,rgba(5,8,13,.66))!important}
+#rlScreens .rl-layout{position:relative!important;z-index:2!important;max-width:1550px!important;padding:clamp(95px,11vh,135px) clamp(29px,5.6vw,100px) 70px!important}
+#rlScreens .rl-overline{color:var(--v30-red)!important;font:800 11px/1.4 Arial,sans-serif!important;letter-spacing:.25em!important}
+#rlScreens .rl-section-title{color:var(--v30-white)!important;font:italic 950 clamp(45px,6.1vw,92px)/.94 'Arial Black',Impact,Arial,sans-serif!important;letter-spacing:-.055em!important;text-transform:uppercase!important;text-shadow:0 10px 34px rgba(0,0,0,.3)!important}
+#rlScreens .rl-section-desc{color:var(--v30-muted)!important;line-height:1.55!important;font-size:clamp(14px,1.2vw,17px)!important}
+#rlScreens .rl-back{color:#fff!important;text-decoration:none!important;font:800 11px Arial,sans-serif!important;letter-spacing:.17em!important;margin-bottom:22px!important;transition:transform .22s var(--v30-ease),color .2s!important}
+#rlScreens .rl-back:hover{color:var(--v30-red)!important;transform:translateX(-4px)}
+#rlScreens .rl-muted-text,#rlScreens .rl-setting-note,#rlScreens .rl-pick-sub,#rlScreens .v25-garage-blurb{color:var(--v30-muted)!important}
+
+/* Nav: no fake app toolbar. Clean typographic hierarchy and fine underline on hover. */
+#rlScreens .rl-header{height:72px!important;background:linear-gradient(to bottom,rgba(4,7,12,.77),rgba(4,7,12,.07))!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;padding:0 clamp(30px,4.8vw,80px)!important}
+#rlScreens .rl-brand-small{font:italic 950 23px/.92 'Arial Black',Arial,sans-serif!important;letter-spacing:-.065em!important;background:none!important;border:0!important;padding:8px 0!important}
+#rlScreens .rl-brand-small span{color:var(--v30-red)!important}
+#rlScreens .rl-header-controls{top:18px!important}
+#rlScreens .rl-subtle-btn,#rlScreens .rl-sign-btn{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:11px 3px!important;min-height:0!important;font:800 11px Arial,sans-serif!important;letter-spacing:.13em!important;color:#e8e4e4!important}
+#rlScreens .rl-subtle-btn:hover{transform:none!important;color:var(--v30-red)!important;text-decoration:underline!important;text-underline-offset:6px!important}
+#rlScreens .rl-sign-btn{opacity:.55!important}
+
+/* Home: one dominant wordmark, focused CTA, secondary links and a quiet status rail. */
+#rlScreens .rl-home{min-height:100vh!important;display:flex!important;align-items:center!important}
+#rlScreens .rl-home .rl-hero-copy{padding-top:0!important;max-width:620px!important;width:min(575px,51vw)!important}
+#rlScreens .rl-home .rl-logo{font:italic 950 clamp(100px,11.5vw,186px)/.8 'Arial Black',Arial,sans-serif!important;color:var(--v30-red)!important;letter-spacing:-.086em!important;margin:30px 0 24px!important;text-shadow:0 12px 55px rgba(255,37,68,.17)!important}
+#rlScreens .rl-home .rl-rule{width:52px!important;height:2px!important;background:var(--v30-red)!important;border-radius:0!important;margin:0 0 18px!important;box-shadow:none!important}
+#rlScreens .rl-home .rl-tagline{color:#f9f3f1!important;font:500 clamp(23px,2.8vw,39px)/1.1 Arial,sans-serif!important;letter-spacing:-.035em!important;margin:0 0 37px!important}
+#rlScreens .rl-home .rl-stack{width:min(380px,100%)!important;gap:0!important;display:grid!important}
+#rlScreens .rl-stack .rl-action{min-height:52px!important}
+#rlScreens .rl-home-progress{margin-top:24px!important;opacity:.94}
+#rlScreens .rl-home .v25-hero-meta{display:flex!important;gap:22px!important;flex-wrap:wrap!important;margin-top:28px!important;border-top:1px solid var(--v30-rule)!important;padding-top:15px!important;font:800 9px Arial,sans-serif!important;letter-spacing:.16em!important;color:#d6cdce!important}
+#rlScreens .rl-footer-mark{color:#ddd1d0!important;font:750 10px Arial,sans-serif!important;letter-spacing:.13em!important;bottom:28px!important}
+#rlScreens .rl-footer-mark span{color:var(--v30-red)!important}
+#rlScreens .rl-alpha-label{font-size:9px!important;color:var(--v30-red)!important;letter-spacing:.1em!important;margin-left:5px}
+#rlScreens .v25-passport-ribbon,#rlScreens .v25-passport-info,#rlScreens .v25-passport-meter,#rlScreens .v25-passport-label{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important}
+#rlScreens .v25-passport-ribbon{padding:0!important;margin:0!important}
+
+/* All navigation buttons behave like a single family of high-end editorial links. */
+#rlScreens .rl-action,#rlScreens .rl-action.primary{
+  position:relative!important;transform:none!important;skew:none;
+  border:0!important;border-bottom:1px solid var(--v30-rule)!important;border-radius:0!important;
+  background:transparent!important;background-image:none!important;box-shadow:none!important;
+  padding:14px 5px!important;min-height:54px!important;
+  color:var(--v30-white)!important;font:italic 900 17px Arial,sans-serif!important;
+  letter-spacing:.01em!important;text-align:left!important;
+  transition:color .27s,letter-spacing .35s var(--v30-ease),padding .3s var(--v30-ease)!important
+}
+#rlScreens .rl-action::before{content:'';position:absolute;left:0;bottom:-1px;height:2px;width:0;background:var(--v30-red);transition:width .42s var(--v30-ease)}
+#rlScreens .rl-action:hover::before,#rlScreens .rl-action:focus-visible::before{width:100%}
+#rlScreens .rl-action.primary{color:#fff!important;border-bottom-color:rgba(255,61,80,.74)!important}
+#rlScreens .rl-action.primary::before{width:48px}
+#rlScreens .rl-action.primary:hover::before{width:100%}
+#rlScreens .rl-action b{font:inherit!important;transform:none!important}
+#rlScreens .rl-action .rl-arrow{color:var(--v30-red)!important;transform:none!important;font-size:24px!important;transition:transform .32s var(--v30-ease)!important}
+#rlScreens .rl-action:hover:not(:disabled){color:var(--v30-white)!important;letter-spacing:.055em!important;transform:none!important;background:transparent!important;box-shadow:none!important}
+#rlScreens .rl-action:hover:not(:disabled) .rl-arrow{transform:translate(4px,-3px)!important}
+#rlScreens .rl-action:active:not(:disabled){color:var(--v30-red)!important}
+#rlScreens .rl-action:disabled{color:#9b9193!important;opacity:.55!important}
+
+/* Garage: let the 3D aircraft breathe. Remove extra boxes behind controls. */
+#rlScreens .rl-vehicle-page .rl-select-layout{grid-template-columns:minmax(300px,365px) minmax(0,1fr)!important;gap:clamp(36px,5vw,90px)!important}
+#rlScreens .rl-vehicle-page .rl-select-panel{background:none!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;padding:0!important;max-width:365px!important}
+#rlScreens .rl-vehicle-page .rl-wheel-field,#rlScreens .rl-vehicle-page .rl-field,
+#rlScreens .rl-vehicle-page .rl-select-control{background:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding-left:0!important;padding-right:0!important}
+#rlScreens .rl-vehicle-page .rl-pick-card{background:rgba(12,14,19,.1)!important;border:0!important;border-bottom:2px solid transparent!important;border-radius:0!important;box-shadow:none!important;min-width:128px!important;flex-basis:128px!important;opacity:.72!important;filter:saturate(.7)!important;transition:opacity .25s,filter .3s,transform .3s var(--v30-ease)!important}
+#rlScreens .rl-vehicle-page .rl-pick-card[aria-pressed='true']{opacity:1!important;filter:saturate(1)!important;border-bottom:2px solid var(--v30-red)!important;transform:translateY(-3px)!important}
+#rlScreens .rl-vehicle-page .rl-pick-card:hover:not(:disabled){opacity:1!important;filter:saturate(1)!important;transform:translateY(-3px)!important}
+#rlScreens .rl-vehicle-page .rl-wheel-arrow{background:transparent!important;border:0!important;border-radius:0!important;color:#fff!important;box-shadow:none!important}
+#rlScreens .rl-vehicle-page .rl-select-actions{background:none!important;box-shadow:none!important;filter:none!important;padding:0!important;margin-top:19px!important}
+#rlScreens .rl-vehicle-page .rl-model-stage{background:none!important;box-shadow:none!important;border:0!important;overflow:visible!important}
+#rlScreens .rl-vehicle-page .rl-model-readout{background:none!important;box-shadow:none!important;border:0!important;backdrop-filter:none!important}
+#rlScreens .rl-vehicle-page .rl-model-readout h3{font-size:clamp(36px,4.4vw,66px)!important}
+#rlScreens .rl-stat-row .rl-meter{background:rgba(255,255,255,.18)!important;border:0!important;height:3px!important}
+#rlScreens .rl-stat-row .rl-meter i{background:var(--v30-red)!important}
+
+/* Courses: editorial image strips with selection indicated by typography and a 2px rule. */
+#rlScreens .rl-track-select .rl-track-picker{margin-top:18px!important}
+#rlScreens .rl-track-picker .v25-course-deck{gap:27px!important}
+#rlScreens .rl-track-picker .v25-course-card{
+  border:0!important;border-bottom:2px solid rgba(255,255,255,.27)!important;
+  border-radius:0!important;box-shadow:none!important;background:transparent!important;
+  padding:18px 8px 20px!important;transform:none!important;
+  transition:border-color .3s,transform .4s var(--v30-ease),filter .4s!important;
+}
+#rlScreens .rl-track-picker .v25-course-card::before,#rlScreens .rl-track-picker .v25-course-card::after{box-shadow:none!important}
+#rlScreens .rl-track-picker .v25-course-card.selected{border-color:var(--v30-red)!important;background:transparent!important}
+#rlScreens .rl-track-picker .v25-course-card:hover:not(:disabled){transform:translateY(-4px)!important;border-color:#ff6775!important}
+#rlScreens .rl-track-picker .v25-course-title{font:italic 900 clamp(29px,3vw,48px)/1 Arial,sans-serif!important;color:var(--v30-white)!important;letter-spacing:-.05em!important}
+#rlScreens .rl-track-picker .v25-course-meta,#rlScreens .rl-track-picker .v25-course-caption{color:#e1d9d8!important}
+#rlScreens .rl-track-controls .rl-field{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}
+#rlScreens .rl-chip{border:0!important;border-bottom:2px solid rgba(255,255,255,.35)!important;background:transparent!important;color:#e2dbda!important;border-radius:0!important;box-shadow:none!important}
+#rlScreens .rl-chip[aria-pressed='true'],#rlScreens .rl-chip.selected{background:transparent!important;color:#fff!important;border-color:var(--v30-red)!important;box-shadow:none!important}
+#rlScreens .rl-chip:hover{border-color:#fff!important;color:#fff!important}
+
+/* Results, passport, settings: restrained separators, no tile grid for every datum. */
+#rlScreens .rl-settings-panel,#rlScreens .rl-net-panel,#rlScreens .rl-soon-card,
+#rlScreens .rl-control-row,#rlScreens .rl-score-row,#rlScreens .rl-score-row.me,
+#rlScreens .rl-net-pilot,#rlScreens .rl-course-detail{
+  background:transparent!important;background-image:none!important;
+  box-shadow:none!important;border:0!important;border-radius:0!important;backdrop-filter:none!important;
+}
+#rlScreens .rl-settings-panel{padding:2px 0!important;max-width:800px!important}
+#rlScreens .rl-setting{border-bottom:1px solid var(--v30-rule)!important;padding:8px 2px 18px!important;margin:0 0 8px!important}
+#rlScreens .rl-setting-note{border:0!important;padding:0!important}
+#rlScreens .rl-setting select,#rlScreens .rl-net-input{border:1px solid rgba(255,255,255,.35)!important;background:rgba(9,12,17,.68)!important;border-radius:3px!important}
+#rlScreens .rl-control-row{border-bottom:1px solid var(--v30-rule)!important;padding:16px 2px!important}
+#rlScreens .rl-scoreboard{gap:0!important}
+#rlScreens .rl-score-row{border-bottom:1px solid var(--v30-rule)!important;min-height:68px!important;padding:17px 7px!important}
+#rlScreens .rl-score-row.me{border-bottom:2px solid var(--v30-red)!important}
+#rlScreens .rl-score-row .rank{color:var(--v30-red)!important}
+#rlScreens .rl-result-hero{color:var(--v30-red)!important;font-style:italic!important;text-shadow:none!important}
+#rlScreens .rl-victory-rays{opacity:.24!important}
+#rlScreens .rl-net-grid,#rlScreens .rl-net-pilots{gap:28px!important}
+
+/* Race: a single signature HUD. Content is pure typography except meters. */
+body.rl-play #rlGameTop,body.rl-play #rlPositions,body.rl-play #rlFlowModule,
+body.rl-play #rlFpTelemetry,body.rl-play #rlSprintTelemetry,body.rl-play #rlSpeedBox,
+body.rl-play #rlBoostLinear,body.rl-play #rlBoostLinear .rl-linear-rail,
+body.rl-play #rlToast,body.rl-play #rlGameButtons,body.rl-play #rlMouseUnlock,
+body.rl-play #clashTV,body.rl-play #clashEvent,body.rl-play #navPointer,
+body.rl-play #routeHint,body.rl-play #rlOnlineHud,body.rl-play #rlTutorial{
+  border:0!important;background:transparent!important;background-image:none!important;
+  box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+body.rl-play #rlGameTop,body.rl-play #rlPositions,body.rl-play #rlFlowModule,
+body.rl-play #rlFpTelemetry,body.rl-play #rlSprintTelemetry,body.rl-play #rlToast,
+body.rl-play #rlMouseUnlock,body.rl-play #navPointer,body.rl-play #routeHint,
+body.rl-play #clashTV,body.rl-play #clashEvent{color:var(--v30-white)!important;text-shadow:var(--v30-shadow)!important}
+body.rl-play #rlLap{color:var(--v30-red)!important}
+body.rl-play #rlToast b{color:var(--v30-red)!important}
+body.rl-play #maphud{border:0!important;background:transparent!important;box-shadow:none!important}
+body.rl-play #rlGameButtons button{border:0!important;background:transparent!important;box-shadow:none!important;font:850 10px Arial,sans-serif!important;letter-spacing:.13em!important;color:#fff!important}
+body.rl-play #rlGameButtons button:hover{color:var(--v30-red)!important;text-decoration:underline!important;text-underline-offset:5px!important}
+
+/* Tactical: right-bottom compact instrument, clear costs and action states. */
+body.rl-play.rl-hud-tactical #rlFlowModule{
+  display:flex!important;flex-direction:column!important;position:absolute!important;
+  right:clamp(16px,3.1vw,45px)!important;bottom:clamp(18px,3.2vh,40px)!important;
+  top:auto!important;left:auto!important;width:clamp(234px,20.5vw,292px)!important;
+  z-index:91!important;margin:0!important;padding:0!important;
+  transform:none!important;pointer-events:auto!important;
+  isolation:isolate!important;
+}
+body.rl-play.rl-hud-tactical #rlSpeedBox{
+  display:flex!important;right:auto!important;left:clamp(14px,2.5vw,40px)!important;
+  bottom:clamp(12px,2vh,25px)!important;transform:scale(.74)!important;
+  transform-origin:left bottom!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-top{
+  display:flex!important;align-items:baseline!important;justify-content:space-between!important;
+  gap:10px!important;margin:0 0 8px!important;padding:0!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-name{
+  color:#fff!important;font:850 12px/1.1 Arial,sans-serif!important;
+  letter-spacing:.17em!important;white-space:nowrap!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-name em{
+  color:var(--v30-red)!important;font-style:normal!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-quantity{
+  color:#fff!important;font:900 31px/1 'Arial Black',Arial,sans-serif!important;
+  letter-spacing:-.055em!important;white-space:nowrap!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-quantity small{
+  color:#fff!important;font:600 11px Arial,sans-serif!important;opacity:.9!important;margin-left:3px!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-body{display:block!important;padding:0!important;margin:0!important}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-rail{
+  height:4px!important;border:0!important;border-radius:1px!important;
+  background:rgba(255,255,255,.26)!important;box-shadow:0 2px 7px #0009!important;
+  overflow:hidden!important;margin:0!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule #rlFlowFill{
+  height:100%!important;background:linear-gradient(90deg,#e11935,#ff5b70)!important;
+  border-radius:0!important;transition:width .21s ease-out!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-help{display:none!important}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-actions{
+  display:grid!important;grid-template-columns:1fr 1fr!important;
+  gap:9px 15px!important;margin:16px 0 11px!important;padding:0!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action{
+  display:grid!important;grid-template-columns:20px 1fr!important;
+  grid-template-rows:17px 15px!important;column-gap:5px!important;row-gap:1px!important;
+  min-height:40px!important;height:auto!important;width:100%!important;
+  padding:3px 0!important;margin:0!important;border:0!important;border-radius:0!important;
+  box-shadow:none!important;background:transparent!important;
+  text-align:left!important;white-space:nowrap!important;
+  opacity:1!important;transition:opacity .2s,color .2s,transform .2s var(--v30-ease)!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action .key{
+  grid-column:1!important;grid-row:1 / span 2!important;align-self:start!important;
+  padding:0!important;margin:0!important;color:var(--v30-red)!important;
+  font:900 14px/1 Arial,sans-serif!important;text-shadow:var(--v30-shadow)!important;
+  border:0!important;background:none!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action .label{
+  grid-column:2!important;grid-row:1!important;align-self:start!important;
+  color:#fff!important;font:900 11px/1.1 Arial,sans-serif!important;
+  letter-spacing:.015em!important;text-shadow:var(--v30-shadow)!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action .cost{
+  grid-column:2!important;grid-row:2!important;color:#e0d7d6!important;
+  font:750 10px Arial,sans-serif!important;letter-spacing:.045em!important;text-shadow:var(--v30-shadow)!important;
+}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action:hover{transform:translateY(-2px)!important}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action:hover .label,
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action:focus-visible .label{color:#ff8995!important}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action[disabled],
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-action.unavailable{opacity:.56!important}
+body.rl-play.rl-hud-tactical #rlFlowModule .rl-flow-ammo{
+  display:flex!important;justify-content:space-between!important;align-items:center!important;
+  margin:2px 0 0!important;padding:8px 0 0!important;
+  border-top:1px solid rgba(255,255,255,.35)!important;
+  color:#fff!important;font:800 10px Arial,sans-serif!important;letter-spacing:.14em!important;
+}
+body.rl-play.rl-hud-tactical #rlAmmoCharges{color:var(--v30-red)!important;font:900 18px/1 Arial,sans-serif!important;letter-spacing:.24em!important}
+
+/* Keep the persistent race UI proportional at narrower desktop widths. */
+@media(max-width:1100px){
+ #rlScreens .rl-home .rl-logo{font-size:clamp(80px,11vw,130px)!important}
+ #rlScreens .rl-home .rl-hero-copy{width:min(510px,64vw)!important}
+ #rlScreens .rl-vehicle-page .rl-select-layout{gap:20px!important}
+ body.rl-play.rl-hud-tactical #rlFlowModule{width:245px!important;right:13px!important;bottom:14px!important}
+ body.rl-play.rl-hud-tactical #rlSpeedBox{transform:scale(.65)!important}
+}
+@media(max-width:780px){
+ #rlScreens .rl-layout{padding:110px 25px 75px!important}
+ #rlScreens .rl-home .rl-hero-copy{width:100%!important}
+ #rlScreens .rl-home .rl-logo{font-size:clamp(67px,16vw,118px)!important}
+ #rlScreens .rl-home .rl-tagline{font-size:25px!important}
+ #rlScreens .rl-vehicle-page .rl-select-layout{grid-template-columns:1fr!important}
+ #rlScreens .rl-vehicle-page .rl-select-panel{max-width:100%!important}
+ #rlScreens .rl-track-picker .v25-course-deck{grid-template-columns:1fr!important}
+ #rlScreens .rl-track-controls{flex-direction:column!important;align-items:stretch!important}
+ #rlScreens .rl-track-controls .rl-action{width:100%!important}
+ body.rl-play.rl-hud-tactical #rlFlowModule{width:215px!important;right:9px!important;bottom:8px!important;transform:scale(.86)!important;transform-origin:right bottom!important}
+ body.rl-play.rl-hud-tactical #rlSpeedBox{transform:scale(.56)!important}
+}
+@media(prefers-reduced-motion:reduce){
+ body.rl-menu #rlScreens *,body.rl-play #rlPersistent *,body.rl-play #rlGameButtons *{animation:none!important;transition:none!important;will-change:auto!important}
+}
+body.rl-reduced-motion #rlScreens *,body.rl-reduced-motion #rlPersistent *{animation:none!important;transition:none!important;will-change:auto!important}
+
+/* Final refinements: wordmark fit, passport, mission report and Flight School. */
+#rlScreens .rl-home .rl-logo{font-size:clamp(84px,9.3vw,153px)!important;letter-spacing:-.081em!important}
+#rlScreens .rl-home .rl-hero-copy{max-width:650px!important;width:min(610px,55vw)!important}
+#rlScreens .v25-hero-meta span{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;color:#ddd2d1!important}
+#rlScreens .v25-passport-info,#rlScreens .v25-callsign{color:#eee5e4!important}
+#rlScreens .v25-mini-meter,#rlScreens .v25-progress{background:rgba(255,255,255,.18)!important;border:0!important;box-shadow:none!important;height:3px!important}
+#rlScreens .v25-mini-meter i,#rlScreens .v25-progress i{background:var(--v30-red)!important}
+#rlScreens .v25-career-hero,#rlScreens .v25-career-numbers,
+#rlScreens .v25-course-records article,#rlScreens .v25-academy-hero,#rlScreens .v25-academy-aside,
+#rlScreens .v25-result-module,#rlScreens .v25-result-tiles>div,#rlScreens .v25-badges span,
+#rlScreens .v25-trail-card,#rlScreens .v25-garage-personalize{
+  background:transparent!important;background-image:none!important;border:0!important;
+  border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;
+}
+#rlScreens .v25-career-hero{border-bottom:1px solid var(--v30-rule)!important;padding:14px 0 28px!important;margin:20px 0 28px!important}
+#rlScreens .v25-career-hero h2{color:#fff!important;font:italic 900 clamp(36px,5vw,75px)/1 Arial,sans-serif!important;letter-spacing:-.05em!important}
+#rlScreens .v25-career-numbers span{color:#eee7e5!important}
+#rlScreens .v25-course-records article{border-bottom:1px solid var(--v30-rule)!important;padding:22px 0!important}
+#rlScreens .v25-academy-layout{gap:45px!important}
+#rlScreens .v25-academy-aside{border-left:1px solid var(--v30-rule)!important;padding:8px 0 8px 25px!important}
+#rlScreens .v25-academy-hero{padding:6px 0 20px!important}
+#rlScreens .v25-lesson-row span{color:#fff!important}
+#rlScreens .v25-result-module{border-top:1px solid var(--v30-rule)!important;border-bottom:1px solid var(--v30-rule)!important;padding:17px 0!important;margin:25px 0!important}
+#rlScreens .v25-result-tiles>div{border-right:1px solid var(--v30-rule)!important;padding:5px 16px!important}
+#rlScreens .v25-result-tiles>div:first-child{padding-left:0!important}
+#rlScreens .v25-result-tiles>div:last-child{border-right:0!important}
+#rlScreens .v25-trail-card{border-bottom:2px solid rgba(255,255,255,.22)!important;padding:12px 3px!important;transition:transform .25s var(--v30-ease),border-color .25s!important}
+#rlScreens .v25-trail-card.selected{border-color:var(--v30-red)!important}
+#rlScreens .v25-trail-card:hover:not(:disabled){transform:translateY(-3px)!important;border-color:#fff!important}
+#rlScreens .v25-callsign-input{background:rgba(9,12,16,.7)!important;border:1px solid var(--v30-rule)!important;border-radius:3px!important;color:#fff!important}
+#rlScreens .v25-badges span{border-bottom:1px solid var(--v30-rule)!important;color:#eee!important;padding:9px 4px!important}
+#rlScreens .v25-badges span.earned{border-bottom-color:var(--v30-red)!important}
+
+/* A very subtle cursor-following accent on menu backgrounds, never over content. */
+body.rl-menu #rlScreens::before{
+  display:block!important;content:''!important;opacity:1!important;z-index:1!important;
+  background:radial-gradient(420px circle at var(--rl30-pointer-x,65%) var(--rl30-pointer-y,57%),rgba(255,48,75,.055),transparent 74%)!important;
+  pointer-events:none!important;
+}
+@media(max-width:780px){
+ #rlScreens .rl-home .rl-hero-copy{width:100%!important}
+ #rlScreens .v25-academy-layout{grid-template-columns:1fr!important;gap:22px!important}
+ #rlScreens .v25-academy-aside{border-left:0!important;border-top:1px solid var(--v30-rule)!important;padding:20px 0 0!important}
+ #rlScreens .v25-result-tiles{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+
