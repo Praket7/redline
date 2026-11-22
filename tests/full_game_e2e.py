@@ -82,7 +82,10 @@ try:
                 assert case['drawCalls']>0 and case['triangles']>0, f'3D render was empty: {craft}: {case}'
                 assert case['craftMotion']>0.05,f'no flight motion under thrust: {craft}: {case}'
                 page.screenshot(path=str(QA/f'FULL_CHASE_{craft.upper()}.png'),animations='disabled')
-                page.evaluate('()=>window.REDLINE_E2E.view(true)')
+                # The production P control updates both flight camera and FPV CSS.
+                # Do not set config.view alone; it bypasses the real UI transition.
+                page.keyboard.press('p')
+                page.wait_for_function(\"document.body.classList.contains('rl-cockpit')\",timeout=10000)
                 # Draw the real scene immediately; software WebGL can be far
                 # slower than real-time at 1600x900 on CI hosts.
                 page.evaluate('()=>window.redlineRenderInterpolated(1/60,0)')
@@ -99,7 +102,8 @@ try:
                 # Confirm scene continued in FPV.
                 afterFpv=page.evaluate('()=>window.REDLINE_E2E.status()')
                 assert afterFpv['simulation']['tick']>=after['simulation']['tick'], 'simulation regressed'
-                page.evaluate('()=>window.REDLINE_E2E.view(false)')
+                page.keyboard.press('p')
+                page.wait_for_function("!document.body.classList.contains('rl-cockpit')",timeout=10000)
                 case['state']='PASS'
             except Exception as exc:
                 case['state']='FAIL';case['error']=str(exc)
