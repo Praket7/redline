@@ -1,0 +1,70 @@
+name: v93 exact Stage 2 browser acceptance
+on:
+  push:
+    branches: [stage2/v93-race-replay]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [raven, grand, kestrel, blade, copper, spirit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45289606393
+          name: REDLINE-v86-exact-browser-audit
+          path: v86-artifact
+      - name: Reconstruct exact release and verify hashes
+        run: |
+          python - <<'PY'
+          import pathlib, hashlib, json, gzip, base64
+          d=json.loads(gzip.decompress(base64.b64decode(pathlib.Path('qa/v93_standalone_delta.b64').read_text())))
+          src=next(pathlib.Path('v86-artifact').rglob('REDLINE_v86_AUDITED.html')).read_bytes()
+          assert hashlib.sha256(src).hexdigest()==d['base']
+          lines=src.decode().splitlines(keepends=True)
+          for i,j,rep in reversed(d['ops']):
+              lines[i:j]=rep.splitlines(keepends=True)
+          target=''.join(lines).encode()
+          assert hashlib.sha256(target).hexdigest()==d['target']=='a9beb7e45bfd8f64bb370f8d230d8231924adab1fa74c028c53d3eec021b18ab'
+          pathlib.Path('dist').mkdir(exist_ok=True)
+          pathlib.Path('dist/REDLINE_v93_STAGE2.html').write_bytes(target)
+          print('Verified exact release', d['target'], len(target))
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Race completion, results, ghost and replay integration
+        if: matrix.case == 'raven' || matrix.case == 'grand'
+        env:
+          COURSE: ${{ matrix.case }}
+        run: python tests/v93_stage2_browser.py
+      - name: Four-airframe Stage 1 regression
+        if: matrix.case != 'raven' && matrix.case != 'grand'
+        env:
+          CRAFT: ${{ matrix.case }}
+        run: |
+          python - <<'PY'
+          import pathlib,os
+          p=pathlib.Path('tests/v86_live_audit.py')
+          s=p.read_text().replace('REDLINE_v86_AUDITED.html','REDLINE_v93_STAGE2.html').replace("['kestrel','blade','copper','spirit']",repr([os.environ['CRAFT']])).replace("len(report['cases'])!=4","len(report['cases'])!=1")
+          pathlib.Path('tests/v93_stage1_regression.py').write_text(s)
+          PY
+          python tests/v93_stage1_regression.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: REDLINE-v93-${{ matrix.case }}
+          path: |
+            qa/v86/
+            qa/v93/
+          retention-days: 14
