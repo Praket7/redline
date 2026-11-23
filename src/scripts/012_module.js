@@ -15,12 +15,12 @@
   {id:'climb',label:'Climb',group:'FLIGHT',main:'ArrowUp',alt:null},
   {id:'descend',label:'Descend',group:'FLIGHT',main:'ArrowDown',alt:null},
   {id:'boost',label:'Afterburner',group:'FLIGHT',main:'ShiftLeft',alt:'ShiftRight'},
-  {id:'brake',label:'Air brake',group:'FLIGHT',main:'Space',alt:null},
-  {id:'fire',label:'Fire lasers',group:'COMBAT',main:'KeyE',alt:'KeyF'},
+  {id:'brake',label:'FULL STOP',group:'FLIGHT',main:'KeyJ',alt:null},
+  {id:'fire',label:'Fire lasers',group:'COMBAT',main:'KeyE',alt:null},
   {id:'flowBoost',label:'Flow → boost',group:'COMBAT',main:'KeyB',alt:null},
-  {id:'shield',label:'Energy shield',group:'COMBAT',main:'KeyJ',alt:null},
+  {id:'shield',label:'Energy shield',group:'COMBAT',main:'Space',alt:null},
   {id:'emp',label:'EMP pulse',group:'COMBAT',main:'KeyH',alt:null},
-  {id:'reload',label:'Recharge lasers',group:'COMBAT',main:'KeyZ',alt:null},
+  {id:'reload',label:'Reload lasers',group:'COMBAT',main:'KeyF',alt:null},
   {id:'recover',label:'Recover at checkpoint',group:'CAMERA & RACE',main:'KeyR',alt:null},
   {id:'view',label:'Toggle chase / FPV',group:'CAMERA & RACE',main:'KeyP',alt:null},
   {id:'cameraZoom',label:'Chase zoom',group:'CAMERA & RACE',main:'KeyC',alt:null},
@@ -61,11 +61,11 @@
   const raw=root.localStorage?.getItem(STORAGE);
   if(raw){const parsed=JSON.parse(raw),candidate=cloneDefaults();
    for(const d of DEFINITIONS){
-    if(!parsed[d.id]||['climb','descend','fire'].includes(d.id))continue;
+    if(!parsed[d.id]||['climb','descend','fire','brake','shield','reload'].includes(d.id))continue;
     candidate[d.id]={main:parsed[d.id].main,alt:parsed[d.id].alt??null};
    }
-   // v31 reserves E for primary fire, retaining F as the second fire key.
-   // Altitude keys move to arrows; Q and E no longer control vertical movement.
+   // v81: migrate old localStorage bindings without allowing J, Space, E or F
+   // to retain legacy conflicting commands. Preserve unrelated custom bindings.
    if(validateMap(candidate))bindings=candidate;
   }
  }catch(_e){}
@@ -102,7 +102,7 @@
    <div class="rl-bind-heading"><div><h3>KEYBINDINGS</h3><p>W/S drive forward and backward; A/D strafe. Move the locked mouse to steer or pitch; arrow keys provide vertical override. Select a key, then press its replacement. Changes save automatically.</p></div><button type="button" class="rl-bind-reset" data-key-reset="1">RESET ALL</button></div>
    <div class="rl-bind-locked"><span>LOCKED FLIGHT CONTROLS</span><b>W / A / S / D</b></div>
    ${groups.map(g=>`<h4 class="rl-bind-group">${g}</h4>`+DEFINITIONS.filter(d=>d.group===g).map(d=>`<div class="rl-bind-row"><span>${d.label}</span><div><button type="button" data-bind="${d.id}" data-slot="main" aria-label="Rebind ${d.label} primary key">${label(bindings[d.id].main)}</button><button type="button" data-bind="${d.id}" data-slot="alt" aria-label="Rebind ${d.label} alternative key">${label(bindings[d.id].alt)}</button></div></div>`).join('')).join('')}
-   <p class="rl-bind-help">ESC cancels rebinding. While editing an alternative, DELETE clears it. Double-click or E fires lasers; F is an alternative. Escape releases the mouse.</p>
+   <p class="rl-bind-help">ESC cancels rebinding. While editing an alternative, DELETE clears it. J stops instantly; SPACE shields; F reloads; E alone fires. Escape releases the mouse.</p>
    <div class="rl-bind-status" role="status" aria-live="polite">Choose any key to customize its action.</div>
   </section>`;
  }
@@ -140,7 +140,7 @@
   for(const b of document.querySelectorAll('[data-op="camera"]'))b.title=display('view')+' · Switch chase / FPV';
  }
  function manualHTML(type){
-  const list=[['W / S','Forward / reverse'],['A / D','Strafe left / right'],...DEFINITIONS.filter(d=>d.group!=='DEVELOPER').map(d=>[display(d.id),d.label]),['MOUSE','Move freely: steer / pitch (locked by default)'],['DOUBLE-CLICK','Fire laser (double-tap recaptures after Esc)'],['ESC','Release mouse / close panel']];
+  const list=[['W / S','Forward / reverse'],['A / D','Strafe left / right'],...DEFINITIONS.filter(d=>d.group!=='DEVELOPER').map(d=>[display(d.id),d.label]),['MOUSE','Move freely: steer / pitch (locked by default)'],['E ONLY','Fire laser (mouse double-click is pointer recapture only)'],['ESC','Release mouse / close panel']];
   return list.map(([key,desc])=>type==='race'?`<div class="rl-control-pair"><span>${desc}</span><strong>${key}</strong></div>`:`<div class="rl-control-row"><span>${desc}</span><kbd class="rl-key">${key}</kbd></div>`).join('');
  }
  function showMessage(message,error){
