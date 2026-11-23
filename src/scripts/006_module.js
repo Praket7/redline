@@ -125,7 +125,8 @@
     if(canBoost&&f.energy<=0){f.energy=0;f.boosting=false;f.boostLocked=true;}
     const reverseMaximum=easy?36:sport?45:45+thrust*16;
     const reversing=drive!==0&&f.speed!==0&&Math.sign(drive)!==Math.sign(f.speed);
-    if(input.brake)f.speed=approach(f.speed,0,airBrake*dt);
+    if(input.emergencyStop){f.speed=0;f.vx=f.vy=f.vz=0;f.strafeSpeed=0;}
+    else if(input.brake)f.speed=approach(f.speed,0,airBrake*dt);
     else if(reversing)f.speed=approach(f.speed,0,(easy?220:177)*dt);
     else if(drive===0)f.speed=damp(f.speed,0,coastTau,dt);
     else f.speed=approach(f.speed,drive>0?maxCruise*drive:-reverseMaximum*Math.abs(drive),(drive>0?acceleration:72)*dt);
