@@ -7144,16 +7144,16 @@ const REDLINE_SHOWROOM=(()=>{
  // Lighting is carefully constrained: three photographic studio sources, two
  // low-intensity practicals, plus faint ambient. Lights don't cast tunnel shadows.
  const ambient=new THREE.HemisphereLight(0xb5cde5,0x10151d,.31);scene.add(ambient);if(Number(THREE.REVISION)>=155)ambient.intensity*=Math.PI;
- const key=new THREE.SpotLight(0xf6f8ff,Number(THREE.REVISION)>=155?5.3*45:5.3,115,Math.PI*.30,.76,1.15);
+ const key=new THREE.SpotLight(0xf6f8ff,Number(THREE.REVISION)>=155?5.3*160:5.3,115,Math.PI*.30,.76,1.15);
  key.position.set(-13,24,-15);key.target.position.set(5,2.6,4);scene.add(key,key.target);
  key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.bias=-.0002;key.shadow.normalBias=.035;
  key.shadow.camera.near=.5;key.shadow.camera.far=115;
- const rim=new THREE.SpotLight(0xb6d5ff,Number(THREE.REVISION)>=155?3.5*45:3.5,105,Math.PI*.27,.72,1.18);
+ const rim=new THREE.SpotLight(0xb6d5ff,Number(THREE.REVISION)>=155?3.5*160:3.5,105,Math.PI*.27,.72,1.18);
  rim.position.set(20,23,30);rim.target.position.set(5,2.6,4);scene.add(rim,rim.target);
- const fill=new THREE.SpotLight(0xffffff,Number(THREE.REVISION)>=155?1.7*45:1.7,100,Math.PI*.39,.86,1.2);
+ const fill=new THREE.SpotLight(0xffffff,Number(THREE.REVISION)>=155?1.7*160:1.7,100,Math.PI*.39,.86,1.2);
  fill.position.set(18,16,-21);fill.target.position.set(5,2.3,4);scene.add(fill,fill.target);
  for(const x of[-11,21]){
-  const practical=new THREE.PointLight(0xe0f0ff,Number(THREE.REVISION)>=155 ? .62*36 : .62,38,2);
+  const practical=new THREE.PointLight(0xe0f0ff,Number(THREE.REVISION)>=155 ? .62*100 : .62,38,2);
   practical.position.set(x,20,0);scene.add(practical);
  }
  // Low-frequency penumbra reinforces the actual cast shadow, not an opaque disk.
