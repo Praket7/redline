@@ -7685,17 +7685,17 @@ const REDLINE_SHOWROOM=(()=>{
   // A truly LOCKED architectural view. The hangar must never orbit or sway;
   // only the Kestrel root animates after fly-in, while the platform stays fixed.
   const fixedAngle=-1.2;
-  const baseRadius=screen==='solo'?30.5:screen==='landing'?34:33;
+  const baseRadius=screen==='solo'?39.5:screen==='landing'?41:39;
   const viewAspect=Math.max(.42,innerWidth/Math.max(1,innerHeight));
   const r=innerWidth<=720?Math.max(baseRadius,10.6/(.37*viewAspect)):baseRadius*Math.max(1,1.6/viewAspect);
-  camera.position.set(5+Math.cos(fixedAngle)*r,10.9,4+Math.sin(fixedAngle)*r);
+  camera.position.set(5+Math.cos(fixedAngle)*r,11.6,4+Math.sin(fixedAngle)*r);
   // V17.3 right-hand composition: the real Kestrel, platform and orbit target
   // remain at world (5, 2.65, 4). An OFF-AXIS projection moves their IMAGE to
   // the right; moving lookAt in world space could never lock the image during orbit.
-  camera.fov=screen==='solo'?(39-3*Math.min(1,elapsed/1.45)):(43-5*Math.min(1,elapsed/2.65));
+  camera.fov=screen==='solo'?(43-2*Math.min(1,elapsed/1.45)):(46-3*Math.min(1,elapsed/2.65));
   const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);
   const compact=w<=720;
-  let focusX=w*.68;
+  let focusX=w*.79;
   if(screen==='solo'){
    const stage=document.querySelector('.rl-garage .rl-model-stage');
    if(stage){const rect=stage.getBoundingClientRect();focusX=rect.left+rect.width*.43;}
@@ -7703,7 +7703,7 @@ const REDLINE_SHOWROOM=(()=>{
   }
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
-   focusX=Math.max(w*.54,Math.min(w*.72,focusX));
+   focusX=Math.max(w*.78,Math.min(w*.83,focusX));
    // A virtual screen twice as wide as the focus position places the world
    // target exactly at focusX pixels without stretching or cropping the model.
    camera.setViewOffset(2*focusX,h,0,0,w,h);
@@ -7717,7 +7717,22 @@ const REDLINE_SHOWROOM=(()=>{
   framingSample+=dt;
   if(model&&framingSample>.55){
    framingSample=0;
-   const box=new THREE.Box3().setFromObject(model),p=new THREE.Vector3();
+   // Screenshot framing excludes non-visual geometry, invisible components,
+   // and transparent exhaust helpers that inflate a full Box3.
+   model.updateMatrixWorld(true);
+   const box=new THREE.Box3(),tmp=new THREE.Box3(),p=new THREE.Vector3();
+   let heroParts=0;
+   model.traverse(obj=>{
+    if(!obj.isMesh||!obj.visible||!obj.geometry)return;
+    const mat=Array.isArray(obj.material)?obj.material[0]:obj.material;
+    if(!mat||mat.visible===false||(mat.transparent&&mat.opacity<.14))return;
+    if(/exhaust|plume|trail|beam|particle|sparks|halo|thruster.?flare/i.test(obj.name))return;
+    if(!obj.geometry.boundingBox)obj.geometry.computeBoundingBox();
+    if(!obj.geometry.boundingBox)return;
+    tmp.copy(obj.geometry.boundingBox).applyMatrix4(obj.matrixWorld);
+    if(!tmp.isEmpty()){box.union(tmp);heroParts++;}
+   });
+   if(!heroParts)box.setFromObject(model);
    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
    for(const x of[box.min.x,box.max.x])for(const y of[box.min.y,box.max.y])for(const z of[box.min.z,box.max.z]){
     p.set(x,y,z).project(camera);
@@ -7726,7 +7741,7 @@ const REDLINE_SHOWROOM=(()=>{
    window.REDLINE_HANGAR_QA.projectedFootprint={
     left:Math.round((minX+1)*w*.5),right:Math.round((maxX+1)*w*.5),
     top:Math.round((1-maxY)*h*.5),bottom:Math.round((1-minY)*h*.5),
-    viewport:[w,h],screen
+    viewport:[w,h],screen,heroParts
    };
   }
   if(!window.redlineUI?.config.reducedMotion)fireRing.rotation.z+=dt*.06;
