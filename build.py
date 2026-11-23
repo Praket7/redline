@@ -111,6 +111,7 @@ def build(mode):
 
 def main():
  DIST.mkdir(parents=True,exist_ok=True)
+ if SITE_ROOT.exists():shutil.rmtree(SITE_ROOT) # no stale CSS/JS from prior variants
  html_name='REDLINE_v78_R187_CANDIDATE.html' if THREE_VARIANT=='r187' else 'REDLINE_v78_STAGE1_STANDALONE.html'
  (DIST/html_name).write_text(build('standalone'))
  site=SITE_ROOT;site.mkdir(exist_ok=True)
