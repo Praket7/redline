@@ -24,7 +24,8 @@ body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-co
    without covering the vehicle or forcing first-time users to hunt for it.
    This applies to desktop widths only; the <=720px mobile dock remains authoritative. */
 @media (min-width:721px) and (max-height:640px){
-  #rlScreens .rl45-vehicle-page{padding-top:clamp(40px,5.5vh,58px)!important}
+  #rlScreens .rl45-vehicle-page{padding-top:clamp(40px,5.5vh,58px)!important;animation:none!important;transform:none!important;filter:none!important;will-change:auto!important}
+  #rlScreens .rl45-vehicle-page .rl45-layout{animation:none!important;transform:none!important;filter:none!important;will-change:auto!important}
   #rlScreens .rl45-vehicle-page .rl45-layout{min-height:0!important;padding:4px 0 18px!important}
   #rlScreens .rl45-title{min-height:48px!important;font-size:clamp(30px,3vw,43px)!important}
   #rlScreens .rl45-airframe{min-height:94px!important}
