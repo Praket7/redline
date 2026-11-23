@@ -91,6 +91,8 @@ try:
                     # Verify a real set of meshes were measured; use the actual
                     # captured hangar screenshot to judge screen crop/overlap.
                     assert fp.get('heroParts',0)>=1, f'no body mesh projected: {craft}: {fp}'
+                    if craft=='spirit' and fp.get('viewport')==[960,540]:
+                        assert 385<=fp['left'] and fp['right']<=948, f'Spirit wing overlaps text or clips screen: {fp}'
                     assert fp.get('viewport',[0,0])[0]>0 and fp['viewport'][1]>0
                 assert case['hangarAirframe']==craft,f'hangar shows wrong aircraft: {case}'
                 page.screenshot(path=str(QA/f'FULL_HANGAR_{craft.upper()}.png'),animations='disabled')
