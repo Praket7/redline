@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real Chromium/WebGL v81 screen-fit + remapped control acceptance test.
+"""Real Chromium/WebGL v82 screen-fit + remapped control acceptance test.
 Runs the ACTUAL compact website, never a mocked Three.js renderer."""
 from pathlib import Path
 from functools import partial
@@ -31,6 +31,19 @@ try:
   page.goto(url,wait_until='domcontentloaded',timeout=40000)
   page.wait_for_function("window.REDLINE_E2E?.status()?.ready===true",timeout=80000)
   assert page.evaluate("window.THREE.REVISION")=='187'
+  # New visitors get the fastest profile; a manual choice is persisted.
+  default_quality=page.evaluate("document.querySelector('#quality')?.value")
+  assert default_quality=='performance',f'wrong first-launch graphics preset: {default_quality}'
+  page.evaluate("""()=>{
+   const q=document.querySelector('#quality');q.value='balanced';q.dispatchEvent(new Event('change',{bubbles:true}));
+  }""")
+  saved=page.evaluate("localStorage.getItem('redline_graphics_preset')")
+  assert saved=='balanced',f'explicit graphics preference did not save: {saved}'
+  page.evaluate("""()=>{
+   const q=document.querySelector('#quality');q.value='performance';q.dispatchEvent(new Event('change',{bubbles:true}));
+  }""")
+  report['graphics']={'default':default_quality,'savedBalanced':saved,'restoredPerformance':page.evaluate("document.querySelector('#quality')?.value")}
+
 
   def inspect(screen,size):
    s=page.evaluate("""()=>{
@@ -46,7 +59,7 @@ try:
    for key in (('canvas',) if screen.startswith(('RACE','FPV')) else ('canvas','screens')):
     a=s[key]
     assert abs(a['x'])<=1 and abs(a['y'])<=1 and abs(a['width']-w)<=1 and abs(a['height']-h)<=1, f'BLACK BARS / viewport mismatch in {screen} {size}: {s}'
-   file=f'V81_{screen}_{size[0]}x{size[1]}.png'
+   file=f'V82_{screen}_{size[0]}x{size[1]}.png'
    page.screenshot(path=str(QA/file),animations='disabled',timeout=30000)
    report['screens'].append({'kind':screen,'size':size,'metrics':s,'image':file})
    return s
@@ -62,7 +75,7 @@ try:
    page.wait_for_timeout(250)
    inspect('SELECTION',size)
    camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
-   assert abs(camera['distance']-56)<.01,f'hangar model zoom instability: {camera}'
+   assert abs(camera['distance']-43)<.01,f'hangar model zoom instability: {camera}'
    if size[0]==960:
     for craft in ['blade','copper','spirit']:
      page.locator(f'button[data-model="{craft}"]').first.click()
@@ -71,7 +84,16 @@ try:
      page.wait_for_timeout(160)
      inspect('SELECTION_'+craft.upper(),size)
      camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
-     assert abs(camera['distance']-56)<.01,f'per-craft camera zoom must stay fixed: {craft} {camera}'
+     assert abs(camera['distance']-43)<.01,f'per-craft camera zoom must stay fixed: {craft} {camera}'
+    # The user's actual screenshot shows saved Spirit on the HOME screen.
+    # Verify that composition as well as the default Kestrel home screen.
+    page.evaluate("window.REDLINE_E2E.screen('landing')")
+    page.evaluate("()=>{for(let i=0;i<105;i++)window.REDLINE_SHOWROOM.update(.05)}")
+    page.wait_for_timeout(300)
+    inspect('TITLE_SPIRIT',size)
+    spirit_camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
+    assert spirit_camera['mode']=='landing' and spirit_camera['airframe']=='spirit',f'Spirit title camera did not retain selection: {spirit_camera}'
+
   page.set_viewport_size({'width':960,'height':540})
   page.evaluate("window.REDLINE_E2E.screen('solo')")
   page.locator('button[data-model="kestrel"]').first.click()
@@ -122,6 +144,6 @@ except Exception as e:
  report['traceback']=traceback.format_exc()[-3800:]
 finally:
  server.shutdown()
- (QA/'V81_FULLSCREEN_CONTROLS_REPORT.json').write_text(json.dumps(report,indent=2))
+ (QA/'V82_FULLSCREEN_CONTROLS_REPORT.json').write_text(json.dumps(report,indent=2))
  print(json.dumps({k:v for k,v in report.items() if k not in ('screens','traceback')},indent=2))
 sys.exit(0 if report['state']=='PASS' else 2)
