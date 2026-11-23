@@ -4231,7 +4231,7 @@ const clashShell=document.createElement('section');clashShell.id='clashShell';cl
   <div class="clash-head"><span class="clash-eyebrow">REDLINE // CANYON CLASH</span><span id="clashRank">P4 <small>/ 4 PILOTS</small></span></div>
   <div class="clash-energy"><div class="clash-small"><span>FLOW ENERGY <b id="clashFlowNum">40</b></span><span id="clashCombo">×1 COMBO</span></div><div class="clash-track"><div id="clashFlowFill"></div></div></div>
   <div id="clashMiniObjective">FLY CLOSE · THREAD GATES · OUTRACE RIVALS</div>
-  <div class="clash-controls">B <span>REFUEL</span> · J <span>SHIELD</span> · H <span>EMP</span> · L <span>LIVERY</span></div>
+  <div class="clash-controls">B <span>REFUEL</span> · SPACE <span>SHIELD</span> · F <span>RELOAD</span> · E <span>FIRE</span></div>
   <div class="clash-rivals" id="clashRivals"></div>
 `;
 document.body.appendChild(clashShell);
@@ -6439,7 +6439,7 @@ function estimatedInterval(row,player){
    $('rlLap').textContent=String(Math.min(lap,sprintMaxLaps())).padStart(2,'0');$('rlLapTotal').textContent='/ '+String(sprintMaxLaps()).padStart(2,'0');$('rlRaceTime').textContent=fmt(raceT);
   updateReticlePosition();
   const picked=target();$('rlReticle').classList.toggle('lock',!!picked);
-  $('rlAimHint').textContent=picked?('TARGET '+(picked.type==='rival'?'ACQUIRED':'SWITCH')):(raceT<9?'MOUSE AIM  •  F FIRE':'');
+  $('rlAimHint').textContent=picked?('TARGET '+(picked.type==='rival'?'ACQUIRED':'SWITCH')):(raceT<9?'MOUSE AIM  •  E FIRE':'');
   /* updateReticlePosition keeps both crosshair and label in the viewport */
   $('rlCameraMode').textContent=config.view?'FPV':'CHASE';
 
