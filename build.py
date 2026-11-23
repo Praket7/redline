@@ -131,7 +131,9 @@ def build(mode):
 def main():
  DIST.mkdir(parents=True,exist_ok=True)
  if SITE_ROOT.exists():shutil.rmtree(SITE_ROOT) # no stale CSS/JS from prior variants
- html_name='REDLINE_v82_HANGAR_HERO_PERFORMANCE.html' if COMPACT_ASSETS else ('REDLINE_v78_R187_CANDIDATE.html' if THREE_VARIANT=='r187' else 'REDLINE_v78_STAGE1_STANDALONE.html')
+ release_tag=os.environ.get('REDLINE_RELEASE_TAG','v82')
+ if release_tag not in ('v82','v83'):raise RuntimeError('Invalid release tag: '+release_tag)
+ html_name=('REDLINE_v83_CHASE_CAMERA.html' if release_tag=='v83' else 'REDLINE_v82_HANGAR_HERO_PERFORMANCE.html') if COMPACT_ASSETS else ('REDLINE_v78_R187_CANDIDATE.html' if THREE_VARIANT=='r187' else 'REDLINE_v78_STAGE1_STANDALONE.html')
  (DIST/html_name).write_text(build('standalone'))
  site=SITE_ROOT;site.mkdir(exist_ok=True)
  (site/'index.html').write_text(build('site'))
@@ -157,6 +159,6 @@ def main():
  result['compact_assets']=COMPACT_ASSETS
  result['image_reduction_bytes']=sum(x['original_bytes']-x['compressed_bytes'] for x in compact_manifest)
  result['optimized_image_count']=len(compact_manifest)
- (DIST/('BUILD_V82_REPORT.json' if COMPACT_ASSETS else ('BUILD_R187_REPORT.json' if THREE_VARIANT=='r187' else 'BUILD_REPORT.json'))).write_text(json.dumps(result,indent=2))
+ (DIST/(('BUILD_V83_REPORT.json' if release_tag=='v83' else 'BUILD_V82_REPORT.json') if COMPACT_ASSETS else ('BUILD_R187_REPORT.json' if THREE_VARIANT=='r187' else 'BUILD_REPORT.json'))).write_text(json.dumps(result,indent=2))
  print(json.dumps(result,indent=2))
 if __name__=='__main__':main()
