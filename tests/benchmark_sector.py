@@ -29,6 +29,10 @@ try:
   page.evaluate('()=>window.REDLINE_E2E.select("kestrel")')
   page.wait_for_timeout(1000)
   page.evaluate('()=>window.REDLINE_E2E.launch()')
+  # UI setup is asynchronous: wait for the actual race screen before
+  # advancing the production simulation. Without this gate the test
+  # may observe the prior menu state (`ready`) and skip the countdown.
+  page.wait_for_function("window.REDLINE_E2E?.status()?.screen === 'race'",timeout=30000)
   # Advance the real 60 Hz race countdown, independent of software GPU frame speed.
   countdown=page.evaluate("""() => {
     let steps=0;
