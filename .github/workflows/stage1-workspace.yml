@@ -1,7 +1,5 @@
 name: REDLINE Stage1 source snapshot for in-depth browser validation
 on:
-  push:
-    branches: [stage1/completion-renderer-sim-ui]
   workflow_dispatch:
 permissions:
   contents: read
