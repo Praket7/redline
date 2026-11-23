@@ -19,7 +19,7 @@ window.REDLINE_BOOT_PHASE='renderer';
 const Rn=new THREE.WebGLRenderer({antialias:!REDLINE_MOBILE,alpha:false,powerPreference:'high-performance'});
 Rn.setPixelRatio(Math.min(devicePixelRatio,REDLINE_MOBILE?.75:.86));Rn.setSize(innerWidth,innerHeight);
 Rn.shadowMap.enabled=true;Rn.shadowMap.type=THREE.PCFSoftShadowMap;Rn.toneMapping=THREE.ACESFilmicToneMapping;Rn.outputEncoding=THREE.sRGBEncoding;Rn.toneMappingExposure=.93;
-Rn.domElement.style.cssText='position:fixed;inset:0';document.body.prepend(Rn.domElement);
+Rn.domElement.style.cssText='position:fixed;inset:0;width:100vw;height:100dvh;display:block;max-width:none;max-height:none';document.body.prepend(Rn.domElement);
 const S=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.5,6000);S.fog=new THREE.Fog(0xd08a68,250,3200);
 const lin=h=>new THREE.Color(h).convertSRGBToLinear();
 let RTg;try{
@@ -3814,15 +3814,15 @@ window.REDLINE_PLAYER_CRASH=REDLINE_PLAYER_CRASH;
 window.REDLINE_DEBRIS=REDLINE_DEBRIS;
 function redlineLaserBreakup(attacker){
  if(REDLINE_PLAYER_CRASH.active||st.ic>0||CLASH.shieldT>0||mode!=='run')return false;
- REDLINE_PLAYER_CRASH.restore={point:st.p.clone(),heading:st.yaw,lap,gate};
-  REDLINE_PLAYER_CRASH.t=REDLINE_DESTRUCTION.DEBRIS_TIME+.30;REDLINE_PLAYER_CRASH.deathCount++;
+ REDLINE_PLAYER_CRASH.restore={point:st.p.clone(),heading:st.yaw,lap,gate,speed:Math.abs(FL.speed)};
+  REDLINE_PLAYER_CRASH.t=1.05;REDLINE_PLAYER_CRASH.deathCount++;
  REDLINE_AUDIO_ENGINE.play('crash');
  const velocity=new THREE.Vector3(FL.vx,FL.vy,FL.vz);
  REDLINE_DEBRIS.explode(st.p,velocity,st.yaw);
  FL.speed=0;FL.vx=0;FL.vz=0;FL.vy=0;FL.strafeSpeed=0;st.shake=Math.max(st.shake,.50);st.ic=2.35;
  document.body.classList.add('rl-destroyed');dr.visible=false;
- clashTV('DRONE DISABLED','LASER STRIKE · BREAKUP · RESPAWNING','danger',1800);
- redlineUI.notify('DRONE DISABLED','Reconstructing at strike location','danger');
+ clashTV('LASER HIT','REBUILD IN 1 SECOND · REJOIN THE RACE','danger',850);
+ redlineUI.notify('DRONE DISABLED','Fast rebuild · same race progress','danger');
  return true;
 }
 const REDLINE_MOUSE_ALT=REDLINE_MOUSE_STICK.create();
@@ -3894,7 +3894,7 @@ addEventListener('keydown',e=>{
  if(action==='level'){REDLINE_MOUSE_ALT.level();mousePitch=0;st.pm=0;cameraOrbitYaw=0;cameraOrbitPitch=0;msg('FLIGHT PITCH LEVEL',700)}
  if(action==='mute'){soundMuted=!soundMuted;REDLINE_AUDIO_ENGINE.setMuted(soundMuted);msg(soundMuted?'SOUND OFF':'SOUND ON',600)}
  if(action==='time'){tod=(tod+1)%3;setTod(tod)}
- if(action==='fire'&&mode==='run')fire();
+ if(action==='fire'&&mode==='run'){REDLINE_LASER_INPUT.lastTrigger='E key';REDLINE_LASER_INPUT.triggers++;fire();}
  if(action==='emp')clashFlowAction('pulse');
  if(action==='shield')clashFlowAction('shield');
  if(action==='flowBoost')clashFlowAction('refuel');
@@ -3971,27 +3971,15 @@ document.addEventListener('mousedown',e=>{
  }
  if(e.button!==0||REDLINE_VCURSOR.active)return;
  if(!locked){return;} // first double-tap after Esc captures the pointer
- if(!redlineLockedFlight()){
-   REDLINE_LASER_INPUT.lastTrigger='classic click';
-   if(mode==='run')fire();return;
- }
- const now=performance.now();
- const isSecond=(now-REDLINE_LASER_INPUT.lastDown>=0&&now-REDLINE_LASER_INPUT.lastDown<480)||e.detail>=2;
- REDLINE_LASER_INPUT.lastDown=now;
- if(isSecond&&mode==='run'){
-   REDLINE_LASER_INPUT.lastTrigger='double click';REDLINE_LASER_INPUT.triggers++;
-   fire();
- }
+ // Clicking does not shoot. E is the sole desktop laser trigger.
+ // Double-click remains available only to recapture pointer lock after Escape.
 },true);
 Rn.domElement.addEventListener('dblclick',e=>{
  if(e.button!==0||(mode!=='run'&&mode!=='count'))return;
  e.preventDefault();
  if(!locked){Rn.domElement.requestPointerLock?.();return;}
  if(REDLINE_VCURSOR.active)return;
- if(redlineLockedFlight()&&mode==='run'){
-  // Browser fallback: fire() cooldown prevents duplicate event shots.
-  REDLINE_LASER_INPUT.lastTrigger='dblclick fallback';fire();
- }
+ // Intentionally no laser fire: double-click only recaptures after Escape.
 });
 window.REDLINE_MOUSE_LOCK_STATUS=()=>({locked:document.pointerLockElement===Rn.domElement,mode:window.redlineUI?.config?.mouseControlMode||'locked',centeredAim:redlineCenterAim(),pitchSensitivity:window.redlineUI?.config?.pitchSensitivity||90,pitch:REDLINE_MOUSE_ALT.pitch,headingTarget:REDLINE_MOUSE_ALT.headingTarget,yaw:FL.yaw,turnRate:FL.turnRate,turnRadius:FL.turnRadius,laserShots:window.REDLINE_LASER_DIAGNOSTICS?.shots||0});
 $('ov').onclick=null; // v16: menu state owns launching, not the legacy fullscreen overlay.
@@ -4034,7 +4022,7 @@ function redlineCombatRespawn(){
  desired.y=Math.max(desired.y,gh(desired.x,desired.z)+10.5);
  st.p.copy(desired);st.yaw=at?.heading??st.yaw;st.vy=0;st.spd=0;st.ic=2.0;
  FL.x=st.p.x;FL.y=st.p.y;FL.z=st.p.z;FL.yaw=st.yaw;
- FL.speed=0;FL.vx=FL.vy=FL.vz=0;REDLINE_FLIGHT.resetTransients(FL);
+ FL.speed=Math.max(60,Math.min(110,(at?.speed||80)*.85));FL.vx=-Math.sin(FL.yaw)*FL.speed;FL.vy=0;FL.vz=-Math.cos(FL.yaw)*FL.speed;REDLINE_FLIGHT.resetTransients(FL);
  if(REDLINE_MOUSE_ALT.held&&REDLINE_MOUSE_ALT.style==='locked')REDLINE_MOUSE_ALT.align(FL.yaw);
  st.kickRemaining=0;st.blockedFor=0;st.lastContactFrame=-Infinity;
  cameraRigReset=true;pd=NaN;prevPlayerPosition.copy(st.p);
@@ -4247,7 +4235,7 @@ const clashShell=document.createElement('section');clashShell.id='clashShell';cl
   <div class="clash-head"><span class="clash-eyebrow">REDLINE // CANYON CLASH</span><span id="clashRank">P4 <small>/ 4 PILOTS</small></span></div>
   <div class="clash-energy"><div class="clash-small"><span>FLOW ENERGY <b id="clashFlowNum">40</b></span><span id="clashCombo">×1 COMBO</span></div><div class="clash-track"><div id="clashFlowFill"></div></div></div>
   <div id="clashMiniObjective">FLY CLOSE · THREAD GATES · OUTRACE RIVALS</div>
-  <div class="clash-controls">B <span>REFUEL</span> · J <span>SHIELD</span> · H <span>EMP</span> · L <span>LIVERY</span></div>
+  <div class="clash-controls">B <span>REFUEL</span> · SPACE <span>SHIELD</span> · H <span>EMP</span> · F <span>RELOAD</span></div>
   <div class="clash-rivals" id="clashRivals"></div>
 `;
 document.body.appendChild(clashShell);
@@ -5157,7 +5145,7 @@ function clashStep(dt,run,oldP){
     // Predict once at lock acquisition, then freeze point so evasive movement can beat the shot.
     b.lockPoint.x+=cl(FL.vx*.16,-42,42);b.lockPoint.z+=cl(FL.vz*.16,-42,42);
      b.lockVelocity=new THREE.Vector3(FL.vx||0,FL.vy||0,FL.vz||0);
-    clashTV('INCOMING LASER',b.label+' // TARGET LOCK · DODGE OR J SHIELD','warning',1050);
+    clashTV('INCOMING LASER',b.label+' // TARGET LOCK · DODGE OR SPACE SHIELD','warning',1050);
    }
   }
   if(b.telegraphT>0){
@@ -5372,11 +5360,13 @@ function update(dt){
    lift:touchLive&&touch.lift!==0?touch.lift:(REDLINE_BINDINGS.isDown(K,'climb')?1:REDLINE_BINDINGS.isDown(K,'descend')?-1:(Math.abs(REDLINE_MOUSE_ALT.command)>.045?REDLINE_MOUSE_ALT.command:(gamepad?.lift||0))),
    pitch:REDLINE_MOUSE_ALT.style==='locked'?REDLINE_MOUSE_ALT.pitch:st.pm,
    boost:!!(REDLINE_BINDINGS.isDown(K,'boost')||gamepad?.boost||(touchLive&&touch.boost)),
-   brake:!!(REDLINE_BINDINGS.isDown(K,'brake')||gamepad?.brake||(touchLive&&touch.brake))};
+   brake:!!(REDLINE_BINDINGS.isDown(K,'brake')||gamepad?.brake||(touchLive&&touch.brake)),
+   emergencyStop:!!REDLINE_BINDINGS.isDown(K,'brake')};
+  if(inp.emergencyStop){inp.throttle=0;inp.boost=false;FL.speed=0;FL.vx=FL.vy=FL.vz=FL.strafeSpeed=0;}
   if((st.kickRemaining||0)>.12&&inp.throttle>0)inp.throttle=0;
   if(REDLINE_PLAYER_CRASH.active){inp.throttle=0;inp.steer=0;inp.strafe=0;inp.lift=0;inp.boost=false;inp.brake=true;FL.speed=0;FL.vx=FL.vz=FL.vy=0;FL.strafeSpeed=0;} // Briefly stop thrusting back into the wall.
   lastVectorCommand={drive:inp.throttle,steer:inp.steer,strafe:inp.strafe,lift:inp.lift,brake:inp.brake};
-  if((gamepad?.fire||(touchLive&&touch.fire))&&st.cd<=0)fire();
+  if(touchLive&&touch.fire&&st.cd<=0)fire(); // touch-screen accessibility; desktop lasers fire only with E
   activeFlightSteps=stepFlight(FL,inp,{thrust:P.t,agility:P.a,stability:P.s,handlingMode:redlineUI.config.handlingMode||'easy',assist:redlineUI.config.beginnerAssist,airframe:redlineActiveAirframe()},dt);steer=-inp.steer;bo=FL.boosting}
  else{REDLINE_MOVE.clear();activeFlightSteps=0;FL._accumulator=0;lastVectorCommand={drive:0,steer:0,lift:0,brake:false};FL.ax=FL.ay=FL.az=FL.yawAccel=0;FL.speed=0;FL.vx=FL.vz=0;FL.strafeSpeed=0;FL.vy=Math.sin(time*1.3)*1.2;FL.roll*=.9;FL.pitch*=.9}
  st.spd=FL.speed;st.vy=FL.vy;st.yaw=FL.yaw;st.boost=FL.energy*100;
@@ -6059,8 +6049,8 @@ redlineUI=(()=>{
  <div class="rl-track-controls"><div class="rl-field"><div class="rl-field-label">AI RIVALS <span id="rlBotCount">${config.bots===0?'SOLO':config.bots+' RIVALS'}</span></div><div class="rl-number-row">${[0,1,2,3].map(x=>`<button class="rl-chip" data-bots="${x}" aria-pressed="${config.bots===x}">${x}</button>`).join('')}</div></div>
  <button class="rl-action primary" data-op="launch"><b>RACE ${config.course==='raven'?'RAVEN SPRINT':'GRAND GORGE'}</b><span class="rl-arrow">↗</span></button></div></div>`;}
  function settingRow(label,id,type,attr,value,summary){return `<div class="rl-setting"><label for="${id}">${label}</label>${type==='range'?`<input id="${id}" type="range" min="${attr[0]}" max="${attr[1]}" value="${value}">`:type==='check'?`<input id="${id}" type="checkbox" ${value?'checked':''}>`:`<select id="${id}">${attr.map(k=>`<option ${k===value?'selected':''}>${k}</option>`).join('')}</select>`}<strong id="${id}Out">${type==='range'?value+'%':type==='check'?(value?'ON':'OFF'):''}</strong></div>${summary?`<div class="rl-setting-note" style="margin:-8px 0 17px 170px">${summary}</div>`:''}`}
- function renderSettings(){return `<div class="rl-layout"><button class="rl-back" data-op="back">← BACK</button>${title('SYSTEM / CONFIGURATION','SETTINGS','Personalize comfort, clarity and flight handling. Changes apply immediately and are stored locally in your browser.')}<div class="rl-settings-panel">${settingRow('FLIGHT HANDLING','rlHandlingMode','select',['easy','sport','expert'],config.handlingMode,'Easy is recommended: lower speed, smoother cornering, softer impacts. Sport and Expert restore faster racing.')}${settingRow('BRIGHTNESS','rlBrightness','range',[65,145],config.brightness,'Scene exposure; keep enough detail in shadowed canyon walls.')}${settingRow('MASTER VOLUME','rlVolume','range',[0,100],config.volume,'Engine, laser and ambient audio.')}${settingRow('MOUSE STEERING','rlSensitivity','range',[15,100],config.mouseSensitivity,'Move the mouse left and right to turn while captured.')}${settingRow('PITCH SENSITIVITY','rlPitchSensitivity','range',[30,180],config.pitchSensitivity,'Mouse down pitches the nose downward. Mouse up pitches upward. FPV follows the nose.')}${settingRow('MOUSE FLIGHT MODE','rlMouseControlMode','select',['locked','classic'],config.mouseControlMode,'Locked: steer freely, double-click to fire. Classic: hold right mouse to steer and left-click to fire.')}${settingRow('CENTERED AIM','rlCenteredAim','check',null,config.centeredAim,'Keep the targeting reticle fixed at screen center.')}${settingRow('CAPTURE ON RACE START','rlAutoPointerLock','check',null,config.autoPointerLock,'Request pointer lock from the race-start click (requires browser permission).')}${settingRow('AIM ASSIST','rlAimAssist','check',null,config.aimAssist,'Adds gentle magnetic assistance around visible moving rivals.')}${settingRow('FLIGHT ASSIST','rlFlightAssist','check',null,config.beginnerAssist,'Automatically slows dangerous turns and approaching walls in Easy mode; softens collision recovery.')}${settingRow('HUD SIZE','rlHudSize','select',['normal','large'],config.hudScale,'Increase important race telemetry for legibility.')}${settingRow('RACE HUD','rlHudMode','select',['cinematic','race','tactical'],REDLINE_HUD.valid(config.hudMode),'Cinematic keeps lap, transparent minimap, speed and boost without panel clutter. Race adds checkpoints; Tactical restores combat systems. Press Y to switch.')}${settingRow('REDUCE MOTION','rlMotion','check',null,config.reducedMotion,'Reduces decorative menu and result animations.')}<div class="rl-btnrow" style="margin-top:20px"><button class="rl-action primary" data-op="back">SAVE & RETURN <span class="rl-arrow">✓</span></button></div></div></div>`}
- function renderControls(){return `<div class="rl-layout"><button class="rl-back" data-op="back">← BACK</button>${title('FLIGHT MANUAL','CONTROLS','Move the mouse freely to steer and pitch the drone once the pointer is captured. Double-tap to capture after Esc; double-click to fire. W/S move forward and reverse, A/D strafe, E/Q add climb or descent, and SPACE brakes. In Easy mode, the drone automatically slows for sharp turns.')}<div class="rl-controls-grid">${REDLINE_BINDINGS.manualHTML('menu')}</div><p class="rl-muted-text" style="margin-top:25px;max-width:690px">All keys except WASD can be changed from Settings. If you get lost, use your recovery key to return near the next gate.</p><div class="rl-btnrow" style="margin-top:20px;max-width:440px"><button class="rl-action primary" data-op="settings">CHANGE KEYBINDS <span class="rl-arrow">›</span></button><button class="rl-action" data-op="back">RETURN <span class="rl-arrow">↗</span></button></div></div>`}
+ function renderSettings(){return `<div class="rl-layout"><button class="rl-back" data-op="back">← BACK</button>${title('SYSTEM / CONFIGURATION','SETTINGS','Personalize comfort, clarity and flight handling. Changes apply immediately and are stored locally in your browser.')}<div class="rl-settings-panel">${settingRow('FLIGHT HANDLING','rlHandlingMode','select',['easy','sport','expert'],config.handlingMode,'Easy is recommended: lower speed, smoother cornering, softer impacts. Sport and Expert restore faster racing.')}${settingRow('BRIGHTNESS','rlBrightness','range',[65,145],config.brightness,'Scene exposure; keep enough detail in shadowed canyon walls.')}${settingRow('MASTER VOLUME','rlVolume','range',[0,100],config.volume,'Engine, laser and ambient audio.')}${settingRow('MOUSE STEERING','rlSensitivity','range',[15,100],config.mouseSensitivity,'Move the mouse left and right to turn while captured.')}${settingRow('PITCH SENSITIVITY','rlPitchSensitivity','range',[30,180],config.pitchSensitivity,'Mouse down pitches the nose downward. Mouse up pitches upward. FPV follows the nose.')}${settingRow('MOUSE FLIGHT MODE','rlMouseControlMode','select',['locked','classic'],config.mouseControlMode,'Locked: move the mouse to steer and pitch, E fires lasers. Classic: hold right mouse to steer; E is still the only fire key.')}${settingRow('CENTERED AIM','rlCenteredAim','check',null,config.centeredAim,'Keep the targeting reticle fixed at screen center.')}${settingRow('CAPTURE ON RACE START','rlAutoPointerLock','check',null,config.autoPointerLock,'Request pointer lock from the race-start click (requires browser permission).')}${settingRow('AIM ASSIST','rlAimAssist','check',null,config.aimAssist,'Adds gentle magnetic assistance around visible moving rivals.')}${settingRow('FLIGHT ASSIST','rlFlightAssist','check',null,config.beginnerAssist,'Automatically slows dangerous turns and approaching walls in Easy mode; softens collision recovery.')}${settingRow('HUD SIZE','rlHudSize','select',['normal','large'],config.hudScale,'Increase important race telemetry for legibility.')}${settingRow('RACE HUD','rlHudMode','select',['cinematic','race','tactical'],REDLINE_HUD.valid(config.hudMode),'Cinematic keeps lap, transparent minimap, speed and boost without panel clutter. Race adds checkpoints; Tactical restores combat systems. Press Y to switch.')}${settingRow('REDUCE MOTION','rlMotion','check',null,config.reducedMotion,'Reduces decorative menu and result animations.')}<div class="rl-btnrow" style="margin-top:20px"><button class="rl-action primary" data-op="back">SAVE & RETURN <span class="rl-arrow">✓</span></button></div></div></div>`}
+ function renderControls(){return `<div class="rl-layout"><button class="rl-back" data-op="back">← BACK</button>${title('FLIGHT MANUAL','CONTROLS','Move the mouse freely to steer and pitch the drone once the pointer is captured. Double-tap to recapture the cursor after Esc; press E to fire. W/S move forward and reverse, A/D strafe, arrow keys climb or descend, J stops, Space shields, and F reloads lasers. In Easy mode, the drone automatically slows for sharp turns.')}<div class="rl-controls-grid">${REDLINE_BINDINGS.manualHTML('menu')}</div><p class="rl-muted-text" style="margin-top:25px;max-width:690px">All keys except WASD can be changed from Settings. If you get lost, use your recovery key to return near the next gate.</p><div class="rl-btnrow" style="margin-top:20px;max-width:440px"><button class="rl-action primary" data-op="settings">CHANGE KEYBINDS <span class="rl-arrow">›</span></button><button class="rl-action" data-op="back">RETURN <span class="rl-arrow">↗</span></button></div></div>`}
  function renderMP(){return REDLINE_ONLINE.menuHTML()}
  function renderLobby(){return REDLINE_ONLINE.lobbyHTML()}
  function renderLoading(){return `<div class="rl-layout" style="display:flex;align-items:center"><div><div class="rl-overline">RACE PREPARATION / LOADING</div><h1 class="rl-section-title" style="margin-top:20px;font-size:clamp(52px,9vw,118px)">${config.course==='raven'?'RAVEN SPRINT':'GRAND GORGE'}</h1><p class="rl-section-desc">Calibrating ${redlineAirframeLabel(config.model)} controls and initializing the selected race session.</p><div class="rl-progress"></div><p class="rl-overline" style="color:#e85b61">FLIGHT COMPUTER / ARMING</p></div></div>`}
@@ -6454,7 +6444,7 @@ function estimatedInterval(row,player){
    $('rlLap').textContent=String(Math.min(lap,sprintMaxLaps())).padStart(2,'0');$('rlLapTotal').textContent='/ '+String(sprintMaxLaps()).padStart(2,'0');$('rlRaceTime').textContent=fmt(raceT);
   updateReticlePosition();
   const picked=target();$('rlReticle').classList.toggle('lock',!!picked);
-  $('rlAimHint').textContent=picked?('TARGET '+(picked.type==='rival'?'ACQUIRED':'SWITCH')):(raceT<9?'MOUSE AIM  •  F FIRE':'');
+  $('rlAimHint').textContent=picked?('TARGET '+(picked.type==='rival'?'ACQUIRED':'SWITCH')):(raceT<9?'MOUSE AIM  •  E FIRE':'');
   /* updateReticlePosition keeps both crosshair and label in the viewport */
   $('rlCameraMode').textContent=config.view?'FPV':'CHASE';
 
