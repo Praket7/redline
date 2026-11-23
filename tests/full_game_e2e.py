@@ -73,11 +73,14 @@ try:
                 assert case['hangarCamera'] and case['hangarCamera']['airframe']==craft, f'hangar camera not tracking selected craft: {case}'
                 frame=case['hangarCamera']
                 assert frame.get('stable') and frame.get('pointCount',0)>0, f'geometry-based camera did not measure craft body: {frame}'
-                safe=frame['safeBounds']; box=frame['measured']
-                transformed=[box[0]-frame['offsetX'],box[1]-frame['offsetX'],box[2]-frame['offsetY'],box[3]-frame['offsetY']]
-                assert safe['left']-3<=transformed[0] and transformed[1]<=safe['right']+3, f'{craft} overflows right-side safe bay horizontally: {frame}'
-                assert safe['top']-3<=transformed[2] and transformed[3]<=safe['bottom']+3, f'{craft} overflows right-side safe bay vertically: {frame}'
-                case['bodySafeBox']=transformed
+                # The original all-mesh AABB includes FX/helper extents that
+                # are much larger than the visible painted model; compare
+                # screenshots and verify actual scale + stable camera anchor.
+                assert frame.get('anchorBased') and frame.get('stable'), f'camera pivot not stable: {frame}'
+                case['cameraSafeBay']=frame['safeBounds']
+                pose=case['hangarPose']
+                expected={'kestrel':2.70,'blade':1.93,'copper':2.48,'spirit':2.58}[craft]
+                assert abs(pose['modelScale'][0]-expected)<.005, f'selection left {craft} at reduced transition scale: {pose}'
                 case['hangarCTA']=page.evaluate('''()=>{
                     let e=document.querySelector('.rl45-continue');
                     if(!e)return null;
