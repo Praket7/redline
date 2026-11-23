@@ -1,0 +1,13 @@
+const fs=require('node:fs');const assert=require('node:assert/strict');const p='src/scripts/035_module.js';const s=fs.readFileSync(p,'utf8');
+assert(s.includes("let qualityTier='performance',maxRenderDpr=.68"),'first launch defaults to fastest Performance preset');
+assert(s.includes("localStorage.getItem('redline_graphics_preset')"),'respect explicit saved quality preference');
+assert(s.includes("localStorage.setItem('redline_graphics_preset',qualityTier)"),'store user changes');
+assert(s.includes("Rn.shadowMap.enabled=qualityTier!=='performance'"),'disable costly shadows by default');
+assert(s.includes("REDLINE_MOBILE?.68:.68"),'first WebGL allocation uses low rendering resolution');
+assert(s.includes('const craftRadius=43;'), 'one fixed closer camera distance for all four models');
+assert(s.includes('camera.position.set(5+Math.cos(fixedAngle)*r,19.2,'),'higher three-quarter overhead view');
+assert(s.includes('REDLINE_HOVER_Y+1.00'),'showcase target moved up to show aircraft body');
+assert(s.includes(": .825;"),'title aircraft focused on right-side hero space');
+assert(s.includes("visibleAirframe==='spirit'?.76"),'Spirit targets right showcase lane');
+assert(!s.includes("const craftRadius=56;"),'old distant camera removed');
+console.log('PASS v82: fastest default and player preference, no premature shadow allocations, fixed closer raised hangar camera, right-side title/selection composition');
