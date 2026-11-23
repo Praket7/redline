@@ -7598,8 +7598,18 @@ const REDLINE_SHOWROOM=(()=>{
    : document.querySelector('.rl-home .rl-hero-copy');
   const edge=copy?.getBoundingClientRect().right||0;
   const left=Math.min(w*.73,Math.max(mode==='solo'?w*.435:w*.50,edge+Math.max(19,w*.017)));
+  let bottom=h-Math.max(26,Math.min(70,h*.095));
+  // The aircraft must also stay ABOVE the large lower-right model label,
+  // not just to the right of the controls. Hidden short-screen labels have
+  // zero height and therefore cannot impose a spurious empty zone.
+  if(mode==='solo'){
+   const label=document.querySelector('.rl-garage .rl45-model-readout');
+   const rect=label?.getBoundingClientRect();
+   if(rect&&rect.height>18&&rect.width>35&&rect.top>headerGap+100)
+    bottom=Math.min(bottom,rect.top-Math.max(15,h*.023));
+  }
   return {left,right:w-Math.max(18,Math.min(46,w*.025)),
-    top:headerGap,bottom:h-Math.max(26,Math.min(70,h*.095))};
+    top:headerGap,bottom};
  }
  function fitShowroomHero(craft,airframe,mode,w,h){
   const bounds=heroSafeRectangle(mode,w,h);
