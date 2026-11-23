@@ -5362,7 +5362,7 @@ function update(dt){
   if(REDLINE_PLAYER_CRASH.active){inp.throttle=0;inp.steer=0;inp.strafe=0;inp.lift=0;inp.boost=false;inp.brake=true;FL.speed=0;FL.vx=FL.vz=FL.vy=0;FL.strafeSpeed=0;} // Briefly stop thrusting back into the wall.
   lastVectorCommand={drive:inp.throttle,steer:inp.steer,strafe:inp.strafe,lift:inp.lift,brake:inp.brake};
   if((gamepad?.fire||(touchLive&&touch.fire))&&st.cd<=0)fire();
-  activeFlightSteps=stepFlight(FL,inp,{thrust:P.t,agility:P.a,stability:P.s,handlingMode:redlineUI.config.handlingMode||'easy',assist:redlineUI.config.beginnerAssist,airframe:redlineActiveAirframe()},dt);if(hardStop){FL.speed=FL.vx=FL.vy=FL.vz=FL.strafeSpeed=0;}steer=-inp.steer;bo=FL.boosting}
+  activeFlightSteps=stepFlight(FL,inp,{thrust:P.t,agility:P.a,stability:P.s,handlingMode:redlineUI.config.handlingMode||'easy',assist:redlineUI.config.beginnerAssist,airframe:redlineActiveAirframe()},dt);if(hardStop){FL.speed=FL.vx=FL.vy=FL.vz=FL.strafeSpeed=0;FL.x=p.x;FL.y=p.y;FL.z=p.z;FL.renderX=p.x;FL.renderY=p.y;FL.renderZ=p.z;st.kickRemaining=0;}steer=-inp.steer;bo=FL.boosting}
  else{REDLINE_MOVE.clear();activeFlightSteps=0;FL._accumulator=0;lastVectorCommand={drive:0,steer:0,lift:0,brake:false};FL.ax=FL.ay=FL.az=FL.yawAccel=0;FL.speed=0;FL.vx=FL.vz=0;FL.strafeSpeed=0;FL.vy=Math.sin(time*1.3)*1.2;FL.roll*=.9;FL.pitch*=.9}
  st.spd=FL.speed;st.vy=FL.vy;st.yaw=FL.yaw;st.boost=FL.energy*100;
  window.REDLINE_MOBILE_CONTROLS?.setTelemetry?.(FL.speed,redlineRiverAltitude(st.p.y));
