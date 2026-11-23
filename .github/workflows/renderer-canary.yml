@@ -44,6 +44,7 @@ jobs:
         run: |
           python tests/test_stage1.py
           node tests/test_stage1_runtime.js
+          node tests/simulation_determinism.js
           for f in tests/legacy/*.js; do node "$f"; done
       - name: True WebGL E2E - modern renderer, all four aircraft
         env: {REDLINE_EXPECT_RENDERER: '187'}
@@ -63,5 +64,6 @@ jobs:
           path: |
             qa/
             dist/REDLINE_v78_R187_CANDIDATE.html
+            dist/REDLINE_v78_STAGE1_STANDALONE.html
             dist/BUILD_R187_REPORT.json
           retention-days: 7
