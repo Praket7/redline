@@ -46,8 +46,16 @@ try:
         for craft in ['kestrel','blade','copper','spirit']:
             case={'craft':craft,'state':'RUNNING'}
             try:
-                page.evaluate('(model)=>window.REDLINE_E2E.select(model)',craft)
-                page.wait_for_timeout(1600)
+                # Exercise the *real* aircraft selector. Directly rewriting the
+                # config without clicking caused four misleading Kestrel screenshots.
+                page.evaluate('()=>window.REDLINE_E2E.screen("solo")')
+                page.locator(f'button[data-model="{craft}"]').first.click()
+                page.wait_for_function(
+                    '(name)=>window.REDLINE_SHOWROOM?.airframe === name && window.REDLINE_SHOWROOM?.selectedReady',
+                    arg=craft,timeout=45000)
+                case['hangarAirframe']=page.evaluate('()=>window.REDLINE_SHOWROOM.airframe')
+                case['hangarPose']=page.evaluate('()=>window.REDLINE_HANGAR_POSE_STATUS?.()')
+                assert case['hangarAirframe']==craft,f'hangar shows wrong aircraft: {case}'
                 page.screenshot(path=str(QA/f'FULL_HANGAR_{craft.upper()}.png'),animations='disabled')
                 page.evaluate('()=>window.REDLINE_E2E.launch()')
                 page.wait_for_function("window.REDLINE_E2E?.status()?.screen==='race'",timeout=30000)
@@ -98,6 +106,23 @@ try:
                 case['hudVisible']=page.evaluate('''()=>{
                    const candidates=['rl74FpvHud','rl70TieHud','rl63SpiritDeck','rl65BladeDash','rl67KestrelPhoto'];
                    return candidates.filter(id=>{const el=document.getElementById(id);return el&&getComputedStyle(el).display!=='none'&&getComputedStyle(el).visibility!=='hidden'})}''')
+                # Use the *actual* instrument IDs. Checking unrelated legacy
+                # ids incorrectly reported that three live cockpit panels were absent.
+                case['liveHud']=page.evaluate('''(name)=>{
+                  const cap=name[0].toUpperCase()+name.slice(1);
+                  const ids=name==='copper'
+                    ? ['rl70TieHud','rl70Speed','rl70Alt','rl70Boost']
+                    : ['rl74'+cap,'v74'+cap+'Speed','v74'+cap+'Alt','v74'+cap+'Boost'];
+                  const [root,speed,alt,boost]=ids.map(id=>document.getElementById(id));
+                  const rect=root?.getBoundingClientRect();
+                  return {ids,visible:!!root&&getComputedStyle(root).display!=='none'&&rect.width>0&&rect.height>0,
+                    speed:Number(speed?.textContent),altitude:Number(alt?.textContent),
+                    boost:boost?.textContent||'',live:root?.dataset?.live||null};
+                }''',craft)
+                assert case['liveHud']['visible'],f'cockpit overlay missing in real FPV: {craft}: {case["liveHud"]}'
+                assert case['liveHud']['speed']>0,f'speed is not wired to live flight state: {craft}: {case["liveHud"]}'
+                assert case['liveHud']['altitude']>=0,f'altitude invalid: {craft}: {case["liveHud"]}'
+                assert '%' in case['liveHud']['boost'],f'boost readout missing: {craft}: {case["liveHud"]}'
                 assert not after['fatal'],f'fatal game error: {craft}: {after["fatal"]}'
                 # Confirm scene continued in FPV.
                 afterFpv=page.evaluate('()=>window.REDLINE_E2E.status()')
