@@ -136,6 +136,23 @@ try:
                 # Confirm scene continued in FPV.
                 afterFpv=page.evaluate('()=>window.REDLINE_E2E.status()')
                 assert afterFpv['simulation']['tick']>=after['simulation']['tick'], 'simulation regressed'
+                # Verify the panel comes from the same authoritative fixed-step state,
+                # not baked-in artwork or a second, independently changing counter.
+                if afterFpv['simulation'].get('craft'):
+                    sim=afterFpv['simulation']['craft']
+                    case['instrumentError']={
+                      'speed':abs(case['liveHud']['speed']-sim['speed']),
+                      'altitude':abs(case['liveHud']['altitude']-sim['altitude']),
+                    }
+                    assert case['instrumentError']['speed']<=30,f'FPV speed stale or disconnected: {craft}: {case["instrumentError"]}'
+                    assert case['instrumentError']['altitude']<=20,f'FPV altitude stale or disconnected: {craft}: {case["instrumentError"]}'
+                case['reticleClear']=page.evaluate('''()=>{
+                  const c=document.getElementById('rlReticle'), m=document.getElementById('maphud');
+                  if(!c||!m)return false;
+                  const a=c.getBoundingClientRect(),b=m.getBoundingClientRect();
+                  return a.right<b.left||b.right<a.left||a.bottom<b.top||b.bottom<a.top;
+                }''')
+                assert case['reticleClear'],f'minimap overlaps central aiming reticle for {craft}'
                 page.keyboard.press('p')
                 page.wait_for_function("!document.body.classList.contains('rl-cockpit')",timeout=10000)
                 case['state']='PASS'
