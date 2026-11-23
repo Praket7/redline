@@ -10,7 +10,7 @@ from playwright.sync_api import sync_playwright
 import json,sys,time,statistics,base64,os,shutil
 r=Path(__file__).resolve().parents[1];o=r/'qa';o.mkdir(exist_ok=True)
 renderer_revision=os.environ.get('REDLINE_EXPECT_RENDERER','128')
-site_path=r/'dist'/('site-r187-compact' if renderer_revision=='187' and os.environ.get('REDLINE_COMPACT_SITE')=='1' else ('site-r187' if renderer_revision=='187' else 'site'))
+site_path=r/'dist'/('site-r187-compact-v81' if os.environ.get('REDLINE_V81')=='1' else ('site-r187-compact' if renderer_revision=='187' and os.environ.get('REDLINE_COMPACT_SITE')=='1' else ('site-r187' if renderer_revision=='187' else 'site')))
 server=ThreadingHTTPServer(('127.0.0.1',0),partial(SimpleHTTPRequestHandler,directory=str(site_path)))
 Thread(target=server.serve_forever,daemon=True).start()
 url=f'http://127.0.0.1:{server.server_address[1]}/index.html?redlineTest=1'
