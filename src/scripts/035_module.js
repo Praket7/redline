@@ -3869,8 +3869,25 @@ function redlineV83ProjectedBody(camera){
  const craft=redlineActiveAirframe();
  const root=craft==='spirit'?spiritGameArt:craft==='copper'?copperGameArt:craft==='blade'?bladeGameArt:kestrelGameArt;
  if(!root||!root.visible)return null;
- const box=new THREE.Box3().setFromObject(root);
- if(box.isEmpty())return null;
+ // Measure authored aircraft surface, not procedural thruster plumes or
+ // particles. A Box3.setFromObject(root) includes runtime exhaust and can
+ // claim the aircraft extends several screen-heights below the viewport.
+ root.updateWorldMatrix(true,true);
+ const box=new THREE.Box3().makeEmpty(),meshBounds=new THREE.Box3();
+ let bodyMeshes=0;
+ root.traverse(node=>{
+  if(!node.isMesh||!node.visible||!node.geometry)return;
+  for(let part=node;part&&part!==root;part=part.parent){
+   if(/thruster|afterburner|exhaust|flame|particle|plume|mist|laser|beam|trail|spark|_jet|_fx/i.test(part.name||''))return;
+  }
+  if(!node.geometry.boundingBox)node.geometry.computeBoundingBox();
+  meshBounds.copy(node.geometry.boundingBox).applyMatrix4(node.matrixWorld);
+  if(!meshBounds.isEmpty()&&[meshBounds.min.x,meshBounds.min.y,meshBounds.min.z,
+    meshBounds.max.x,meshBounds.max.y,meshBounds.max.z].every(Number.isFinite)){
+    box.union(meshBounds);bodyMeshes++;
+  }
+ });
+ if(!bodyMeshes||box.isEmpty())return null;
  const min=box.min,max=box.max;
  let xMin=Infinity,xMax=-Infinity,yMin=Infinity,yMax=-Infinity;
  for(const x of [min.x,max.x])for(const y of [min.y,max.y])for(const z of [min.z,max.z]){
