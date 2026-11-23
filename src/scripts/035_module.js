@@ -290,7 +290,7 @@ function pbrTerrain(bankBlend=false,geologyColors=false){
      float darkBed=pow(.5+.5*cos(strataPhase),17.);
      albedo*=mix(.85,1.15,macro)*(1.-.13*darkBed);
      ${geologyColors?`#ifdef USE_COLOR
-       vec3 original=clamp(vColor,vec3(.06),vec3(.95));
+       vec3 original=clamp(${Number(THREE.REVISION)>=180?'vColor.rgb':'vColor'},vec3(.06),vec3(.95));
        float intensity=dot(original,vec3(.299,.587,.114));
        vec3 hue=clamp(original/max(intensity,.06),vec3(.70),vec3(1.38));
        albedo*=mix(vec3(1.),hue,.39)*mix(.87,1.09,smoothstep(.09,.38,intensity));
