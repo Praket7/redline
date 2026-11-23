@@ -57,8 +57,12 @@ try:
   for size in [(960,540),(1600,900)]:
    page.set_viewport_size({'width':size[0],'height':size[1]})
    page.evaluate("window.REDLINE_E2E.screen('landing')")
+   # Verify the settled intro hero, not a tiny transient first frame of fly-in.
+   page.evaluate("()=>{for(let i=0;i<90;i++)window.REDLINE_SHOWROOM.update(.05)}")
    page.wait_for_timeout(240)
    inspect('TITLE',size)
+   titleCamera=page.evaluate('()=>window.REDLINE_HANGAR_QA?.cameraFraming')
+   assert titleCamera and abs(titleCamera['distance']-37)<.01 and .65<=titleCamera['screenFocus']<=.76, f'title hero camera not right-aligned: {titleCamera}'
    page.evaluate("window.REDLINE_E2E.screen('solo')")
    page.locator('button[data-model="kestrel"]').first.click()
    page.evaluate("()=>{for(let i=0;i<90;i++)window.REDLINE_SHOWROOM.update(.05)}")
