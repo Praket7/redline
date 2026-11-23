@@ -7,7 +7,14 @@
     "build": "python3 build.py",
     "validate": "python3 tools_validate.py && python3 tests/test_stage1.py && node tests/test_stage1_runtime.js",
     "test:browser": "python3 tests/full_game_e2e.py",
-    "test:benchmark": "python3 tests/benchmark_sector.py"
+    "test:benchmark": "python3 tests/benchmark_sector.py",
+    "build:modern": "node tools/build-modern-renderer.cjs && REDLINE_THREE_VARIANT=r187 python3 build.py"
   },
-  "dependencies": {"three": "0.128.0"}
+  "dependencies": {
+    "three": "0.128.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.26.0",
+    "three-modern": "npm:three@0.187.0"
+  }
 }
