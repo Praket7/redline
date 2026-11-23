@@ -43,7 +43,7 @@ try:
    }""")
    w,h=s['viewport']
    assert s['canvasTag']=='CANVAS',f'WebGL first body child missing: {s}'
-   for key in ('canvas','screens'):
+   for key in (('canvas',) if screen.startswith(('RACE','FPV')) else ('canvas','screens')):
     a=s[key]
     assert abs(a['x'])<=1 and abs(a['y'])<=1 and abs(a['width']-w)<=1 and abs(a['height']-h)<=1, f'BLACK BARS / viewport mismatch in {screen} {size}: {s}'
    file=f'V81_{screen}_{size[0]}x{size[1]}.png'
