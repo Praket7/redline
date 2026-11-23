@@ -12,21 +12,23 @@ out=dst_path.read_text()
 rx=re.compile(r'data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]{100,})')
 base=list(rx.finditer(src));short=list(rx.finditer(out))
 assert len(base)==len(short)==19,(len(base),len(short))
-modified={1,4,5,6,16,17,18}
 images=[]
+changed_count=0
 for i,(old,new) in enumerate(zip(base,short)):
  a=base64.b64decode(old.group(2));b=base64.b64decode(new.group(2))
  with Image.open(BytesIO(b)) as im:
   im.verify()
  with Image.open(BytesIO(b)) as im:
   mode=im.mode;dimensions=im.size
- if i in modified:
+ if a!=b:
+  changed_count+=1
   assert new.group(1)=='webp',i
   assert len(b)<len(a)*.88,(i,len(a),len(b))
   assert mode=='RGBA',('alpha missing',i,mode)
  else:
   assert a==b,('world/other asset unexpectedly changed',i)
  images.append({'index':i,'before':len(a),'after':len(b),'size':dimensions,'mode':mode})
+assert changed_count==7,('expected seven optimized cockpit images',changed_count)
 # Meshes and packed binary textures must remain identical. Browser loaders
 # are intentionally unchanged, avoiding new Draco/Meshopt decoder dependencies.
 for name in ('GLB_B64','REDLINE_BLADE_B64','REDLINE_COPPER_B64','REDLINE_SPIRIT_B64'):
