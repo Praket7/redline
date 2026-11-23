@@ -59,6 +59,16 @@ try:
    for key in (('canvas',) if screen.startswith(('RACE','FPV')) else ('canvas','screens')):
     a=s[key]
     assert abs(a['x'])<=1 and abs(a['y'])<=1 and abs(a['width']-w)<=1 and abs(a['height']-h)<=1, f'BLACK BARS / viewport mismatch in {screen} {size}: {s}'
+   if screen.startswith(('TITLE','SELECTION')):
+    page.evaluate('()=>{for(let i=0;i<3;i++)window.REDLINE_SHOWROOM.update(.05)}')
+    frame=page.evaluate('()=>window.REDLINE_HANGAR_QA?.cameraFraming')
+    assert frame and frame.get('stable') and frame.get('pointCount',0)>0, f'{screen}: camera did not measure aircraft geometry: {frame}'
+    box=frame['measured'];safe=frame['safeBounds']
+    fitted=[box[0]-frame['offsetX'],box[1]-frame['offsetX'],box[2]-frame['offsetY'],box[3]-frame['offsetY']]
+    assert safe['left']-3<=fitted[0] and fitted[1]<=safe['right']+3, f'{screen}: aircraft intrudes into title/settings or leaves right edge: {frame}'
+    assert safe['top']-3<=fitted[2] and fitted[3]<=safe['bottom']+3, f'{screen}: aircraft is cropped vertically: {frame}'
+    s['aircraftSafeFrame']=frame
+    s['projectedAircraftBox']=fitted
    file=f'V82_{screen}_{size[0]}x{size[1]}.png'
    page.screenshot(path=str(QA/file),animations='disabled',timeout=30000)
    report['screens'].append({'kind':screen,'size':size,'metrics':s,'image':file})
