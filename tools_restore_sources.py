@@ -1,91 +1,90 @@
 #!/usr/bin/env python3
-"""Restore large original JS/GLB/cockpit payloads from Git-tracked binary parts.
+"""Restore missing source and binary payloads from Git-tracked verified archives.
 
-This protects exact asset bytes while avoiding multi-megabyte Git object uploads
-and text diffs for payloads that contain embedded binary or base64 model data.
+A committed editable game source file is authoritative. Archived source from the
+initial v77 import is used only when that file is absent; it NEVER overwrites
+a newer commit. Binary assets, by contrast, must match the recorded SHA-256.
 """
 from pathlib import Path
-import hashlib, json
-ROOT=Path(__file__).resolve().parent
+import hashlib
+import json
+import tarfile
 
-def restore_late_bundles():
- """Restore the missing binary payloads from content-addressed stage-1 archives.
+ROOT = Path(__file__).resolve().parent
+# This large engine file was later committed as ordinary source and is edited
+# directly; its original SHA belongs only to the frozen v77 restoration.
+EDITABLE_SOURCE = frozenset({"src/scripts/035_module.js"})
 
- Avoid unsafe tar.extractall(), validate every restored path against the
- checked-in manifest, and reject missing/mismatched entries.
- """
- import tarfile
- manifest_path=ROOT/'bundles/late_manifest.json'
- if not manifest_path.exists():
-  return
- manifest=json.loads(manifest_path.read_text())
- if manifest.get('version')!=1:
-  raise SystemExit('Unknown Stage 1 archive format')
- expected={x['path']:x for x in manifest['files']}
- # Directly committed, SHA-256-verified payloads take priority over optional\n # restoration archives; avoid requiring duplicate archives in clean checkouts.\n if all((ROOT/x['path']).is_file() and (ROOT/x['path']).stat().st_size==x['bytes'] and hashlib.sha256((ROOT/x['path']).read_bytes()).hexdigest()==x['sha256'] for x in manifest['files']):\n  print('Stage 1 direct payloads verified:',len(manifest['files']))\n  return\n assert len(expected)==len(manifest['files']), 'duplicate archive path'
- archives={}
- for info in manifest['files']:
-  name=info['archive']
-  archives.setdefault(name,[]).append(info)
- restored=0
- for archive_name,items in sorted(archives.items()):
-  path=ROOT/archive_name
-  if not path.exists():
-   parts=manifest.get('archive_parts',{}).get(path.name,[])
-   if not parts:
-    raise SystemExit('Missing Stage 1 binary archive and parts: '+archive_name)
-   data=bytearray()
-   for part in parts:
-    part_path=ROOT/part['path']
-    if not part_path.is_file():
-     raise SystemExit('Missing Stage 1 archive part: '+part['path'])
-    blob=part_path.read_bytes()
-    if len(blob)!=part['size'] or hashlib.sha256(blob).hexdigest()!=part['sha256']:
-     raise SystemExit('Corrupt Stage 1 archive part: '+part['path'])
-    data.extend(blob)
-   path.parent.mkdir(parents=True,exist_ok=True)
-   path.write_bytes(data)
-  expected_hash=manifest['archives'].get(path.name)
-  if not expected_hash or hashlib.sha256(path.read_bytes()).hexdigest()!=expected_hash:
-   raise SystemExit('Archive hash mismatch: '+archive_name)
-  with tarfile.open(path,'r:gz') as archive:
-   expected_members={x['path'] for x in items}
-   got={m.name for m in archive.getmembers()}
-   if got!=expected_members:
-    raise SystemExit('Archive contents do not match manifest: '+archive_name)
-   for item in items:
-    rel=Path(item['path'])
-    if rel.is_absolute() or '..' in rel.parts or len(rel.parts)<2:
-     raise SystemExit('Invalid archive path: '+item['path'])
-    target=ROOT/rel
-    if target.is_file() and target.stat().st_size==item['bytes'] and hashlib.sha256(target.read_bytes()).hexdigest()==item['sha256']:
-     continue
-    member=archive.getmember(item['path'])
-    if not member.isfile() or member.size!=item['bytes']:
-     raise SystemExit('Invalid archive member: '+item['path'])
-    raw=archive.extractfile(member).read()
-    if len(raw)!=item['bytes'] or hashlib.sha256(raw).hexdigest()!=item['sha256']:
-     raise SystemExit('Content hash mismatch: '+item['path'])
-    target.parent.mkdir(parents=True,exist_ok=True)
-    tmp=target.with_name(target.name+'.restore-tmp')
-    tmp.write_bytes(raw);tmp.replace(target)
-    restored+=1
- print('Stage 1 archived payloads verified:',len(expected),'restored:',restored)
-restore_late_bundles()
-INDEX=ROOT/'bundles/chunks.json'
-if not INDEX.exists():
- print('No chunk index in this source tree; using existing source files.')
- raise SystemExit(0)
-entries=json.loads(INDEX.read_text())
-for item in entries:
- target=ROOT/item['path']
- if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest()==item['sha256']:
-  continue
- data=b''.join((ROOT/'bundles/chunks'/name).read_bytes() for name in item['parts'])
- actual=hashlib.sha256(data).hexdigest()
- if len(data)!=item['size'] or actual!=item['sha256']:
-  raise SystemExit('Corrupt or missing source payload: '+item['path'])
- target.parent.mkdir(parents=True,exist_ok=True)
- tmp=target.with_suffix(target.suffix+'.tmp');tmp.write_bytes(data);tmp.replace(target)
- print('Restored',item['path'],len(data),'bytes')
-print('Restored/verified',len(entries),'oversized source payloads')
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+def verified_file(item):
+    target=ROOT/item["path"]
+    if not target.is_file():return False
+    if item["path"] in EDITABLE_SOURCE:return True
+    return target.stat().st_size==item["bytes"] and sha256(target.read_bytes())==item["sha256"]
+
+def restore_late():
+    manifest_path=ROOT/"bundles/late_manifest.json"
+    if not manifest_path.exists():return
+    manifest=json.loads(manifest_path.read_text())
+    if manifest.get("version")!=1:raise RuntimeError("Unsupported restoration manifest")
+    entries=manifest["files"]
+    if len({e["path"] for e in entries})!=len(entries):
+        raise RuntimeError("Duplicate restoration path")
+    remaining=[e for e in entries if not verified_file(e)]
+    if not remaining:
+        print("Verified existing Stage 1 payloads:",len(entries))
+        return
+    by_archive={}
+    for entry in remaining:by_archive.setdefault(entry["archive"],[]).append(entry)
+    for archive_name, items in sorted(by_archive.items()):
+        archive_path=ROOT/archive_name
+        if not archive_path.exists():
+            parts=manifest.get("archive_parts",{}).get(archive_path.name,[])
+            if not parts:raise RuntimeError("Missing archive parts: "+archive_name)
+            chunks=[]
+            for item in parts:
+                data=(ROOT/item["path"]).read_bytes()
+                if len(data)!=item["size"] or sha256(data)!=item["sha256"]:
+                    raise RuntimeError("Bad archive part "+item["path"])
+                chunks.append(data)
+            archive_path.parent.mkdir(parents=True,exist_ok=True)
+            archive_path.write_bytes(b"".join(chunks))
+        if sha256(archive_path.read_bytes())!=manifest["archives"][archive_path.name]:
+            raise RuntimeError("Bad archive digest: "+archive_name)
+        with tarfile.open(archive_path,"r:gz") as archive:
+            for item in items:
+                rel=Path(item["path"])
+                if rel.is_absolute() or ".." in rel.parts:
+                    raise RuntimeError("Unsafe archive path")
+                member=archive.getmember(item["path"])
+                if not member.isfile() or member.size!=item["bytes"]:
+                    raise RuntimeError("Invalid archive member: "+item["path"])
+                data=archive.extractfile(member).read()
+                if sha256(data)!=item["sha256"]:raise RuntimeError("Bad asset: "+item["path"])
+                target=ROOT/rel
+                target.parent.mkdir(parents=True,exist_ok=True)
+                target.with_suffix(target.suffix+".restoring").write_bytes(data)
+                target.with_suffix(target.suffix+".restoring").replace(target)
+    print("Verified/restored Stage 1 payloads:",len(entries),"restored:",len(remaining))
+
+def restore_chunks():
+    index=ROOT/"bundles/chunks.json"
+    if not index.exists():return
+    entries=json.loads(index.read_text())
+    for item in entries:
+        if verified_file({"path":item["path"],"bytes":item["size"],"sha256":item["sha256"]}):
+            continue
+        data=b"".join((ROOT/"bundles/chunks"/name).read_bytes() for name in item["parts"])
+        if len(data)!=item["size"] or sha256(data)!=item["sha256"]:
+            raise RuntimeError("Invalid compressed chunk: "+item["path"])
+        target=ROOT/item["path"]
+        target.parent.mkdir(parents=True,exist_ok=True)
+        target.with_suffix(target.suffix+".restoring").write_bytes(data)
+        target.with_suffix(target.suffix+".restoring").replace(target)
+    print("Verified/restored chunked payloads:",len(entries))
+
+if __name__=="__main__":
+    restore_late()
+    restore_chunks()
