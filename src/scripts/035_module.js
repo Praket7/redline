@@ -7835,7 +7835,9 @@ const REDLINE_SHOWROOM=(()=>{
    window.REDLINE_HANGAR_QA.cameraFraming={distance:frame.distance,
     screenFocus:frame.screenFocus,airframe:visibleAirframe,mode:screen,
     safeBounds:frame.bounds,offsetX:frame.offsetX,offsetY:frame.offsetY,
-    measured:frame.measured,pointCount:frame.pointCount,stable:true};
+    measured:frame.measured,pointCount:frame.pointCount,stable:true,
+    anchorBased:frame.anchorBased,calibratedCap:frame.calibratedCap,
+    geometryFitDistance:frame.geometryFitDistance,preferredYaw:frame.preferredYaw};
   }else{
    camera.clearViewOffset();camera.aspect=w/h;camera.fov=44;camera.updateProjectionMatrix();
   }
