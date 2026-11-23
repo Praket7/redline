@@ -15,7 +15,9 @@ import json, os, sys, time, traceback, shutil
 ROOT = Path(__file__).resolve().parents[1]
 QA = ROOT / 'qa'; QA.mkdir(exist_ok=True)
 report = {'test': 'REDLINE Stage 1 full-engine WebGL smoke', 'state': 'NOT_RUN', 'cases': [], 'errors': [], 'requestFailures': []}
-server = ThreadingHTTPServer(('127.0.0.1', 0), partial(SimpleHTTPRequestHandler, directory=str(ROOT / 'dist/site')))
+renderer_revision=os.environ.get('REDLINE_EXPECT_RENDERER','128')
+site_path=ROOT / 'dist' / ('site-r187' if renderer_revision=='187' else 'site')
+server = ThreadingHTTPServer(('127.0.0.1', 0), partial(SimpleHTTPRequestHandler, directory=str(site_path)))
 Thread(target=server.serve_forever, daemon=True).start()
 url = f'http://127.0.0.1:{server.server_address[1]}/index.html?redlineTest=1'
 browser=None; page=None
@@ -41,7 +43,7 @@ try:
         check=page.evaluate('''()=>({three:window.THREE?.REVISION||null,canvases:[...document.querySelectorAll('canvas')].length,
              gl:[...document.querySelectorAll('canvas')].some(c=>!!(c.getContext('webgl2')||c.getContext('webgl'))),phase:window.REDLINE_BOOT_PHASE||null})''')
         report['engine']=check
-        assert check['three']=='128',f'wrong Three renderer: {check}'
+        assert check['three']==renderer_revision,f'wrong Three renderer: expected {renderer_revision}, got {check}'
         assert check['gl'],f'no actual WebGL context: {check}'
         for craft in ['kestrel','blade','copper','spirit']:
             case={'craft':craft,'state':'RUNNING'}
