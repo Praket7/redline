@@ -161,3 +161,7 @@ html body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-bla
 }
 html body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit)
   #rlPositions .rl-pos-row{background:none!important;border:0!important;border-bottom:1px solid #ffffff22!important}
+
+/* V82 showroom: keep the global controls link away from the local HANGAR title. */
+#rlScreens:has(.rl-garage) .rl-header-controls{left:64%!important;top:21px!important;transform:translateX(-50%)!important}
+@media(max-width:740px){#rlScreens:has(.rl-garage) .rl-header-controls{left:65%!important;top:17px!important;padding:7px 10px!important;font-size:9px!important}}
