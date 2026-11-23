@@ -7,7 +7,7 @@ from io import BytesIO
 import re,base64,json,hashlib
 ROOT=Path(__file__).resolve().parents[1]
 src=(ROOT/'dist/REDLINE_v78_R187_CANDIDATE.html').read_text()
-dst_path=ROOT/'dist/REDLINE_v81_FULLSCREEN_CONTROLS_FPV.html'
+dst_path=ROOT/'dist/REDLINE_v82_HANGAR_HERO_PERFORMANCE.html'
 out=dst_path.read_text()
 rx=re.compile(r'data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]{100,})')
 base=list(rx.finditer(src));short=list(rx.finditer(out))
@@ -31,7 +31,7 @@ for i,(old,new) in enumerate(zip(base,short)):
 # Some image assets are included only through hosted references; the standalone
 # HTML uses six of the seven optimized images in its base64 data URI payload.
 # Validate both the build manifest and the in-document transformations.
-build_report=json.loads((ROOT/'dist/BUILD_V81_REPORT.json').read_text())
+build_report=json.loads((ROOT/'dist/BUILD_V82_REPORT.json').read_text())
 assert build_report['optimized_image_count']==7,build_report
 assert changed_count>=6,('expected all embedded convertible cockpit assets',changed_count)
 # Meshes and packed binary textures must remain identical. Browser loaders
