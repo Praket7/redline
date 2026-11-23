@@ -1,0 +1,25 @@
+/* V81 final narrow-cockpit HUD alignment:
+   conserve space without clipping SPACE/SHIELD tactical labels.
+   Never add a painted panel or blur behind FPV instruments. */
+@media(max-width:1199px) {
+ body.rl-play.rl-cockpit #rlShell #rlPersistent #rlFlowModule .rl-flow-actions{
+   grid-template-columns:1fr!important;gap:1px!important;margin-top:4px!important;
+ }
+ body.rl-play.rl-cockpit #rlShell #rlPersistent #rlFlowModule .rl-flow-action{
+   grid-template-columns:43px minmax(0,1fr)!important;min-height:20px!important;
+ }
+ body.rl-play.rl-cockpit #rlShell #rlPersistent #rlFlowModule .rl-flow-action .key{
+   font-size:10px!important;letter-spacing:.01em!important;
+ }
+ body.rl-play.rl-cockpit #rlShell #rlPersistent #rlFlowModule .rl-flow-action .label{
+   font-size:10px!important;
+ }
+}
+@media(max-width:600px) {
+ body.rl-play.rl-cockpit #rlShell #rlPersistent #rlFlowModule .rl-flow-action{
+   grid-template-columns:38px minmax(0,1fr)!important;
+ }
+ body.rl-play.rl-cockpit #rlShell #rlPersistent #rlFlowModule .rl-flow-action .key{
+   font-size:9px!important;
+ }
+}
