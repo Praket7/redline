@@ -76,13 +76,14 @@ function positionStableSun(anchor){
 }
 const TOD=[['MORNING',22,110,0xffc890,2.2,'#f4b48a','#4a6fb0',0xcfa28a,'#ffc0a0'],['NOON',62,160,0xfff2dc,2.65,'#c8d8e6','#3d78c8',0xbccbd6,'#ffffff'],['SUNSET',30,250,0xffd5a1,2.04,'#e7b996','#6185c2',0xb5a9a0,'#ffe0b9']];let tod=1,sunDir=new THREE.Vector3();
 function setTod(i){const[n,el,az,lc,li,hz,zn,fg,cc]=TOD[i],e=el*Math.PI/180,a=az*Math.PI/180;sunDir.set(Math.cos(e)*Math.sin(a),Math.sin(e),Math.cos(e)*Math.cos(a));
- SU.sd.value.copy(sunDir);SU.hz.value.set(hz);SU.zn.value.set(zn);sun.color.setHex(lc);sun.intensity=li*.92;S.fog.color.setHex(fg);hemi.color.set(zn);SU.cc.value.set(cc);if(window.envUp)envUp();msg(n,900)}
+ SU.sd.value.copy(sunDir);SU.hz.value.set(hz);SU.zn.value.set(zn);sun.color.setHex(lc);sun.intensity=li*.92*(Number(THREE.REVISION)>=155?Math.PI:1);S.fog.color.setHex(fg);hemi.color.set(zn);SU.cc.value.set(cc);if(window.envUp)envUp();msg(n,900)}
 let mt;function msg(t,ms){$('msg').textContent=t;clearTimeout(mt);mt=setTimeout(()=>$('msg').textContent='',ms||1200)}
 if(REDLINE_WORLD==='raven'){
  TOD[1]=['STORMLINE',48,151,0xe3eaf6,2.45,'#a5b4c1','#537391',0x778e9d,'#e6eef4'];
  hemi.intensity=.87;fill.intensity=.37;amb.intensity=.10;
 }
 setTod(1);
+if(Number(THREE.REVISION)>=155){hemi.intensity*=Math.PI;fill.intensity*=Math.PI;amb.intensity*=Math.PI;}
 try{
  const rCanvas=document.createElement('canvas');rCanvas.width=512;rCanvas.height=256;
  const g=rCanvas.getContext('2d');
@@ -7142,17 +7143,17 @@ const REDLINE_SHOWROOM=(()=>{
  }
  // Lighting is carefully constrained: three photographic studio sources, two
  // low-intensity practicals, plus faint ambient. Lights don't cast tunnel shadows.
- const ambient=new THREE.HemisphereLight(0xb5cde5,0x10151d,.31);scene.add(ambient);
- const key=new THREE.SpotLight(0xf6f8ff,5.3,115,Math.PI*.30,.76,1.15);
+ const ambient=new THREE.HemisphereLight(0xb5cde5,0x10151d,.31);scene.add(ambient);if(Number(THREE.REVISION)>=155)ambient.intensity*=Math.PI;
+ const key=new THREE.SpotLight(0xf6f8ff,Number(THREE.REVISION)>=155?5.3*45:5.3,115,Math.PI*.30,.76,1.15);
  key.position.set(-13,24,-15);key.target.position.set(5,2.6,4);scene.add(key,key.target);
  key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.bias=-.0002;key.shadow.normalBias=.035;
  key.shadow.camera.near=.5;key.shadow.camera.far=115;
- const rim=new THREE.SpotLight(0xb6d5ff,3.5,105,Math.PI*.27,.72,1.18);
+ const rim=new THREE.SpotLight(0xb6d5ff,Number(THREE.REVISION)>=155?3.5*45:3.5,105,Math.PI*.27,.72,1.18);
  rim.position.set(20,23,30);rim.target.position.set(5,2.6,4);scene.add(rim,rim.target);
- const fill=new THREE.SpotLight(0xffffff,1.7,100,Math.PI*.39,.86,1.2);
+ const fill=new THREE.SpotLight(0xffffff,Number(THREE.REVISION)>=155?1.7*45:1.7,100,Math.PI*.39,.86,1.2);
  fill.position.set(18,16,-21);fill.target.position.set(5,2.3,4);scene.add(fill,fill.target);
  for(const x of[-11,21]){
-  const practical=new THREE.PointLight(0xe0f0ff,.62,38,2);
+  const practical=new THREE.PointLight(0xe0f0ff,Number(THREE.REVISION)>=155?.62*36:.62,38,2);
   practical.position.set(x,20,0);scene.add(practical);
  }
  // Low-frequency penumbra reinforces the actual cast shadow, not an opaque disk.
