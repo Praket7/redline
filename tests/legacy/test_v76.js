@@ -3,7 +3,10 @@ const source=fs.readFileSync(require('node:path').join(__dirname,'../../dist/RED
 let checks=0;
 function check(x,message){assert(x,message);checks++;}
 const policy=source.slice(source.indexOf('const REDLINE_RIVAL_DIRECTOR=(()=>{'),source.indexOf('const CLASH = {'));
-const context={window:{},console,Math};vm.runInNewContext(policy,context);
+// Deterministic test data: gameplay deliberately uses randomized rival phases.
+let aiSeed=12345;const seededMath=Object.create(Math);
+seededMath.random=()=>{aiSeed=(Math.imul(aiSeed,1664525)+1013904223)>>>0;return aiSeed/4294967296;};
+const context={window:{},console,Math:seededMath};vm.runInNewContext(policy,context);
 const dir=context.window.REDLINE_RIVAL_DIRECTOR;
 check(!!dir&&dir.presets.length===3,'AI director exists');
 const aiSource=source.slice(source.indexOf('(function(root,factory){const api=factory();if(typeof module'),source.indexOf('/*',source.indexOf('(function(root,factory){const api=factory();if(typeof module')));
