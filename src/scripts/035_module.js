@@ -7214,7 +7214,7 @@ const REDLINE_SHOWROOM=(()=>{
  const ceilingProfile=x=>archY(x);
   window.REDLINE_HANGAR_QA={theme:'black-led-detailing-tunnel',eave:ySide,ridge:yRidge,front:zFront,rear:zBack,ledArchCount:Math.ceil(bays/2),roofSegments:arcSteps,clearanceAt:x=>ceilingProfile(x),roomForEntranceAtCenter:ceilingProfile(5)-21};
  window.REDLINE_HANGAR_QA.decorations=hangarDecorationStats;
- let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0;
+ let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0,showroomCameraDistance=39.5,showroomFocusFraction=.79;
  let kestrelShowroom=null,bladeShowroom=null,bladeShowroomJets=null,copperShowroom=null,copperShowroomFx=null,spiritShowroom=null,spiritShowroomFx=null,visibleAirframe='kestrel',selectedAirframeArriving=false;
  let showroomSwitch=null,showroomExit=null,garageRevealPose=null;
  let showroomSelectionInitialized=false;
@@ -7685,7 +7685,13 @@ const REDLINE_SHOWROOM=(()=>{
   // A truly LOCKED architectural view. The hangar must never orbit or sway;
   // only the Kestrel root animates after fly-in, while the platform stays fixed.
   const fixedAngle=-1.2;
-  const baseRadius=screen==='solo'?39.5:screen==='landing'?41:39;
+  // Airframe-dependent cinematic framing. Blade is much wider than the
+   // other aircraft; Spirit is shallow and needs a closer camera.
+   // Critically, interpolate the camera to avoid a visible teleport on swap.
+   const isGarage=screen==='solo';
+   const craftRadius=isGarage?(visibleAirframe==='blade'?63:visibleAirframe==='spirit'?32:visibleAirframe==='copper'?39.5:39.5):screen==='landing'?41:39;
+   showroomCameraDistance+= (craftRadius-showroomCameraDistance)*(1-Math.exp(-Math.min(dt,.1)*4.2));
+   const baseRadius=showroomCameraDistance;
   const viewAspect=Math.max(.42,innerWidth/Math.max(1,innerHeight));
   const r=innerWidth<=720?Math.max(baseRadius,10.6/(.37*viewAspect)):baseRadius*Math.max(1,1.6/viewAspect);
   camera.position.set(5+Math.cos(fixedAngle)*r,11.6,4+Math.sin(fixedAngle)*r);
@@ -7703,7 +7709,11 @@ const REDLINE_SHOWROOM=(()=>{
   }
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
-   focusX=Math.max(w*.78,Math.min(w*.83,focusX));
+   const focusTarget=isGarage
+      ? (visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.725:visibleAirframe==='copper'?.755:.79)
+      : .79;
+    showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
+    focusX=w*showroomFocusFraction;
    // A virtual screen twice as wide as the focus position places the world
    // target exactly at focusX pixels without stretching or cropping the model.
    camera.setViewOffset(2*focusX,h,0,0,w,h);
