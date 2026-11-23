@@ -69,6 +69,20 @@ try:
                 case['hangarPose']=page.evaluate('()=>window.REDLINE_HANGAR_POSE_STATUS?.()')
                 case['hangarDecor']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.decorations')
                 case['hangarFootprint']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.projectedFootprint')
+                case['hangarCamera']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.cameraFraming')
+                assert case['hangarCamera'] and case['hangarCamera']['airframe']==craft, f'hangar camera not tracking selected craft: {case}'
+                if craft=='blade':
+                    assert case['hangarCamera']['distance']>=57 and case['hangarCamera']['screenFocus']<=.74, f'wide Blade needs room in right-side viewport: {case}'
+                if craft=='spirit':
+                    assert case['hangarCamera']['distance']<=37, f'Spirit too small in hangar: {case}'
+                case['hangarCTA']=page.evaluate('''()=>{
+                    let e=document.querySelector('.rl45-continue');
+                    if(!e)return null;
+                    let b=e.getBoundingClientRect(),s=getComputedStyle(e);
+                    return {top:b.top,bottom:b.bottom,left:b.left,display:s.display,viewportHeight:innerHeight};
+                }''')
+                if page.viewport_size['height']<=640:
+                    assert case['hangarCTA'] and 0<=case['hangarCTA']['top']<case['hangarCTA']['bottom']<=page.viewport_size['height']+8, f'Continue button hidden below fold: {craft}: {case}'
                 assert case['hangarDecor'] and case['hangarDecor']['panels']==16 and case['hangarDecor']['bolts']==64, f'hangar detail missing: {craft}: {case}'
                 if case['hangarFootprint']:
                     fp=case['hangarFootprint']
