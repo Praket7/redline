@@ -59,6 +59,6 @@ The original v77 flight and AI behavior is intentionally preserved. Renderer mod
 
 ## Stage 1 release status
 
-The real WebGL flight matrix is mandatory. `qa/FULL_GAME_E2E_REPORT.json` and `qa/BENCHMARK_RESULTS.json` must both say PASS on an actual graphics-capable test run. A build is **not certified** just because source, mock UI, or unit tests pass.
+**CI-verified foundation:** [GitHub Actions run 45089329040](https://github.com/Praket7/redline/actions/runs/45089329040) passed asset restoration, unit and regression tests, responsive layouts, real WebGL hangar/flight/FPV checks for all four aircraft, live speed/altitude/boost instruments, and the Raven Slalom capture benchmark. Screenshots and logs are attached as the workflow artifact. The CI environment uses Chromium/SwiftShader; its ~10 FPS software-render result is **not** evidence of 60 FPS on target player hardware.
 
-Local environments that disallow browser navigation cannot complete that gate; CI runs it using Chromium/SwiftShader. Avoid bypassing this gate or silently replacing it with a mocked renderer.
+**Stage 1 is merged as a tested foundation, not fully closed as a production-quality renderer upgrade.** Remaining work is tracked in [renderer migration #2](https://github.com/Praket7/redline/issues/2), [simulation/render decoupling #3](https://github.com/Praket7/redline/issues/3), and [CSS consolidation + real-device QA #4](https://github.com/Praket7/redline/issues/4). Keep the known-good r128 build until the modern renderer canary passes visual comparisons.

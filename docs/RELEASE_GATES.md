@@ -4,14 +4,18 @@
 |---|---|---|
 | 1 Frozen v77 | Done | SHA-256 original in manifest, original unchanged. |
 | 2 Modular source/build | Done | 40 original scripts (including CDN and deferred blobs), with 28 missing initial-transfer files recovered from hash-verified split archives, 36 original styles, 19 extracted image assets, two output types. Deferred GLBs remain inline in generated HTML intentionally. |
-| 3 Modern Three.js | Partial | Stepwise r138 canary prepared; release stays r128. Requires live WebGL screenshots and upgrade beyond r138. |
-| 4 Full-game browser QA | Partial | Playwright E2E implemented; current environment blocks localhost. Must pass on actual browser and CI before release promotion. |
+| 3 Modern Three.js | Partial | Current known-good release stays pinned r128. Incremental modern renderer upgrade with visual comparisons tracked in [#2](https://github.com/Praket7/redline/issues/2). |
+| 4 Full-game browser QA | WebGL smoke PASS | GitHub Actions [45089329040](https://github.com/Praket7/redline/actions/runs/45089329040) ran the actual engine for all four aircraft, tested real hangar selection, chase/FPV and speed/altitude/boost. Full race finish/replay soak is still outside this smoke suite. |
 | 5 Graphics telemetry | Done, CPU-only | F8 dashboard: fps, p50/p95, CPU update/render, draw calls, triangles, geometry/texture counts. GPU timing not yet instrumented. |
-| 6 Sim/render boundaries | Partial | Read-only 60Hz snapshot and existing render quaternion interpolation preserved; legacy state consumers remain coupled. |
-| 7 Unified FPV UI | Partial | Authoritative final CSS and isolated desktop/mobile tests pass; legacy styles retained until actual game screenshots can verify removals. |
-| 8 Graphics QA scene | Partial | Deterministic Raven Slalom camera + static layout tests and rendering captures via in-game hook; actual full WebGL baseline screenshot blocked. |
+| 6 Sim/render boundaries | Partial | Read-only 60Hz snapshot and existing render quaternion interpolation verified; deeper extraction tracked in [#3](https://github.com/Praket7/redline/issues/3). |
+| 7 Unified FPV UI | Partial | All four actual FPV screenshot and instrument tests passed in CI; legacy stylesheet consolidation and cross-browser visual regression remain [#4](https://github.com/Praket7/redline/issues/4). |
+| 8 Graphics QA scene | WebGL PASS | Fixed Raven Slalom camera generated real screenshot and metric report in [CI artifacts](https://github.com/Praket7/redline/actions/runs/45089329040). Geometry/material determinism across platforms needs further validation. |
 | 9 Asset validation | Done structurally | All 4 GLBs, 19 extracted image assets pass structural checks; art warnings documented (missing NORMAL/UV data on some meshes). Not remodeled. |
 | 10 Showcase sector | Done for Stage 1 | Raven Slalom at route fraction .156, camera capture hook, benchmark viewport 1600×900. Environment art overhaul is Stage 2. |
+
+## Verified automated result
+
+The merged Stage 1 branch passed [CI run 45089329040](https://github.com/Praket7/redline/actions/runs/45089329040): source, assets, all four true WebGL flight/hangar/FPV checks and live telemetry, and Raven benchmark. Software-rendering benchmark recorded 10.0 FPS median, median p95 frame time 322.7 ms, and 438 draw calls; **this is not a hardware performance pass**. No claim is made for modern Three.js, cross-browser Safari/Firefox, completion/replay endurance, or GPU-time measurement.
 
 ## Explicit constraints
 
