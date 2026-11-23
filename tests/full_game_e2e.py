@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 QA = ROOT / 'qa'; QA.mkdir(exist_ok=True)
 report = {'test': 'REDLINE Stage 1 full-engine WebGL smoke', 'state': 'NOT_RUN', 'cases': [], 'errors': [], 'requestFailures': []}
 renderer_revision=os.environ.get('REDLINE_EXPECT_RENDERER','128')
-site_path=ROOT / 'dist' / ('site-r187-compact' if renderer_revision=='187' and os.environ.get('REDLINE_COMPACT_SITE')=='1' else ('site-r187' if renderer_revision=='187' else 'site'))
+site_path=ROOT / 'dist' / ('site-r187-compact-v81' if os.environ.get('REDLINE_V81')=='1' else ('site-r187-compact' if renderer_revision=='187' and os.environ.get('REDLINE_COMPACT_SITE')=='1' else ('site-r187' if renderer_revision=='187' else 'site')))
 server = ThreadingHTTPServer(('127.0.0.1', 0), partial(SimpleHTTPRequestHandler, directory=str(site_path)))
 Thread(target=server.serve_forever, daemon=True).start()
 url = f'http://127.0.0.1:{server.server_address[1]}/index.html?redlineTest=1'
@@ -42,6 +42,21 @@ try:
         page.goto(url,wait_until='domcontentloaded',timeout=25000)
         page.wait_for_function('window.REDLINE_E2E?.status()?.ready===true', timeout=60000)
         report['state']='RUNNING'
+        if os.environ.get('REDLINE_V81')=='1':
+            ui=page.evaluate('''()=>{
+              const r=window.REDLINE_V81_VIEWPORT?.();
+              const c=window.REDLINE_V81_CONTROLS;
+              return {r,c};
+            }''')
+            report['v81Viewport']=ui
+            assert ui['r'] and ui['c'],f'V81 viewport and input metrics missing: {ui}'
+            assert ui['c']['fire']=='KeyE' and ui['c']['reload']=='KeyF' and ui['c']['shield']=='Space' and ui['c']['stop']=='KeyJ'
+            v=ui['r']['viewport']; canvas=ui['r']['canvas']
+            assert canvas and abs(canvas['width']-v['width'])<=2 and abs(canvas['height']-v['height'])<=2, f'3D game canvas must fill all available viewport pixels: {ui}'
+            for section in ('shell','screens'):
+                r=ui['r'][section]
+                assert r and r['width']>=v['width']-2 and r['height']>=v['height']-2,f'{section} still letterboxed on title: {ui}'
+
         # Renderer must be a real Three.js WebGLRenderer.
         check=page.evaluate('''()=>({three:window.THREE?.REVISION||null,canvases:[...document.querySelectorAll('canvas')].length,
              gl:[...document.querySelectorAll('canvas')].some(c=>!!(c.getContext('webgl2')||c.getContext('webgl'))),phase:window.REDLINE_BOOT_PHASE||null})''')
@@ -143,6 +158,20 @@ try:
                 case['hudVisible']=page.evaluate('''()=>{
                    const candidates=['rl74FpvHud','rl70TieHud','rl63SpiritDeck','rl65BladeDash','rl67KestrelPhoto'];
                    return candidates.filter(id=>{const el=document.getElementById(id);return el&&getComputedStyle(el).display!=='none'&&getComputedStyle(el).visibility!=='hidden'})}''')
+                if os.environ.get('REDLINE_V81')=='1':
+                    case['v81HudStyle']=page.evaluate('''()=>{
+                      const ids=['rlGameTop','rlPositions','rlFlowModule'];
+                      const styles=Object.fromEntries(ids.map(id=>{
+                        const e=document.getElementById(id),cs=e?getComputedStyle(e):null;
+                        return [id,cs?{color:cs.color,background:cs.backgroundColor,image:cs.backgroundImage,
+                          shadow:cs.boxShadow,backdrop:cs.backdropFilter}:null];
+                      }));
+                      return {styles,viewport:window.REDLINE_V81_VIEWPORT?.()};
+                    }''')
+                    for item,metrics in case['v81HudStyle']['styles'].items():
+                        assert metrics and metrics['background']=='rgba(0, 0, 0, 0)',f'{craft}: {item} still has black panel: {metrics}'
+                        assert metrics['shadow']=='none',f'{craft}: {item} has old card shadow: {metrics}'
+                        assert metrics['backdrop']=='none',f'{craft}: {item} applies blur: {metrics}'
                 # Use the *actual* instrument IDs. Checking unrelated legacy
                 # ids incorrectly reported that three live cockpit panels were absent.
                 case['liveHud']=page.evaluate('''(name)=>{
