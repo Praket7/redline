@@ -140,3 +140,24 @@ body.rl-play.rl-cockpit #rlAimHint{z-index:95!important;color:#ff4855!important}
  body.rl-play.rl-cockpit #maphud{top:62px!important}
  body.rl-play.rl-cockpit #rlFlowModule{top:205px!important}
 }
+
+
+/* V81 last-mile: legacy v77 cockpit overrides add a third body-state class,
+   outranking the generic :is(...) selector above. Use an explicitly stronger
+   rule on all four FPV modes so black panels can never reappear. */
+html body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit)
+  :is(#rlPositions,#rlGameTop,#maphud,#rlFlowModule,#navPointer,#rlToast,#rlMouseUnlock,#rlAimHint){
+  background:transparent!important;background-color:transparent!important;
+  background-image:none!important;
+  border:0!important;border-top:0!important;border-left:0!important;
+  border-right:0!important;border-bottom:0!important;border-radius:0!important;
+  box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+html body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit)
+  #rlPositions{
+  padding:0!important;margin:0!important;
+  color:#fff!important;text-shadow:0 1px 6px #000b!important;
+  outline:0!important;
+}
+html body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit)
+  #rlPositions .rl-pos-row{background:none!important;border:0!important;border-bottom:1px solid #ffffff22!important}
