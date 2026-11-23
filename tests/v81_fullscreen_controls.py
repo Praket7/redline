@@ -31,6 +31,19 @@ try:
   page.goto(url,wait_until='domcontentloaded',timeout=40000)
   page.wait_for_function("window.REDLINE_E2E?.status()?.ready===true",timeout=80000)
   assert page.evaluate("window.THREE.REVISION")=='187'
+  # New visitors get the fastest profile; a manual choice is persisted.
+  default_quality=page.evaluate("document.querySelector('#quality')?.value")
+  assert default_quality=='performance',f'wrong first-launch graphics preset: {default_quality}'
+  page.evaluate("""()=>{
+   const q=document.querySelector('#quality');q.value='balanced';q.dispatchEvent(new Event('change',{bubbles:true}));
+  }""")
+  saved=page.evaluate("localStorage.getItem('redline_graphics_preset')")
+  assert saved=='balanced',f'explicit graphics preference did not save: {saved}'
+  page.evaluate("""()=>{
+   const q=document.querySelector('#quality');q.value='performance';q.dispatchEvent(new Event('change',{bubbles:true}));
+  }""")
+  report['graphics']={'default':default_quality,'savedBalanced':saved,'restoredPerformance':page.evaluate("document.querySelector('#quality')?.value")}
+
 
   def inspect(screen,size):
    s=page.evaluate("""()=>{
@@ -72,6 +85,15 @@ try:
      inspect('SELECTION_'+craft.upper(),size)
      camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
      assert abs(camera['distance']-43)<.01,f'per-craft camera zoom must stay fixed: {craft} {camera}'
+    # The user's actual screenshot shows saved Spirit on the HOME screen.
+    # Verify that composition as well as the default Kestrel home screen.
+    page.evaluate("window.REDLINE_E2E.screen('landing')")
+    page.evaluate("()=>{for(let i=0;i<105;i++)window.REDLINE_SHOWROOM.update(.05)}")
+    page.wait_for_timeout(300)
+    inspect('TITLE_SPIRIT',size)
+    spirit_camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
+    assert spirit_camera['mode']=='landing' and spirit_camera['airframe']=='spirit',f'Spirit title camera did not retain selection: {spirit_camera}'
+
   page.set_viewport_size({'width':960,'height':540})
   page.evaluate("window.REDLINE_E2E.screen('solo')")
   page.locator('button[data-model="kestrel"]').first.click()
