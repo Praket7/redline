@@ -3844,6 +3844,48 @@ let prevPlayerPosition=new THREE.Vector3(),lastCheckpointTime=0,PB=Infinity,sect
 // The camera follows the craft; it never orbits independently in race mode.
 let cameraOrbitYaw=0,cameraOrbitPitch=0,mousePitch=0;
 let cameraRigReset=true;let activeFlightSteps=0;
+// v83 chase framing: the flight camera is deliberately independent of the
+// showroom/FPV lenses. Values are world units, not CSS/model scale hacks.
+// Profiles were tuned for readable aircraft silhouettes, then collision
+// correction retains the existing cameraClearance/CLIFF_COLLIDER safety sweep.
+const REDLINE_V83_CHASE_PROFILES=Object.freeze({
+ kestrel:Object.freeze({close:[17,3.8],normal:[23,5.0],wide:[41,9.0]}),
+ blade:Object.freeze({close:[18.5,4.1],normal:[25,5.4],wide:[44,9.6]}),
+ copper:Object.freeze({close:[20,4.3],normal:[27,5.8],wide:[47,10.1]}),
+ spirit:Object.freeze({close:[27,5.7],normal:[35,7.5],wide:[54,11.6]})
+});
+function redlineV83ChaseProfile(craft,mode){
+ const source=REDLINE_V83_CHASE_PROFILES[craft]||REDLINE_V83_CHASE_PROFILES.kestrel;
+ const preset=mode===1?'close':mode===2?'wide':'normal';
+ const [boom,rise]=source[preset];
+ return {craft,preset,boom,rise,fov:68};
+}
+window.REDLINE_V83_CHASE_PROFILES=REDLINE_V83_CHASE_PROFILES;
+// Only compute GLB world-space bounds in opt-in QA/debug modes to avoid
+// traversing potentially expensive meshes every frame on real GPUs.
+const redlineV83MeasureCamera=new URLSearchParams(location.search).has('cameraDebug')
+  ||new URLSearchParams(location.search).has('redlineTest');
+function redlineV83ProjectedBody(camera){
+ const craft=redlineActiveAirframe();
+ const root=craft==='spirit'?spiritGameArt:craft==='copper'?copperGameArt:craft==='blade'?bladeGameArt:kestrelGameArt;
+ if(!root||!root.visible)return null;
+ const box=new THREE.Box3().setFromObject(root);
+ if(box.isEmpty())return null;
+ const min=box.min,max=box.max;
+ let xMin=Infinity,xMax=-Infinity,yMin=Infinity,yMax=-Infinity;
+ for(const x of [min.x,max.x])for(const y of [min.y,max.y])for(const z of [min.z,max.z]){
+  const point=new THREE.Vector3(x,y,z).project(camera);
+  if(!Number.isFinite(point.x)||!Number.isFinite(point.y)||point.z<=-1||point.z>=1)return null;
+  const sx=.5+.5*point.x,sy=.5-.5*point.y;
+  xMin=Math.min(xMin,sx);xMax=Math.max(xMax,sx);
+  yMin=Math.min(yMin,sy);yMax=Math.max(yMax,sy);
+ }
+ return {left:xMin,right:xMax,top:yMin,bottom:yMax,
+  width:xMax-xMin,height:yMax-yMin,
+  centerX:(xMin+xMax)/2,centerY:(yMin+yMax)/2,
+  clipped:xMin<0||xMax>1||yMin<0||yMax>1};
+}
+
 const MOUSE_STEER_SENS=.0009, MOUSE_PITCH_SENS=.0009; // legacy values; v27.5 flight uses bounded drag axes
 try{const v=JSON.parse(localStorage.getItem('redline_geologic_v3_records')||'{}');PB=Number(v.best)||Infinity;bestGhost=Array.isArray(v.ghost)?v.ghost:[]}catch(e){}
 let lastSectors=[];
@@ -5557,13 +5599,18 @@ function update(dt){
   const orbitHeading=new THREE.Vector3(-Math.sin(st.yaw),0,-Math.cos(st.yaw));
  const anchor=dr.position.clone();
  if(REDLINE_PLAYER_CRASH.active&&REDLINE_DEBRIS.active)anchor.lerp(REDLINE_DEBRIS.focus,.57);
+ const chaseProfile=redlineV83ChaseProfile(redlineActiveAirframe(),camM);
+ let chaseCollisionLimited=false;
  let targetCamera;
  if(mode==='ready'||mode==='load'||mode==='done'){
    const an=time*.15;targetCamera=new THREE.Vector3(anchor.x+Math.cos(an)*38,anchor.y+11,anchor.z+Math.sin(an)*38);
  }else{
-   const desired=(camM===1?55:camM===2?90:64)+cl(Math.abs(st.spd)/175,0,5);
-   const rise=cl((camM===1?18:camM===2?30:22)+desired*Math.sin(cameraOrbitPitch)*.36,-desired*.38,desired*.65);
+   // No speed-based boom expansion: boosting must not shrink the player craft.
+   // Terrain/ledge collision may still shorten the boom for visibility.
+   const desired=chaseProfile.boom;
+   const rise=chaseProfile.rise;
    const safe=cameraClearance(anchor,orbitHeading,desired,rise);
+   chaseCollisionLimited=safe<desired-.5;
    targetCamera=anchor.clone().addScaledVector(orbitHeading,-safe);
    targetCamera.y+=rise*safe/desired;
    targetCamera.y=Math.max(targetCamera.y,gh(targetCamera.x,targetCamera.z)+6);
@@ -5571,7 +5618,7 @@ function update(dt){
    const planarVelocity=new THREE.Vector3(FL.vx,0,FL.vz);
    if(planarVelocity.lengthSq()>9&&redlineUI.config.view!==1){
     planarVelocity.normalize();
-    targetCamera.addScaledVector(planarVelocity,Math.min(4.5,Math.abs(st.spd)*REDLINE_FLIGHT.config.cameraLookahead*.32));
+    targetCamera.addScaledVector(planarVelocity,Math.min(1.25,Math.abs(st.spd)*REDLINE_FLIGHT.config.cameraLookahead*.085));
    }
    // Camera shell itself must not intersect the visible ledge meshes.
    for(let tries=0;tries<4;tries++){
@@ -5598,13 +5645,13 @@ function update(dt){
  // Camera-center rays are still used by the actual weapon solver (aimPoint).
  if(!isFPV&&redlineUI?.aim){redlineUI.aim.x=0;redlineUI.aim.y=0;}
  const lookAt=isFPV?anchor.clone().addScaledVector(fpvForward,160).add(new THREE.Vector3(0,2,0)):
-   anchor.clone().addScaledVector(fpvForward,camM===2?155:120).add(new THREE.Vector3(0,5,0));
+   anchor.clone().addScaledVector(fpvForward,96).add(new THREE.Vector3(0,1.7,0));
  cam.lookAt(lookAt);dr.visible=!REDLINE_PLAYER_CRASH.active&&!(redlineUI.config.view===1&&(mode==='run'||mode==='count'));updateLaserAimIndicator();
  // Stabilize physical cockpit instrument panel and sealed canopy under boost.
- // Dynamic chase FOV is still available, but first-person keeps one 76deg lens:
- // otherwise the screen-edge cage follows lens stretch while MFD/dials move.
+ // Fixed chase lens preserves craft scale through acceleration/boost.
+ // FPV remains on its independent, stable 76-degree cockpit lens.
  const cockpitLens=(redlineUI.config.view===1&&(mode==='run'||mode==='count'));
- const targetFov=cockpitLens?76:cl(66.5+Math.min(8.5,Math.abs(st.spd)/28)+(bo?5.0:0),66.5,81);
+ const targetFov=cockpitLens?76:chaseProfile.fov;
  cam.fov+=(targetFov-cam.fov)*(1-Math.exp(-dt*(cockpitLens?15:6)));cam.updateProjectionMatrix();
  // Debuggable crosshair invariant: when the game is running, the visible drone's
  // world anchor should remain at x≈0 in normalized screen coordinates.
@@ -5624,7 +5671,14 @@ function update(dt){
  const pBehind=bearing<-.25;
  pointer.textContent=(pBehind?'↶ ':'◇ ')+(damIsNext?'SPILLWAY FLOODGATE':GATES[gate][3])+' · '+Math.round(nextDistance)+'m'+(goal.y-p.y>22?' ↑':goal.y-p.y< -22?' ↓':'');
  if(pBehind){pointer.style.opacity=.78}else pointer.style.opacity=1;
- window.REDLINE_CAMERA_STATUS={x:focal.x,y:focal.y,screenY:(1-focal.y)*.5,boom:cam.position.distanceTo(anchor),mode:camM,altitude:redlineRiverAltitude(p.y),cameraOrbitYaw,cameraOrbitPitch,droneYaw:st.yaw,rockTriangles:CLIFF_COLLIDER.stats().triangles};
+ window.REDLINE_CAMERA_STATUS={x:focal.x,y:focal.y,screenX:(1+focal.x)*.5,
+  screenY:(1-focal.y)*.5,boom:cam.position.distanceTo(anchor),
+  requestedBoom:chaseProfile.boom,collisionLimited:chaseCollisionLimited,
+  profile:chaseProfile.preset,airframe:chaseProfile.craft,
+  bodyBounds:(!isFPV&&redlineV83MeasureCamera)?redlineV83ProjectedBody(cam):null,
+  reticleX:.5,reticleY:.5,fov:cam.fov,fpv:isFPV,
+  mode:camM,altitude:redlineRiverAltitude(p.y),cameraOrbitYaw,cameraOrbitPitch,
+  droneYaw:st.yaw,rockTriangles:CLIFF_COLLIDER.stats().triangles};
  const perf=$('devStats');if(!perf.classList.contains('hide')&&Math.floor(time*3)!==Math.floor((time-dt)*3)){
   perf.textContent='CAM X '+focal.x.toFixed(3)+' / Y '+focal.y.toFixed(3)+' | BOOM '+cam.position.distanceTo(anchor).toFixed(1)
       +' | FPS '+liveFPS.toFixed(0)+' / DPR '+Rn.getPixelRatio().toFixed(2)+' | SHADOW '+(redlineShadowsVisible?'ON':'OFF')+' | WATER '+(HYDRO.ready?HYDRO.stats().maxDepth.toFixed(1):'--')+'m | DRAW '+Rn.info.render.calls+' | TRI '+Rn.info.render.triangles+' | GATES '+gate+' / '+GATES.length;
