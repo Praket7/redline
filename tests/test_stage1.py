@@ -10,6 +10,12 @@ class T(unittest.TestCase):
   cls.manifest=json.loads((ROOT/'manifest.json').read_text());cls.dist=ROOT/'dist'
  def test_frozen_source(self):
   self.assertEqual(hashlib.sha256((ROOT/'originals/REDLINE_v77_FROZEN.html').read_bytes()).hexdigest(),self.manifest['baseline_sha256'])
+ def test_archived_v77_does_not_overwrite_editable_engine(self):
+  before=hashlib.sha256((ROOT/'src/scripts/035_module.js').read_bytes()).hexdigest()
+  run=subprocess.run([sys.executable,str(ROOT/'tools_restore_sources.py')],cwd=str(ROOT),capture_output=True,text=True)
+  self.assertEqual(run.returncode,0,run.stderr[-1000:])
+  after=hashlib.sha256((ROOT/'src/scripts/035_module.js').read_bytes()).hexdigest()
+  self.assertEqual(before,after,'Restoring original GLBs must not discard newer engine code')
  def test_exact_asset_sha256(self):
   for a in self.manifest['image_assets']:
    path=ROOT/'assets/images'/a['name'];self.assertTrue(path.exists());self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),a['sha256'])
