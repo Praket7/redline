@@ -26,4 +26,7 @@ const builder=fs.readFileSync(path.join(root,'build.py'),'utf8');
 assert(builder.includes("REDLINE_V81"),'v81 build flag missing');
 assert(builder.includes("v81_authority.css.gz.b64"),'minimal FPV CSS missing');
 assert(builder.includes("v81_narrow_hud.css"),'narrow HUD fix missing');
+assert(builder.includes('Double-click fires; Esc releases mouse.'),'build must explicitly replace the old tutorial hint');
+const narrow=fs.readFileSync(path.join(root,'src/styles/v81_narrow_hud.css'),'utf8');
+assert(narrow.includes('#rlMouseUnlock')&&narrow.includes('background:transparent!important'),'pointer overlay must be transparent');
 console.log('PASS v81 E-only fire / F reload / Space shield / J full stop, 1.05-sec laser-hit recovery, full viewport, transparent HUD build');
