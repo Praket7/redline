@@ -161,3 +161,6 @@ html body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-bla
 }
 html body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-cockpit,.rl67-kestrel-cockpit)
   #rlPositions .rl-pos-row{background:none!important;border:0!important;border-bottom:1px solid #ffffff22!important}
+
+/* Showroom label duplicates the navigation header and collides with Controls. */
+#rlScreens .rl45-head .rl45-mark{display:none!important}

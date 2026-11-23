@@ -72,9 +72,9 @@ try:
                 case['hangarCamera']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.cameraFraming')
                 assert case['hangarCamera'] and case['hangarCamera']['airframe']==craft, f'hangar camera not tracking selected craft: {case}'
                 if craft=='blade':
-                    assert abs(case['hangarCamera']['distance']-56)<.01 and case['hangarCamera']['screenFocus']<=.74, f'Blade must use same stable camera distance: {case}'
+                    assert abs(case['hangarCamera']['distance']-37)<.01 and case['hangarCamera']['screenFocus']<=.74, f'Blade must use same stable camera distance: {case}'
                 if craft=='spirit':
-                    assert abs(case['hangarCamera']['distance']-56)<.01, f'Spirit must use same stable camera distance: {case}'
+                    assert abs(case['hangarCamera']['distance']-37)<.01, f'Spirit must use same stable camera distance: {case}'
                 case['hangarCTA']=page.evaluate('''()=>{
                     let e=document.querySelector('.rl45-continue');
                     if(!e)return null;

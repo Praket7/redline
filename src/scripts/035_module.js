@@ -17,8 +17,8 @@ window.REDLINE_MOBILE=REDLINE_MOBILE;
 window.REDLINE_BOOT_PHASE='renderer';
 // Limit GPU startup allocations on tile-based mobile browsers; desktop quality is untouched.
 const Rn=new THREE.WebGLRenderer({antialias:!REDLINE_MOBILE,alpha:false,powerPreference:'high-performance'});
-Rn.setPixelRatio(Math.min(devicePixelRatio,REDLINE_MOBILE?.75:.86));Rn.setSize(innerWidth,innerHeight,false);
-Rn.shadowMap.enabled=true;Rn.shadowMap.type=THREE.PCFSoftShadowMap;Rn.toneMapping=THREE.ACESFilmicToneMapping;Rn.outputEncoding=THREE.sRGBEncoding;Rn.toneMappingExposure=.93;
+Rn.setPixelRatio(Math.min(devicePixelRatio,REDLINE_MOBILE?.64:.68));Rn.setSize(innerWidth,innerHeight,false);
+Rn.shadowMap.enabled=false;Rn.shadowMap.type=THREE.PCFSoftShadowMap;Rn.toneMapping=THREE.ACESFilmicToneMapping;Rn.outputEncoding=THREE.sRGBEncoding;Rn.toneMappingExposure=.93;
 Rn.domElement.style.cssText='position:fixed;left:0;top:0;width:100vw;height:100dvh;display:block;margin:0;padding:0;max-width:none;max-height:none';document.body.prepend(Rn.domElement);
 const S=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.5,6000);S.fog=new THREE.Fog(0xd08a68,250,3200);
 const lin=h=>new THREE.Color(h).convertSRGBToLinear();
@@ -58,7 +58,7 @@ sun.shadow.bias=-.00017;
 sun.shadow.normalBias=.19;
 sun.shadow.radius=2.6;
 // Inspection mode: press F9 to compare lighting with and without cast shadows.
-let redlineShadowsVisible=true;
+let redlineShadowsVisible=false;
 const shadowAlignedTarget=new THREE.Vector3(),shadowEast=new THREE.Vector3(),shadowNorth=new THREE.Vector3();
 function positionStableSun(anchor){
  // Snap the directional shadow-map projection in LIGHT space. Smoothly moving a
@@ -3796,7 +3796,7 @@ window.REDLINE_NAV_DIAGNOSTICS=()=>({...(window.REDLINE_NAV_STATUS||{}),
  onlineRivals:REDLINE_ONLINE.minimapRivals()});
 // ---- state, input
 const P={t:80,a:75,s:70};['t','a','s'].forEach(k=>$('s'+k).oninput=e=>{P[k]=+e.target.value;$('n'+k).textContent=P[k]});
-const quality=$('quality');let qualityTier='balanced',maxRenderDpr=.94;
+const quality=$('quality');let qualityTier='performance',maxRenderDpr=.68;
 quality.value=qualityTier;
 quality.addEventListener('change',()=>{
  qualityTier=quality.value;
@@ -7199,7 +7199,7 @@ const REDLINE_SHOWROOM=(()=>{
  const ceilingProfile=x=>archY(x);
   window.REDLINE_HANGAR_QA={theme:'black-led-detailing-tunnel',eave:ySide,ridge:yRidge,front:zFront,rear:zBack,ledArchCount:Math.ceil(bays/2),roofSegments:arcSteps,clearanceAt:x=>ceilingProfile(x),roomForEntranceAtCenter:ceilingProfile(5)-21};
  window.REDLINE_HANGAR_QA.decorations=hangarDecorationStats;
- let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0,showroomCameraDistance=56,showroomFocusFraction=.75;
+ let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0,showroomCameraDistance=37,showroomFocusFraction=.76;
  let kestrelShowroom=null,bladeShowroom=null,bladeShowroomJets=null,copperShowroom=null,copperShowroomFx=null,spiritShowroom=null,spiritShowroomFx=null,visibleAirframe='kestrel',selectedAirframeArriving=false;
  let showroomSwitch=null,showroomExit=null,garageRevealPose=null;
  let showroomSelectionInitialized=false;
@@ -7237,7 +7237,7 @@ const REDLINE_SHOWROOM=(()=>{
   model.name='Redline_Real_Kestrel_X4_Showroom';kestrelShowroom=model;
   // 19% larger physical model, then tighter composition below. It remains inside
   // the geometry-derived roof clearance envelope even during the 6-second approach.
-  model.scale.setScalar(2.70);REDLINE_VISUALS.detailDrone(THREE,model);scene.add(model);
+  model.scale.setScalar(2.60);REDLINE_VISUALS.detailDrone(THREE,model);scene.add(model);
   // v54: never flash the default Kestrel while a saved craft is loading.
   model.visible=false;
   window.REDLINE_HANGAR_QA.modelLocalBounds=new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).toArray();
@@ -7339,7 +7339,7 @@ const REDLINE_SHOWROOM=(()=>{
   bladeShowroom=new THREE.Group();bladeShowroom.name='Blade_Noir_v9_CLOSED_Real_3D_Showroom';
   const art=new THREE.Group();art.rotation.y=Math.PI;
   const actual=window.REDLINE_BLADE_TEMPLATE.clone(true);
-  art.add(actual);bladeShowroom.add(art);bladeShowroom.scale.setScalar(1.93);
+  art.add(actual);bladeShowroom.add(art);bladeShowroom.scale.setScalar(1.70);
   bladeShowroomJets=REDLINE_BLADE_EXHAUST.make(actual,true);
   actual.traverse(o=>{if(!o.isMesh)return;
    o.castShadow=true;o.receiveShadow=true;
@@ -7359,7 +7359,7 @@ const REDLINE_SHOWROOM=(()=>{
   copperShowroom=new THREE.Group();copperShowroom.name='Copper_Wraith_v4_Real_3D_Showroom';
   const adapter=new THREE.Group();adapter.rotation.y=Math.PI;
   const actual=window.REDLINE_COPPER_TEMPLATE.clone(true);
-  adapter.add(actual);copperShowroom.add(adapter);copperShowroom.scale.setScalar(2.48);
+  adapter.add(actual);copperShowroom.add(adapter);copperShowroom.scale.setScalar(2.52);
   actual.traverse(o=>{if(!o.isMesh)return;
     o.castShadow=true;o.receiveShadow=true;
     const src=Array.isArray(o.material)?o.material:[o.material];
@@ -7384,7 +7384,7 @@ const REDLINE_SHOWROOM=(()=>{
   // Scale original 52.4-wide wing into same framing as the other models.
   adapter.scale.setScalar(.25);
   const actual=window.REDLINE_SPIRIT_TEMPLATE.clone(true);adapter.add(actual);
-  spiritShowroom.add(adapter);spiritShowroom.scale.setScalar(3.10);
+  spiritShowroom.add(adapter);spiritShowroom.scale.setScalar(2.35);
   const cache=new Map();actual.traverse(o=>{if(!o.isMesh)return;
    o.castShadow=true;o.receiveShadow=true;
    const src=Array.isArray(o.material)?o.material:[o.material];
@@ -7477,9 +7477,9 @@ const REDLINE_SHOWROOM=(()=>{
    // The previous craft has completely departed before the incoming appears.
    // Absolute poses make the animation independent of frame rate.
    const u=rl46Ease((t-.66)/.98),away=1-u;
-   craft.position.set(5+5.2*away,showroomHomeY(craft)+1.2*away,4+39*away);
+   craft.position.set(5+4*away,showroomHomeY(craft)+1.2*away,4+22*away);
    craft.rotation.set(-.12*away,.50*away+displayYaw*u,.18*away);
-   craft.scale.copy(baseScale).multiplyScalar(.69+.31*u);
+   craft.scale.copy(baseScale).multiplyScalar(.82+.18*u);
   }
   function updateShowroomSwitch(dt){
    const tx=showroomSwitch;if(!tx)return;
@@ -7518,8 +7518,8 @@ const REDLINE_SHOWROOM=(()=>{
    }
   }
   function showroomFlightIn(t){
-   const u=rl46Ease(t/2.65),away=1-u;
-   model.position.set(5+5*away,showroomHomeY(model)+1.1*away,4+36*away);
+   const u=rl46Ease(t/1.45),away=1-u;
+   model.position.set(5+2.5*away,showroomHomeY(model)+.9*away,4+18*away);
    model.rotation.set(-.10*away,.50*away,-.19*away);
   }
   function showroomGarageReveal(t){
@@ -7676,12 +7676,12 @@ const REDLINE_SHOWROOM=(()=>{
    const isGarage=screen==='solo';
    // Keep ONE stable focal length and camera distance through every aircraft change.
    // Only craft geometry moves during selection, avoiding the old zoom pumping.
-   const craftRadius=56;
+   const craftRadius=37;
    showroomCameraDistance=craftRadius;
    const baseRadius=showroomCameraDistance;
   const viewAspect=Math.max(.42,innerWidth/Math.max(1,innerHeight));
   const r=innerWidth<=720?Math.max(baseRadius,10.6/(.37*viewAspect)):baseRadius*Math.max(1,1.6/viewAspect);
-  camera.position.set(5+Math.cos(fixedAngle)*r,11.6,4+Math.sin(fixedAngle)*r);
+  camera.position.set(5+Math.cos(fixedAngle)*r,19.5,4+Math.sin(fixedAngle)*r);
   // V17.3 right-hand composition: the real Kestrel, platform and orbit target
   // remain at world (5, 2.65, 4). An OFF-AXIS projection moves their IMAGE to
   // the right; moving lookAt in world space could never lock the image during orbit.
@@ -7696,9 +7696,7 @@ const REDLINE_SHOWROOM=(()=>{
   }
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
-   const focusTarget=isGarage
-      ? (visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.70:visibleAirframe==='copper'?.745:.75)
-      : .79;
+   const focusTarget=(visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.66:visibleAirframe==='copper'?.735:.72);
     showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
     focusX=w*showroomFocusFraction;
    // A virtual screen twice as wide as the focus position places the world
@@ -7709,7 +7707,7 @@ const REDLINE_SHOWROOM=(()=>{
    camera.aspect=w/h;
    camera.updateProjectionMatrix();
   }
-  camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+.10,4));
+  camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+2.0,4));
    window.REDLINE_HANGAR_QA.cameraFraming={distance:showroomCameraDistance,screenFocus:showroomFocusFraction,airframe:visibleAirframe,mode:screen};
   // Diagnose the true on-screen footprint of the aircraft and roof clearance.
   framingSample+=dt;

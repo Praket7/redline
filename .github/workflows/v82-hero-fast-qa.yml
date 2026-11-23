@@ -1,0 +1,82 @@
+name: REDLINE v82 cinematic hero framing and fastest graphics QA
+on:
+  push:
+    branches: [stage1/v82-hero-framing-fast-default]
+  workflow_dispatch:
+concurrency:
+  group: redline-v82-hero-framing-final-cleanup
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  v82_release_candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install tools and genuine Chromium/WebGL
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          pip install Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Restore frozen source, original GLBs and assets
+        run: |
+          python tools_restore_sources.py
+          python tools_restore_baseline.py
+          python tools_validate.py
+      - name: Build stable r128 baseline and original Raven camera reference
+        env: {REDLINE_REQUIRE_VENDOR: '1'}
+        run: |
+          python build.py
+          REDLINE_EXPECT_RENDERER=128 python tests/benchmark_sector.py
+          cp qa/SHOWCASE_RAVEN_SLALOM_LIVE.png qa/SHOWCASE_RAVEN_SLALOM_R128.png
+          cp qa/BENCHMARK_RESULTS.json qa/BENCHMARK_R128.json
+      - name: Build uncompressed r187 for exact size comparison
+        env: {REDLINE_REQUIRE_VENDOR: '1', REDLINE_THREE_VARIANT: r187}
+        run: |
+          node tools/build-modern-renderer.cjs
+          python build.py
+      - name: Build compact modern v82 standalone and hosted site
+        env: {REDLINE_REQUIRE_VENDOR: '1', REDLINE_THREE_VARIANT: r187, REDLINE_COMPACT: '1'}
+        run: python build.py
+      - name: Test compressed assets, flight pitch and all source contracts
+        run: |
+          python tests/v80_compaction.py
+          node tests/v80_pitch_response.js
+          node tests/v81_controls.js
+          python tests/test_stage1.py
+          node tests/test_stage1_runtime.js
+          node tests/simulation_determinism.js
+          for f in tests/legacy/*.js; do node "$f"; done
+      - name: Real WebGL - all four crafts, detailed hangar and FPV
+        env: {REDLINE_EXPECT_RENDERER: '187', REDLINE_COMPACT_SITE: '1'}
+        run: python tests/full_game_e2e.py
+      - name: Real WebGL - fullscreen title, hangar, race start, FPV, and J/E/F controls
+        env: {REDLINE_EXPECT_RENDERER: '187'}
+        run: python tests/v81_fullscreen_controls.py
+      - name: Real WebGL - exact compressed downloadable HTML
+        env: {REDLINE_EXPECT_RENDERER: '187', REDLINE_STANDALONE_FILE: REDLINE_v82_HERO_FAST_DEFAULT.html}
+        run: python tests/standalone_smoke.py
+      - name: Real WebGL - compact Raven Slalom performance and visual benchmark
+        env: {REDLINE_EXPECT_RENDERER: '187', REDLINE_COMPACT_SITE: '1'}
+        run: |
+          python tests/benchmark_sector.py
+          cp qa/SHOWCASE_RAVEN_SLALOM_LIVE.png qa/SHOWCASE_RAVEN_SLALOM_R187.png
+          cp qa/BENCHMARK_RESULTS.json qa/BENCHMARK_R187.json
+          python tests/compare_renderers.py
+      - name: Export playable builds and full screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: REDLINE-v82-hero-framing-fast-default-verified
+          path: |
+            dist/REDLINE_v82_HERO_FAST_DEFAULT.html
+            dist/REDLINE_v78_STAGE1_STANDALONE.html
+            dist/BUILD_V82_REPORT.json
+            qa/
+          compression-level: 0
+          retention-days: 10
