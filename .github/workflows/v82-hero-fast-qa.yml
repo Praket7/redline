@@ -4,7 +4,7 @@ on:
     branches: [stage1/v82-hero-framing-fast-default]
   workflow_dispatch:
 concurrency:
-  group: redline-v82-hero-framing-main
+  group: redline-v82-hero-framing-final-cleanup
   cancel-in-progress: true
 permissions:
   contents: read
