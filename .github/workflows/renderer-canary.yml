@@ -28,6 +28,11 @@ jobs:
       - name: Build r128 reference
         env: {REDLINE_REQUIRE_VENDOR: '1'}
         run: python build.py
+      - name: Capture r128 reference Raven Slalom in real Chromium WebGL
+        env: {REDLINE_EXPECT_RENDERER: '128'}
+        run: |
+          python tests/benchmark_sector.py
+          cp qa/SHOWCASE_RAVEN_SLALOM_LIVE.png qa/SHOWCASE_RAVEN_SLALOM_R128.png
       - name: Build current Three.js r187 canary
         run: |
           node tools/build-modern-renderer.cjs
@@ -43,6 +48,10 @@ jobs:
       - name: True WebGL Raven Slalom benchmark - modern renderer
         env: {REDLINE_EXPECT_RENDERER: '187'}
         run: python tests/benchmark_sector.py
+      - name: Verify modern scene against reference screenshot
+        run: |
+          cp qa/SHOWCASE_RAVEN_SLALOM_LIVE.png qa/SHOWCASE_RAVEN_SLALOM_R187.png
+          python tests/compare_renderers.py
       - name: Upload modern renderer screenshots and logs
         if: always()
         uses: actions/upload-artifact@v4
