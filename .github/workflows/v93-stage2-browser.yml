@@ -33,7 +33,7 @@ jobs:
           for i,j,rep in reversed(d['ops']):
               lines[i:j]=rep.splitlines(keepends=True)
           target=''.join(lines).encode()
-          assert hashlib.sha256(target).hexdigest()==d['target']=='a9beb7e45bfd8f64bb370f8d230d8231924adab1fa74c028c53d3eec021b18ab'
+          assert hashlib.sha256(target).hexdigest()==d['target']=='3821a89c199e56c95dd5ce989c9924859ed6074d8d9006d36a460c1934205453'
           pathlib.Path('dist').mkdir(exist_ok=True)
           pathlib.Path('dist/REDLINE_v93_STAGE2.html').write_bytes(target)
           print('Verified exact release', d['target'], len(target))
