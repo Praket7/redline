@@ -26,6 +26,9 @@ try:
       localStorage.setItem('redline_v16_options',JSON.stringify({course:'grand',autoPointerLock:false}));
     } catch (e) {}
   """)
+  shader_errors=[]
+  page.on('console',lambda m:shader_errors.append(m.text[:6000])
+          if m.type=='error' and ('WebGLProgram' in m.text or 'Shader Error' in m.text or 'VALIDATE_STATUS' in m.text) else None)
   page.goto(url,wait_until='domcontentloaded',timeout=12000)
   page.wait_for_function('window.REDLINE_E2E?.status()?.ready === true',timeout=35000)
   page.evaluate('()=>window.REDLINE_E2E.select("kestrel")')
@@ -59,6 +62,7 @@ try:
 except Exception as exc:
  report['state']='BLOCKED' if 'ERR_BLOCKED_BY_ADMINISTRATOR' in str(exc) else 'FAIL';report['reason']=str(exc)[:1000]
 finally:
+ report['consoleShaderErrors']=locals().get('shader_errors',[])
  server.shutdown();(o/'BENCHMARK_RESULTS.json').write_text(json.dumps(report,indent=2))
  print(json.dumps({k:v for k,v in report.items() if k!='samples'},indent=2))
 sys.exit(0 if report['state']=='PASS' else 2)
