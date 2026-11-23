@@ -50,6 +50,13 @@ try:
                 # config without clicking caused four misleading Kestrel screenshots.
                 page.evaluate('()=>window.REDLINE_E2E.screen("solo")')
                 page.locator(f'button[data-model="{craft}"]').first.click()
+                # Advance the actual hangar update in deterministic steps: software
+                # WebGL often cannot display 100 transition frames in CI time.
+                # The production animation and model-switch code are still used.
+                if craft!='kestrel':
+                    flag={'blade':'REDLINE_BLADE_READY','copper':'REDLINE_COPPER_READY','spirit':'REDLINE_SPIRIT_READY'}[craft]
+                    page.wait_for_function('(f)=>window[f]===true',arg=flag,timeout=45000)
+                page.evaluate('()=>{for(let i=0;i<100;i++) window.REDLINE_SHOWROOM.update(.05)}')
                 page.wait_for_function(
                     '(name)=>window.REDLINE_SHOWROOM?.airframe === name && window.REDLINE_SHOWROOM?.selectedReady',
                     arg=craft,timeout=45000)
