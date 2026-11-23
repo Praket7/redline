@@ -17,7 +17,7 @@ window.REDLINE_MOBILE=REDLINE_MOBILE;
 window.REDLINE_BOOT_PHASE='renderer';
 // Limit GPU startup allocations on tile-based mobile browsers; desktop quality is untouched.
 const Rn=new THREE.WebGLRenderer({antialias:!REDLINE_MOBILE,alpha:false,powerPreference:'high-performance'});
-Rn.setPixelRatio(Math.min(devicePixelRatio,REDLINE_MOBILE?.9:1.0));Rn.setSize(innerWidth,innerHeight);
+Rn.setPixelRatio(Math.min(devicePixelRatio,REDLINE_MOBILE?.75:.86));Rn.setSize(innerWidth,innerHeight);
 Rn.shadowMap.enabled=true;Rn.shadowMap.type=THREE.PCFSoftShadowMap;Rn.toneMapping=THREE.ACESFilmicToneMapping;Rn.outputEncoding=THREE.sRGBEncoding;Rn.toneMappingExposure=.93;
 Rn.domElement.style.cssText='position:fixed;inset:0';document.body.prepend(Rn.domElement);
 const S=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.5,6000);S.fog=new THREE.Fog(0xd08a68,250,3200);
@@ -51,7 +51,7 @@ S.add(fill,amb);
 // both produced conspicuous disconnected/striped canyon shadows.
 sun.castShadow=true;
 const SHADOW_HALF_SPAN=178;
-sun.shadow.mapSize.set(REDLINE_MOBILE?1024:2048,REDLINE_MOBILE?1024:2048);
+sun.shadow.mapSize.set(REDLINE_MOBILE?768:1280,REDLINE_MOBILE?768:1280);
 Object.assign(sun.shadow.camera,{left:-SHADOW_HALF_SPAN,right:SHADOW_HALF_SPAN,top:SHADOW_HALF_SPAN,bottom:-SHADOW_HALF_SPAN,near:20,far:1550});
 sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias=-.00017;
@@ -3796,14 +3796,14 @@ window.REDLINE_NAV_DIAGNOSTICS=()=>({...(window.REDLINE_NAV_STATUS||{}),
  onlineRivals:REDLINE_ONLINE.minimapRivals()});
 // ---- state, input
 const P={t:80,a:75,s:70};['t','a','s'].forEach(k=>$('s'+k).oninput=e=>{P[k]=+e.target.value;$('n'+k).textContent=P[k]});
-const quality=$('quality');let qualityTier='balanced',maxRenderDpr=1.15;
+const quality=$('quality');let qualityTier='balanced',maxRenderDpr=.94;
 quality.value=qualityTier;
 quality.addEventListener('change',()=>{
  qualityTier=quality.value;
- const factor=qualityTier==='performance'?.85:qualityTier==='ultra'?1.55:1.15;
+ const factor=qualityTier==='performance'?.68:qualityTier==='ultra'?1.40:.94;
  Rn.setPixelRatio(Math.min(devicePixelRatio,factor));Rn.setSize(innerWidth,innerHeight);rsz();
  Rn.shadowMap.enabled=qualityTier!=='performance';
- sun.shadow.mapSize.set(qualityTier==='ultra'?3072:1536,qualityTier==='ultra'?3072:1536);sun.shadow.camera.updateProjectionMatrix();if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
+ sun.shadow.mapSize.set(qualityTier==='ultra'?2048:1024,qualityTier==='ultra'?2048:1024);sun.shadow.camera.updateProjectionMatrix();if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
  maxRenderDpr=factor;adaptiveDesiredDpr=Rn.getPixelRatio();
  msg('GRAPHICS: '+qualityTier.toUpperCase(),1100);
 });
@@ -5801,7 +5801,7 @@ function adaptQuality(now){
  const current=Rn.getPixelRatio();
  // Accumulate small improvements, but only resize when the resolution change
  // is meaningful. Canvas resize happens before rendering the next frame.
- if(liveFPS<49)adaptiveDesiredDpr=Math.max(.68,adaptiveDesiredDpr-.10);
+ if(liveFPS<49)adaptiveDesiredDpr=Math.max(.58,adaptiveDesiredDpr-.13);
  else if(liveFPS>59)adaptiveDesiredDpr=Math.min(Math.min(devicePixelRatio,maxRenderDpr),adaptiveDesiredDpr+.025);
  adaptiveDesiredDpr=Math.min(Math.min(devicePixelRatio,maxRenderDpr),adaptiveDesiredDpr);
  if(Math.abs(adaptiveDesiredDpr-current)>.045){
@@ -6972,8 +6972,8 @@ const REDLINE_SHOWROOM=(()=>{
   const probe=pmg.fromEquirectangular(t);scene.environment=probe.texture;t.dispose();
   window.REDLINE_HANGAR_QA.probeReady=true;
  }catch(error){console.warn('Showroom reflection probe unavailable',error);}}
- scene.background=new THREE.Color(0x020407);
- scene.fog=new THREE.Fog(0x030509,105,255);
+ scene.background=new THREE.Color(0x08101a);
+ scene.fog=new THREE.Fog(0x0a1119,100,255);
  const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.15,250);
  const industrial=new THREE.MeshStandardMaterial({color:0x242d32,metalness:.82,roughness:.34});
  const matte=new THREE.MeshStandardMaterial({color:0x111820,metalness:.28,roughness:.77});
@@ -7141,16 +7141,59 @@ const REDLINE_SHOWROOM=(()=>{
   const mir=new THREE.Mesh(new THREE.PlaneGeometry(2.8,115),new THREE.MeshBasicMaterial({map:reflTex,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}));
   mir.rotation.x=-Math.PI/2;mir.position.set(x,-1.165,23);mir.renderOrder=1;scene.add(mir);
  }
+
+ // V80 hangar: architectural hardware authored as 5 batches, not dozens of draws.
+ // Each accent follows the actual platform, runway or wall, without affecting
+ // the vehicle model's root, collision shape, material or selected-airframe state.
+ const detailBolt=new THREE.MeshStandardMaterial({color:0x87949b,metalness:.86,roughness:.30});
+ const detailPanel=new THREE.MeshStandardMaterial({color:0x313c46,metalness:.69,roughness:.41,envMapIntensity:1.05});
+ const detailTread=new THREE.MeshStandardMaterial({color:0x141c24,metalness:.42,roughness:.71});
+ function hangarInstances(name,geometry,material,arr){
+  const mesh=new THREE.InstancedMesh(geometry,material,arr.length),dummy=new THREE.Object3D();mesh.name=name;
+  for(let i=0;i<arr.length;i++){
+   const [x,y,z,sx,sy,sz,ry=0]=arr[i];
+   dummy.position.set(x,y,z);dummy.rotation.set(0,ry,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate=true;mesh.frustumCulled=false;scene.add(mesh);return mesh;
+ }
+ const panelInstances=[],boltInstances=[],treadInstances=[];
+ for(const side of[-1,1])for(let bay=0;bay<8;bay++){
+  const z=-26+bay*17.2,x=5+side*15.5;
+  panelInstances.push([x,-1.133,z,5.1,.032,6.4]);
+  for(const dx of[-2.15,2.15])for(const dz of[-2.7,2.7])boltInstances.push([x+dx,-1.106,z+dz,.11,.10,.11]);
+  treadInstances.push([x,-1.108,z+4.0,4.7,.016,.07]);
+ }
+ hangarInstances('Maintenance_Deck_Panels',new THREE.BoxGeometry(1,1,1),detailPanel,panelInstances);
+ hangarInstances('Recessed_Steel_Fasteners',new THREE.CylinderGeometry(.5,.5,1,8),detailBolt,boltInstances);
+ hangarInstances('Panel_Seams',new THREE.BoxGeometry(1,1,1),detailTread,treadInstances);
+ const stageAccents=[],safetyBars=[];
+ for(const side of[-1,1])for(let k=0;k<12;k++){
+  const z=-32+k*11.4,x=5+side*10.4;
+  stageAccents.push({a:[x,-1.095,z],b:[x,-1.095,z+4.3],w:.09,d:.07});
+  safetyBars.push({a:[x+side*1.6,-1.085,z+5.1],b:[x+side*1.6,-1.085,z+5.75],w:.13,d:.10});
+ }
+ batchedBeams('Runway_Edge_Cool_White',stageAccents,new THREE.MeshBasicMaterial({color:0xb9dcef,toneMapped:false}));
+ batchedBeams('Runway_Safety_Red',safetyBars,new THREE.MeshBasicMaterial({color:0xff263a,toneMapped:false}));
+ const marking=document.createElement('canvas');marking.width=1024;marking.height=192;
+ const mctx=marking.getContext('2d');mctx.clearRect(0,0,1024,192);
+ mctx.fillStyle='#dfe9f2';mctx.font='900 italic 126px Arial';mctx.fillText('REDLINE',42,128);
+ mctx.fillStyle='#f04453';mctx.fillRect(44,155,465,8);
+ mctx.font='500 30px Arial';mctx.fillStyle='#a9b8c5';mctx.fillText('AIRFRAME TEST FACILITY  /  BAY 04',44,186);
+ const markingTexture=new THREE.CanvasTexture(marking);markingTexture.colorSpace=THREE.SRGBColorSpace;
+ const markingMesh=new THREE.Mesh(new THREE.PlaneGeometry(17,3.2),new THREE.MeshBasicMaterial({map:markingTexture,transparent:true,depthWrite:false}));
+ markingMesh.position.set(5,16,zBack-1.5);markingMesh.rotation.y=Math.PI;scene.add(markingMesh);
+ const hangarDecorationStats={panels:panelInstances.length,bolts:boltInstances.length,runwayLights:stageAccents.length+safetyBars.length,batchedDraws:5};
+
  // Lighting is carefully constrained: three photographic studio sources, two
  // low-intensity practicals, plus faint ambient. Lights don't cast tunnel shadows.
  const ambient=new THREE.HemisphereLight(0xb5cde5,0x10151d,.31);scene.add(ambient);if(Number(THREE.REVISION)>=155)ambient.intensity*=Math.PI;
- const key=new THREE.SpotLight(0xf6f8ff,Number(THREE.REVISION)>=155?5.3*160:5.3,115,Math.PI*.30,.76,1.15);
+ const key=new THREE.SpotLight(0xf6f8ff,Number(THREE.REVISION)>=155?5.3*135:5.3,115,Math.PI*.33,.8,1.15);
  key.position.set(-13,24,-15);key.target.position.set(5,2.6,4);scene.add(key,key.target);
- key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.bias=-.0002;key.shadow.normalBias=.035;
+ key.castShadow=true;key.shadow.mapSize.set(1024,1024);key.shadow.bias=-.0002;key.shadow.normalBias=.035;
  key.shadow.camera.near=.5;key.shadow.camera.far=115;
- const rim=new THREE.SpotLight(0xb6d5ff,Number(THREE.REVISION)>=155?3.5*160:3.5,105,Math.PI*.27,.72,1.18);
+ const rim=new THREE.SpotLight(0xb6d5ff,Number(THREE.REVISION)>=155?3.5*135:3.5,105,Math.PI*.29,.78,1.18);
  rim.position.set(20,23,30);rim.target.position.set(5,2.6,4);scene.add(rim,rim.target);
- const fill=new THREE.SpotLight(0xffffff,Number(THREE.REVISION)>=155?1.7*160:1.7,100,Math.PI*.39,.86,1.2);
+ const fill=new THREE.SpotLight(0xffffff,Number(THREE.REVISION)>=155?1.7*125:1.7,100,Math.PI*.41,.86,1.2);
  fill.position.set(18,16,-21);fill.target.position.set(5,2.3,4);scene.add(fill,fill.target);
  for(const x of[-11,21]){
   const practical=new THREE.PointLight(0xe0f0ff,Number(THREE.REVISION)>=155 ? .62*100 : .62,38,2);
@@ -7170,7 +7213,8 @@ const REDLINE_SHOWROOM=(()=>{
  penumbra.rotation.x=-Math.PI/2;penumbra.position.set(5,-.934,4);scene.add(penumbra);
  const ceilingProfile=x=>archY(x);
   window.REDLINE_HANGAR_QA={theme:'black-led-detailing-tunnel',eave:ySide,ridge:yRidge,front:zFront,rear:zBack,ledArchCount:Math.ceil(bays/2),roofSegments:arcSteps,clearanceAt:x=>ceilingProfile(x),roomForEntranceAtCenter:ceilingProfile(5)-21};
- let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0;
+ window.REDLINE_HANGAR_QA.decorations=hangarDecorationStats;
+ let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0,showroomCameraDistance=39.5,showroomFocusFraction=.79;
  let kestrelShowroom=null,bladeShowroom=null,bladeShowroomJets=null,copperShowroom=null,copperShowroomFx=null,spiritShowroom=null,spiritShowroomFx=null,visibleAirframe='kestrel',selectedAirframeArriving=false;
  let showroomSwitch=null,showroomExit=null,garageRevealPose=null;
  let showroomSelectionInitialized=false;
@@ -7632,7 +7676,7 @@ const REDLINE_SHOWROOM=(()=>{
   haloArcA.rotation.z+=dt*.18;haloArcB.rotation.z-=dt*.12;
   haloArcA.material.opacity=landMix*.009;haloArcB.material.opacity=landMix*.006;
   // Bring up the key during the landing reveal without flattening the side fill.
-  key.intensity=4.6+landMix*.7;rim.intensity=3.15+landMix*.35;
+  key.intensity=(4.6+landMix*.7)*(Number(THREE.REVISION)>=155?135:1);rim.intensity=(3.15+landMix*.35)*(Number(THREE.REVISION)>=155?135:1);
   showroomDust.children.forEach((ring,j)=>{
    const progress=(elapsed*.23+j/8)%1;
    ring.scale.setScalar(1+progress*2.65);
@@ -7641,17 +7685,23 @@ const REDLINE_SHOWROOM=(()=>{
   // A truly LOCKED architectural view. The hangar must never orbit or sway;
   // only the Kestrel root animates after fly-in, while the platform stays fixed.
   const fixedAngle=-1.2;
-  const baseRadius=screen==='solo'?37.5:screen==='landing'?40.5:39;
+  // Airframe-dependent cinematic framing. Blade is much wider than the
+   // other aircraft; Spirit is shallow and needs a closer camera.
+   // Critically, interpolate the camera to avoid a visible teleport on swap.
+   const isGarage=screen==='solo';
+   const craftRadius=isGarage?(visibleAirframe==='blade'?63:visibleAirframe==='spirit'?32:visibleAirframe==='copper'?39.5:39.5):screen==='landing'?41:39;
+   showroomCameraDistance+= (craftRadius-showroomCameraDistance)*(1-Math.exp(-Math.min(dt,.1)*4.2));
+   const baseRadius=showroomCameraDistance;
   const viewAspect=Math.max(.42,innerWidth/Math.max(1,innerHeight));
   const r=innerWidth<=720?Math.max(baseRadius,10.6/(.37*viewAspect)):baseRadius*Math.max(1,1.6/viewAspect);
-  camera.position.set(5+Math.cos(fixedAngle)*r,12.2,4+Math.sin(fixedAngle)*r);
+  camera.position.set(5+Math.cos(fixedAngle)*r,11.6,4+Math.sin(fixedAngle)*r);
   // V17.3 right-hand composition: the real Kestrel, platform and orbit target
   // remain at world (5, 2.65, 4). An OFF-AXIS projection moves their IMAGE to
   // the right; moving lookAt in world space could never lock the image during orbit.
-  camera.fov=screen==='solo'?(43-3*Math.min(1,elapsed/1.45)):(48-5*Math.min(1,elapsed/2.65));
+  camera.fov=screen==='solo'?(43-2*Math.min(1,elapsed/1.45)):(46-3*Math.min(1,elapsed/2.65));
   const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);
   const compact=w<=720;
-  let focusX=w*.68;
+  let focusX=w*.79;
   if(screen==='solo'){
    const stage=document.querySelector('.rl-garage .rl-model-stage');
    if(stage){const rect=stage.getBoundingClientRect();focusX=rect.left+rect.width*.43;}
@@ -7659,7 +7709,11 @@ const REDLINE_SHOWROOM=(()=>{
   }
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
-   focusX=Math.max(w*.54,Math.min(w*.72,focusX));
+   const focusTarget=isGarage
+      ? (visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.725:visibleAirframe==='copper'?.755:.79)
+      : .79;
+    showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
+    focusX=w*showroomFocusFraction;
    // A virtual screen twice as wide as the focus position places the world
    // target exactly at focusX pixels without stretching or cropping the model.
    camera.setViewOffset(2*focusX,h,0,0,w,h);
@@ -7668,12 +7722,28 @@ const REDLINE_SHOWROOM=(()=>{
    camera.aspect=w/h;
    camera.updateProjectionMatrix();
   }
-  camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y-1.0,4));
+  camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+.10,4));
+   window.REDLINE_HANGAR_QA.cameraFraming={distance:showroomCameraDistance,screenFocus:showroomFocusFraction,airframe:visibleAirframe,mode:screen};
   // Diagnose the true on-screen footprint of the aircraft and roof clearance.
   framingSample+=dt;
   if(model&&framingSample>.55){
    framingSample=0;
-   const box=new THREE.Box3().setFromObject(model),p=new THREE.Vector3();
+   // Screenshot framing excludes non-visual geometry, invisible components,
+   // and transparent exhaust helpers that inflate a full Box3.
+   model.updateMatrixWorld(true);
+   const box=new THREE.Box3(),tmp=new THREE.Box3(),p=new THREE.Vector3();
+   let heroParts=0;
+   model.traverse(obj=>{
+    if(!obj.isMesh||!obj.visible||!obj.geometry)return;
+    const mat=Array.isArray(obj.material)?obj.material[0]:obj.material;
+    if(!mat||mat.visible===false||(mat.transparent&&mat.opacity<.14))return;
+    if(/exhaust|plume|trail|beam|particle|sparks|halo|thruster.?flare/i.test(obj.name))return;
+    if(!obj.geometry.boundingBox)obj.geometry.computeBoundingBox();
+    if(!obj.geometry.boundingBox)return;
+    tmp.copy(obj.geometry.boundingBox).applyMatrix4(obj.matrixWorld);
+    if(!tmp.isEmpty()){box.union(tmp);heroParts++;}
+   });
+   if(!heroParts)box.setFromObject(model);
    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
    for(const x of[box.min.x,box.max.x])for(const y of[box.min.y,box.max.y])for(const z of[box.min.z,box.max.z]){
     p.set(x,y,z).project(camera);
@@ -7682,7 +7752,7 @@ const REDLINE_SHOWROOM=(()=>{
    window.REDLINE_HANGAR_QA.projectedFootprint={
     left:Math.round((minX+1)*w*.5),right:Math.round((maxX+1)*w*.5),
     top:Math.round((1-maxY)*h*.5),bottom:Math.round((1-minY)*h*.5),
-    viewport:[w,h],screen
+    viewport:[w,h],screen,heroParts
    };
   }
   if(!window.redlineUI?.config.reducedMotion)fireRing.rotation.z+=dt*.06;

@@ -7,14 +7,33 @@ import json,re,shutil,hashlib,os
 ROOT=Path(__file__).resolve().parent
 DIST=ROOT/'dist'
 THREE_VARIANT=os.environ.get('REDLINE_THREE_VARIANT','r128')
+COMPACT_ASSETS=os.environ.get('REDLINE_COMPACT','0')=='1' and THREE_VARIANT=='r187'
 if THREE_VARIANT not in ('r128','r187'):
  raise RuntimeError('Unknown renderer variant: '+THREE_VARIANT)
-SITE_ROOT=DIST/('site-r187' if THREE_VARIANT=='r187' else 'site')
+SITE_ROOT=DIST/('site-r187-compact' if COMPACT_ASSETS else ('site-r187' if THREE_VARIANT=='r187' else 'site'))
 m=json.loads((ROOT/'manifest.json').read_text())
 img={f'{{{{REDLINE_ASSET_{x["sha256"][:14]}}}}}':x for x in m['image_assets']}
 styles={x['path']:x for x in m['style_modules']}
 scripts={x['path']:x for x in m['script_modules']}
 template=(ROOT/'template.html').read_text()
+asset_cache={}
+compact_manifest=[]
+
+def asset_content(index,info):
+ key=info['sha256']
+ if key in asset_cache:return asset_cache[key]
+ data=(ROOT/'assets/images'/info['name']).read_bytes()
+ mime=info['type']
+ name=info['name']
+ if COMPACT_ASSETS:
+  from tools.compact_image_assets import optimize_image
+  out,mime,changed=optimize_image(index,data,mime)
+  if changed:
+   data=out
+   name='v80-'+key[:14]+'.webp'
+   compact_manifest.append({'index':index,'name':name,'original_bytes':info['bytes'],'compressed_bytes':len(data)})
+ asset_cache[key]=(name,mime,data)
+ return asset_cache[key]
 THREE_R128_URL='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
 THREE_CANDIDATES=([ROOT/'vendor/three.r187.compat.js'] if THREE_VARIANT=='r187' else
  [ROOT/'vendor/three.r128.min.js', ROOT/'node_modules/three/build/three.min.js'])
@@ -33,15 +52,15 @@ def available_three():
 
 
 def fill(source,mode,kind):
- for token,info in img.items():
+ for index,(token,info) in enumerate(img.items()):
   if token not in source:continue
+  name,mime,data=asset_content(index,info)
   if mode=='standalone':
    import base64
-   data=(ROOT/'assets/images'/info['name']).read_bytes()
-   val=f'data:image/{info["type"]};base64,'+base64.b64encode(data).decode('ascii')
+   val=f'data:image/{mime};base64,'+base64.b64encode(data).decode('ascii')
   else:
    prefix='../../' if kind=='style' else ''
-   val=prefix+'assets/images/'+info['name']
+   val=prefix+'assets/images/'+name
   source=source.replace(token,val)
  return source
 
@@ -112,11 +131,15 @@ def build(mode):
 def main():
  DIST.mkdir(parents=True,exist_ok=True)
  if SITE_ROOT.exists():shutil.rmtree(SITE_ROOT) # no stale CSS/JS from prior variants
- html_name='REDLINE_v78_R187_CANDIDATE.html' if THREE_VARIANT=='r187' else 'REDLINE_v78_STAGE1_STANDALONE.html'
+ html_name='REDLINE_v80_LIGHTWEIGHT_HANGAR_PITCH.html' if COMPACT_ASSETS else ('REDLINE_v78_R187_CANDIDATE.html' if THREE_VARIANT=='r187' else 'REDLINE_v78_STAGE1_STANDALONE.html')
  (DIST/html_name).write_text(build('standalone'))
  site=SITE_ROOT;site.mkdir(exist_ok=True)
  (site/'index.html').write_text(build('site'))
  shutil.copytree(ROOT/'assets',site/'assets',dirs_exist_ok=True)
+ if COMPACT_ASSETS:
+  for index,info in enumerate(img.values()):
+   name,mime,data=asset_content(index,info)
+   if name != info['name']:(site/'assets/images'/name).write_bytes(data)
  # Optionally preserve external model data inside HTML only for now.
  result={
   'baseline_sha256':m['baseline_sha256'],
@@ -131,6 +154,9 @@ def main():
   'offline_three_bundled':bool(available_three()[0])
  }
  result['renderer_variant']=THREE_VARIANT
- (DIST/('BUILD_R187_REPORT.json' if THREE_VARIANT=='r187' else 'BUILD_REPORT.json')).write_text(json.dumps(result,indent=2))
+ result['compact_assets']=COMPACT_ASSETS
+ result['image_reduction_bytes']=sum(x['original_bytes']-x['compressed_bytes'] for x in compact_manifest)
+ result['optimized_image_count']=len(compact_manifest)
+ (DIST/('BUILD_V80_REPORT.json' if COMPACT_ASSETS else ('BUILD_R187_REPORT.json' if THREE_VARIANT=='r187' else 'BUILD_REPORT.json'))).write_text(json.dumps(result,indent=2))
  print(json.dumps(result,indent=2))
 if __name__=='__main__':main()

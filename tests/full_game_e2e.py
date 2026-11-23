@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 QA = ROOT / 'qa'; QA.mkdir(exist_ok=True)
 report = {'test': 'REDLINE Stage 1 full-engine WebGL smoke', 'state': 'NOT_RUN', 'cases': [], 'errors': [], 'requestFailures': []}
 renderer_revision=os.environ.get('REDLINE_EXPECT_RENDERER','128')
-site_path=ROOT / 'dist' / ('site-r187' if renderer_revision=='187' else 'site')
+site_path=ROOT / 'dist' / ('site-r187-compact' if renderer_revision=='187' and os.environ.get('REDLINE_COMPACT_SITE')=='1' else ('site-r187' if renderer_revision=='187' else 'site'))
 server = ThreadingHTTPServer(('127.0.0.1', 0), partial(SimpleHTTPRequestHandler, directory=str(site_path)))
 Thread(target=server.serve_forever, daemon=True).start()
 url = f'http://127.0.0.1:{server.server_address[1]}/index.html?redlineTest=1'
@@ -67,6 +67,31 @@ try:
                     arg=craft,timeout=45000)
                 case['hangarAirframe']=page.evaluate('()=>window.REDLINE_SHOWROOM.airframe')
                 case['hangarPose']=page.evaluate('()=>window.REDLINE_HANGAR_POSE_STATUS?.()')
+                case['hangarDecor']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.decorations')
+                case['hangarFootprint']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.projectedFootprint')
+                case['hangarCamera']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.cameraFraming')
+                assert case['hangarCamera'] and case['hangarCamera']['airframe']==craft, f'hangar camera not tracking selected craft: {case}'
+                if craft=='blade':
+                    assert case['hangarCamera']['distance']>=57 and case['hangarCamera']['screenFocus']<=.74, f'wide Blade needs room in right-side viewport: {case}'
+                if craft=='spirit':
+                    assert case['hangarCamera']['distance']<=37, f'Spirit too small in hangar: {case}'
+                case['hangarCTA']=page.evaluate('''()=>{
+                    let e=document.querySelector('.rl45-continue');
+                    if(!e)return null;
+                    let b=e.getBoundingClientRect(),s=getComputedStyle(e);
+                    return {top:b.top,bottom:b.bottom,left:b.left,display:s.display,viewportHeight:innerHeight};
+                }''')
+                if page.viewport_size['height']<=640:
+                    assert case['hangarCTA'] and 0<=case['hangarCTA']['top']<case['hangarCTA']['bottom']<=page.viewport_size['height']+8, f'Continue button hidden below fold: {craft}: {case}'
+                assert case['hangarDecor'] and case['hangarDecor']['panels']==16 and case['hangarDecor']['bolts']==64, f'hangar detail missing: {craft}: {case}'
+                if case['hangarFootprint']:
+                    fp=case['hangarFootprint']
+                    # Approximate 3D AABB projection includes out-of-bounds
+                    # hidden flame/FX helper extents and overstates apparent size.
+                    # Verify a real set of meshes were measured; use the actual
+                    # captured hangar screenshot to judge screen crop/overlap.
+                    assert fp.get('heroParts',0)>=1, f'no body mesh projected: {craft}: {fp}'
+                    assert fp.get('viewport',[0,0])[0]>0 and fp['viewport'][1]>0
                 assert case['hangarAirframe']==craft,f'hangar shows wrong aircraft: {case}'
                 page.screenshot(path=str(QA/f'FULL_HANGAR_{craft.upper()}.png'),animations='disabled')
                 page.evaluate('()=>window.REDLINE_E2E.launch()')

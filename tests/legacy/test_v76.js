@@ -3,7 +3,10 @@ const source=fs.readFileSync(require('node:path').join(__dirname,'../../dist/RED
 let checks=0;
 function check(x,message){assert(x,message);checks++;}
 const policy=source.slice(source.indexOf('const REDLINE_RIVAL_DIRECTOR=(()=>{'),source.indexOf('const CLASH = {'));
-const context={window:{},console,Math};vm.runInNewContext(policy,context);
+// Deterministic test data: gameplay deliberately uses randomized rival phases.
+let aiSeed=12345;const seededMath=Object.create(Math);
+seededMath.random=()=>{aiSeed=(Math.imul(aiSeed,1664525)+1013904223)>>>0;return aiSeed/4294967296;};
+const context={window:{},console,Math:seededMath};vm.runInNewContext(policy,context);
 const dir=context.window.REDLINE_RIVAL_DIRECTOR;
 check(!!dir&&dir.presets.length===3,'AI director exists');
 const aiSource=source.slice(source.indexOf('(function(root,factory){const api=factory();if(typeof module'),source.indexOf('/*',source.indexOf('(function(root,factory){const api=factory();if(typeof module')));
@@ -47,5 +50,6 @@ check(source.includes('color:0xff1932'),'bright RED projectile');
 check(source.includes('laserWorldHit(from,delta.normalize(),Math.max(0,length-5))'),'rock-occluded AI projectile');
 check(source.includes('chaseAim?0:aim.x'),'camera-center chase aiming');
 check(source.includes('REDLINE_HOVER_Y=6.2'),'higher aircraft showroom');
-check(source.includes('const baseRadius=screen===\'solo\'?37.5'),'camera captures full model');
+check(source.includes("visibleAirframe==='blade'?63") && source.includes("visibleAirframe==='spirit'?32"),'each aircraft receives accurate hangar framing');
+check(source.includes('showroomCameraDistance+= (craftRadius-showroomCameraDistance)'),'hangar camera moves smoothly rather than teleporting on craft change');
 console.log(JSON.stringify({pass:checks,results},null,2));

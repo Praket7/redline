@@ -15,7 +15,16 @@ if not (a.is_file() and b.is_file()):
     raise SystemExit('Missing real r128/r187 WebGL captures')
 x=Image.open(a).convert('RGB')
 y=Image.open(b).convert('RGB')
-if x.size!=y.size:raise SystemExit('Camera/view dimensions differ')
+# Dynamic resolution scales pixel dimensions independently of the fixed
+# projection/camera. Both captures must share the same aspect ratio; resample
+# only for the visual metrics, retaining raw dimensions in the report.
+native_reference=list(x.size)
+native_candidate=list(y.size)
+if abs(x.width/x.height-y.width/y.height) > .02:
+    raise SystemExit('Camera aspect ratios differ: visual comparison invalid')
+normalized_size=(960,540)
+x=x.resize(normalized_size,Image.Resampling.LANCZOS)
+y=y.resize(normalized_size,Image.Resampling.LANCZOS)
 stat=ImageStat.Stat(ImageChops.difference(x,y))
 mae=sum(stat.mean)/3
 rmse=math.sqrt(sum(v*v for v in stat.rms)/3)
@@ -25,7 +34,9 @@ dx=sum(edge.stddev)/3
 result={'reference':'r128','candidate':'r187','shape':[y.height,y.width,3],'mean_abs_difference':round(mae,3),
         'psnr_db':psnr,'candidate_mean_luma':round(sum(ImageStat.Stat(y).mean)/3,3),
         'candidate_edge_activity':round(dx,3),'reference_mean_luma':round(sum(ImageStat.Stat(x).mean)/3,3),
-        'model':'same fixed camera; lighting/timing still dynamic'}
+        'native_reference_size':native_reference,'native_candidate_size':native_candidate,
+        'comparison_size':list(normalized_size),
+        'model':'same fixed camera/aspect; images normalized for visual comparison; lighting/timing still dynamic'}
 def cliff_coverage(im):
     w,h=im.size
     panel=im.crop((int(w*.05),int(h*.20),int(w*.23),int(h*.80)))
