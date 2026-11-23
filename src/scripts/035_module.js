@@ -7643,42 +7643,37 @@ const REDLINE_SHOWROOM=(()=>{
    if(!Number.isFinite(l))return {l:w*.5,r:w*.5,t:h*.5,b:h*.5,poses:[]};
    return {l,r,t,b,poses};
   }
-  let lo=35,hi=125;
-  const limitW=(bounds.right-bounds.left)*.89;
-  const limitH=(bounds.bottom-bounds.top)*.87;
-  for(let i=0;i<14;i++){
-   const mid=(lo+hi)*.5,box=footprint(mid);
-   if(box.r-box.l>limitW||box.b-box.t>limitH)lo=mid;
-   else hi=mid;
-  }
-  const distance=Math.max(35,Math.min(125,hi)),box=footprint(distance);
-  const desiredX=(bounds.left+bounds.right)*.5;
-  const desiredY=(bounds.top+bounds.bottom)*.5;
-  // The previous fit centered the union of eight yaw angles, so the real
-  // aircraft appeared tiny and off-center at its resting angle. Choose a
-  // broad, legible three-quarter silhouette and anchor the actual pose.
+  // Choose a broad, legible three-quarter presentation using the actual
+  // aircraft silhouette, not the union of eight different orientations.
+  // That union was roughly twice the visible body and left it tiny on screen.
+  const overview=footprint(72);
   let preferredIndex=0,bestScore=-Infinity;
-  const unionCX=(box.l+box.r)*.5;
-  box.poses.forEach((pose,i)=>{
+  overview.poses.forEach((pose,i)=>{
    const pw=pose.r-pose.l,ph=pose.b-pose.t;
-   const score=pw+.10*ph-.18*Math.abs((pose.l+pose.r)*.5-unionCX);
+   const score=pw+.12*ph;
    if(Number.isFinite(score)&&score>bestScore){bestScore=score;preferredIndex=i;}
   });
+  const limitW=(bounds.right-bounds.left)*.83;
+  const limitH=(bounds.bottom-bounds.top)*.79;
+  let lo=26,hi=130;
+  for(let i=0;i<15;i++){
+   const mid=(lo+hi)*.5,pose=footprint(mid).poses[preferredIndex];
+   if(!pose||pose.r-pose.l>limitW||pose.b-pose.t>limitH)lo=mid;
+   else hi=mid;
+  }
+  const distance=Math.max(26,Math.min(130,hi));
+  const box=footprint(distance);
   const best=box.poses[preferredIndex]||box;
-  const marginX=(bounds.right-bounds.left)*.035;
-  const marginY=(bounds.bottom-bounds.top)*.035;
-  const requestedX=(best.l+best.r)*.5-desiredX;
-  const requestedY=(best.t+best.b)*.5-desiredY;
-  // Retain full-orbit guardrails while centering the visible rest silhouette.
-  const offsetX=Math.max(box.r-bounds.right+marginX,
-   Math.min(box.l-bounds.left-marginX,requestedX));
-  const offsetY=Math.max(box.b-bounds.bottom+marginY,
-   Math.min(box.t-bounds.top-marginY,requestedY));
+  const desiredX=(bounds.left+bounds.right)*.5;
+  const desiredY=(bounds.top+bounds.bottom)*.5;
+  const offsetX=(best.l+best.r)*.5-desiredX;
+  const offsetY=(best.t+best.b)*.5-desiredY;
   heroCameraState={key:frameKey,distance,offsetX,offsetY,bounds,
-   selected:airframe,mode,measured:[box.l,box.r,box.t,box.b],
+   selected:airframe,mode,measured:[best.l,best.r,best.t,best.b],
    preferredYaw:preferredIndex*Math.PI/4,
    restMeasured:[best.l,best.r,best.t,best.b],
-   screenFocus:desiredX/w,pointCount:verts.length};
+   unionMeasured:[box.l,box.r,box.t,box.b],
+   screenFocus:desiredX/w,pointCount:verts.length,lockedRestPose:true};
   return heroCameraState;
  }
  function update(dt){
