@@ -85,7 +85,7 @@ try:
                 # The production P control updates both flight camera and FPV CSS.
                 # Do not set config.view alone; it bypasses the real UI transition.
                 page.keyboard.press('p')
-                page.wait_for_function(\"document.body.classList.contains('rl-cockpit')\",timeout=10000)
+                page.wait_for_function("document.body.classList.contains('rl-cockpit')",timeout=10000)
                 # Draw the real scene immediately; software WebGL can be far
                 # slower than real-time at 1600x900 on CI hosts.
                 page.evaluate('()=>window.redlineRenderInterpolated(1/60,0)')
