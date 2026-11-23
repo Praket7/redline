@@ -7529,7 +7529,7 @@ const REDLINE_SHOWROOM=(()=>{
   function showroomFlightIn(t){
    const u=rl46Ease(t/2.65),away=1-u;
    model.position.set(5+5*away,showroomHomeY(model)+1.1*away,4+36*away);
-   model.rotation.set(-.10*away,.50*away,-.19*away);
+   model.rotation.set(-.10*away,.50*away+displayYaw*u,-.19*away);
   }
   function showroomGarageReveal(t){
    const u=rl46Ease(t/1.45),away=1-u,arc=Math.sin(Math.PI*u);
@@ -7562,7 +7562,7 @@ const REDLINE_SHOWROOM=(()=>{
  // its exhaust planes. Geometry is cached and camera fitting is performed ONLY
  // on page, model or viewport change. Idle rotation never changes zoom.
  const heroLocalPoints=new WeakMap();
- let heroCameraState=null;
+ let heroCameraState=null,heroPoseAnchor='';
  const HERO_BASE_SCALE={kestrel:2.70,blade:1.93,copper:2.48,spirit:2.58};
  function getHeroLocalPoints(craft){
   if(!craft)return [];
@@ -7628,14 +7628,20 @@ const REDLINE_SHOWROOM=(()=>{
    camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+1,4));
    camera.updateMatrixWorld(true);
    let l=Infinity,r=-Infinity,t=Infinity,b=-Infinity;
-   for(const [c,si] of samples)for(const v of verts){
-    const xx=v.x*scales,zz=v.z*scales;
-    pt.set(5+xx*c+zz*si,home+v.y*scales,4-xx*si+zz*c).project(camera);
-    const x=(pt.x+1)*w*.5,y=(1-pt.y)*h*.5;
-    if(x<l)l=x;if(x>r)r=x;if(y<t)t=y;if(y>b)b=y;
+   const poses=[];
+   for(const [c,si] of samples){
+    let pl=Infinity,pr=-Infinity,ptop=Infinity,pbottom=-Infinity;
+    for(const v of verts){
+     const xx=v.x*scales,zz=v.z*scales;
+     pt.set(5+xx*c+zz*si,home+v.y*scales,4-xx*si+zz*c).project(camera);
+     const x=(pt.x+1)*w*.5,y=(1-pt.y)*h*.5;
+     if(x<pl)pl=x;if(x>pr)pr=x;if(y<ptop)ptop=y;if(y>pbottom)pbottom=y;
+    }
+    poses.push({l:pl,r:pr,t:ptop,b:pbottom});
+    if(pl<l)l=pl;if(pr>r)r=pr;if(ptop<t)t=ptop;if(pbottom>b)b=pbottom;
    }
-   if(!Number.isFinite(l))return {l:w*.5,r:w*.5,t:h*.5,b:h*.5};
-   return {l,r,t,b};
+   if(!Number.isFinite(l))return {l:w*.5,r:w*.5,t:h*.5,b:h*.5,poses:[]};
+   return {l,r,t,b,poses};
   }
   let lo=35,hi=125;
   const limitW=(bounds.right-bounds.left)*.89;
@@ -7648,10 +7654,30 @@ const REDLINE_SHOWROOM=(()=>{
   const distance=Math.max(35,Math.min(125,hi)),box=footprint(distance);
   const desiredX=(bounds.left+bounds.right)*.5;
   const desiredY=(bounds.top+bounds.bottom)*.5;
-  const offsetX=(box.l+box.r)*.5-desiredX;
-  const offsetY=(box.t+box.b)*.5-desiredY;
+  // The previous fit centered the union of eight yaw angles, so the real
+  // aircraft appeared tiny and off-center at its resting angle. Choose a
+  // broad, legible three-quarter silhouette and anchor the actual pose.
+  let preferredIndex=0,bestScore=-Infinity;
+  const unionCX=(box.l+box.r)*.5;
+  box.poses.forEach((pose,i)=>{
+   const pw=pose.r-pose.l,ph=pose.b-pose.t;
+   const score=pw+.10*ph-.18*Math.abs((pose.l+pose.r)*.5-unionCX);
+   if(Number.isFinite(score)&&score>bestScore){bestScore=score;preferredIndex=i;}
+  });
+  const best=box.poses[preferredIndex]||box;
+  const marginX=(bounds.right-bounds.left)*.035;
+  const marginY=(bounds.bottom-bounds.top)*.035;
+  const requestedX=(best.l+best.r)*.5-desiredX;
+  const requestedY=(best.t+best.b)*.5-desiredY;
+  // Retain full-orbit guardrails while centering the visible rest silhouette.
+  const offsetX=Math.max(box.r-bounds.right+marginX,
+   Math.min(box.l-bounds.left-marginX,requestedX));
+  const offsetY=Math.max(box.b-bounds.bottom+marginY,
+   Math.min(box.t-bounds.top-marginY,requestedY));
   heroCameraState={key:frameKey,distance,offsetX,offsetY,bounds,
    selected:airframe,mode,measured:[box.l,box.r,box.t,box.b],
+   preferredYaw:preferredIndex*Math.PI/4,
+   restMeasured:[best.l,best.r,best.t,best.b],
    screenFocus:desiredX/w,pointCount:verts.length};
   return heroCameraState;
  }
@@ -7717,7 +7743,8 @@ const REDLINE_SHOWROOM=(()=>{
     // ceiling, ground or fixed red luminaires in the frame.
     if(!window.redlineUI?.config.reducedMotion){
      const spinEase=Math.max(0,Math.min(1,(elapsed-(screen==='landing'?2.65:1.45))/1.8));
-     if(!showroomDrag)displayYaw+=Math.min(.06,Math.max(0,dt))*.115*spinEase;
+     // Keep the resting 3/4 showcase pose fixed. Dragging still rotates the craft,
+     // but passive auto-spin previously caused a narrow, off-center silhouette.
     }
     model.rotation.set(0,displayYaw,0);
    }
@@ -7778,6 +7805,15 @@ const REDLINE_SHOWROOM=(()=>{
   const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);
   if(model&&(screen==='solo'||screen==='landing')){
    const frame=fitShowroomHero(model,visibleAirframe,screen,w,h);
+   const poseKey=screen+':'+visibleAirframe;
+   if(heroPoseAnchor!==poseKey&&!showroomDrag){
+    displayYaw=frame.preferredYaw;
+    heroPoseAnchor=poseKey;
+    // Landing and selection fly-ins incorporate this yaw progressively.
+    // At rest, synchronize the visible model immediately, never the camera.
+    if(elapsed>(screen==='landing'?2.65:1.45)&&!showroomSwitch)
+     model.rotation.y=displayYaw;
+   }
    showroomCameraDistance=frame.distance;
    showroomFocusFraction=frame.screenFocus;
    camera.fov=44;
