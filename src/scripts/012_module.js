@@ -87,6 +87,7 @@
  function assign(id,slot,code){
   const d=DEFINITIONS.find(x=>x.id===id);
   if(!d||!['main','alt'].includes(slot))return {ok:false,message:'Unknown key binding.'};
+  if(id==='fire')return {ok:false,message:'E is the exclusive laser fire key.'};
   if(!code&&slot==='main')return {ok:false,message:'A primary key is required.'};
   if(code&&!isAllowed(code))return {ok:false,message:'That key is reserved by WASD or your browser. Try another.'};
   for(const other of DEFINITIONS)for(const s of ['main','alt']){
@@ -101,7 +102,7 @@
   return `<section class="rl-bind-panel" aria-label="Custom keyboard shortcuts">
    <div class="rl-bind-heading"><div><h3>KEYBINDINGS</h3><p>W/S drive forward and backward; A/D strafe. Move the locked mouse to steer or pitch; arrow keys provide vertical override. Select a key, then press its replacement. Changes save automatically.</p></div><button type="button" class="rl-bind-reset" data-key-reset="1">RESET ALL</button></div>
    <div class="rl-bind-locked"><span>LOCKED FLIGHT CONTROLS</span><b>W / A / S / D</b></div>
-   ${groups.map(g=>`<h4 class="rl-bind-group">${g}</h4>`+DEFINITIONS.filter(d=>d.group===g).map(d=>`<div class="rl-bind-row"><span>${d.label}</span><div><button type="button" data-bind="${d.id}" data-slot="main" aria-label="Rebind ${d.label} primary key">${label(bindings[d.id].main)}</button><button type="button" data-bind="${d.id}" data-slot="alt" aria-label="Rebind ${d.label} alternative key">${label(bindings[d.id].alt)}</button></div></div>`).join('')).join('')}
+   ${groups.map(g=>`<h4 class="rl-bind-group">${g}</h4>`+DEFINITIONS.filter(d=>d.group===g).map(d=>`<div class="rl-bind-row"><span>${d.label}</span><div><button type="button" data-bind="${d.id}" data-slot="main" aria-label="Rebind ${d.label} primary key">${label(bindings[d.id].main)}</button><button type="button" data-bind="${d.id}" data-slot="alt" ${d.id==="fire"?"disabled":""} aria-label="Rebind ${d.label} alternative key">${label(bindings[d.id].alt)}</button></div></div>`).join('')).join('')}
    <p class="rl-bind-help">ESC cancels rebinding. While editing an alternative, DELETE clears it. J stops instantly; SPACE shields; F reloads; E alone fires. Escape releases the mouse.</p>
    <div class="rl-bind-status" role="status" aria-live="polite">Choose any key to customize its action.</div>
   </section>`;
