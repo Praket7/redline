@@ -47,6 +47,15 @@ try:
      page.wait_for_function('(c)=>window.REDLINE_SHOWROOM?.airframe===c&&window.REDLINE_SHOWROOM?.selectedReady',arg=craft,timeout=45000)
      page.evaluate('window.REDLINE_E2E.launch()')
      page.wait_for_function('window.REDLINE_E2E?.status()?.screen==="race"',timeout=45000)
+     # The chase selector persists across race launches. Restore the default
+     # before each model so a previous craft's WIDE mode does not masquerade
+     # as a newly selected craft's default framing.
+     for reset in range(3):
+      mode_now=page.evaluate('window.REDLINE_CAMERA_STATUS?.profile')
+      if mode_now=='normal':break
+      page.keyboard.press('c')
+      page.evaluate('()=>{for(let i=0;i<6;i++)window.redlineSimulateFrame(.05)}')
+     else:raise AssertionError('unable to reset chase to normal mode')
      state=page.evaluate('''()=>{
        for(let i=0;i<100 && window.REDLINE_UI_STATUS()?.mode==='count';i++)window.redlineSimulateFrame(.05);
        for(let i=0;i<8;i++)window.redlineSimulateFrame(.05);
