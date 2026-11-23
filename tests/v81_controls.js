@@ -33,7 +33,7 @@ assert(world.includes('if(hardStop){FL.speed=FL.vx=FL.vy=FL.vz=FL.strafeSpeed=0;
 assert(world.includes('if(!hardStop){p.x+=w[0]*cp*dt;'),'wind must not drift a fully stopped player');
 assert(world.includes("window.REDLINE_LASER_INPUT.lastTrigger='KeyE'"),'keyboard fire should report KeyE');
 assert(!world.includes("lastTrigger='double click'")&&!world.includes("lastTrigger='dblclick fallback'"),'mouse gestures may not fire');
-assert(world.includes('const craftRadius=56;')&&world.includes('showroomCameraDistance=craftRadius;'),'single stable hangar zoom');
+assert(world.includes('const craftRadius=43;')&&world.includes('showroomCameraDistance=craftRadius;'),'single stable hangar zoom');
 assert(world.includes('camera.setViewOffset(w,h,w*.5-focusX,0,w,h);'),'projection must not stretch the full viewport');
 assert(world.includes('Rn.setSize(innerWidth,innerHeight,false);'),'renderer size must not overwrite viewport CSS dimensions');
 assert(css.includes('width:100vw!important;height:100dvh!important'),'canvas must be full bleed');
