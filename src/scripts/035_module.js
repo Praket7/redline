@@ -7153,7 +7153,7 @@ const REDLINE_SHOWROOM=(()=>{
  const fill=new THREE.SpotLight(0xffffff,Number(THREE.REVISION)>=155?1.7*45:1.7,100,Math.PI*.39,.86,1.2);
  fill.position.set(18,16,-21);fill.target.position.set(5,2.3,4);scene.add(fill,fill.target);
  for(const x of[-11,21]){
-  const practical=new THREE.PointLight(0xe0f0ff,Number(THREE.REVISION)>=155?.62*36:.62,38,2);
+  const practical=new THREE.PointLight(0xe0f0ff,Number(THREE.REVISION)>=155 ? .62*36 : .62,38,2);
   practical.position.set(x,20,0);scene.add(practical);
  }
  // Low-frequency penumbra reinforces the actual cast shadow, not an opaque disk.
