@@ -7237,7 +7237,7 @@ const REDLINE_SHOWROOM=(()=>{
   model.name='Redline_Real_Kestrel_X4_Showroom';kestrelShowroom=model;
   // 19% larger physical model, then tighter composition below. It remains inside
   // the geometry-derived roof clearance envelope even during the 6-second approach.
-  model.scale.setScalar(1.93);REDLINE_VISUALS.detailDrone(THREE,model);scene.add(model);
+  model.scale.setScalar(2.70);REDLINE_VISUALS.detailDrone(THREE,model);scene.add(model);
   // v54: never flash the default Kestrel while a saved craft is loading.
   model.visible=false;
   window.REDLINE_HANGAR_QA.modelLocalBounds=new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).toArray();
@@ -7359,7 +7359,7 @@ const REDLINE_SHOWROOM=(()=>{
   copperShowroom=new THREE.Group();copperShowroom.name='Copper_Wraith_v4_Real_3D_Showroom';
   const adapter=new THREE.Group();adapter.rotation.y=Math.PI;
   const actual=window.REDLINE_COPPER_TEMPLATE.clone(true);
-  adapter.add(actual);copperShowroom.add(adapter);copperShowroom.scale.setScalar(1.93);
+  adapter.add(actual);copperShowroom.add(adapter);copperShowroom.scale.setScalar(2.48);
   actual.traverse(o=>{if(!o.isMesh)return;
     o.castShadow=true;o.receiveShadow=true;
     const src=Array.isArray(o.material)?o.material:[o.material];
@@ -7384,7 +7384,7 @@ const REDLINE_SHOWROOM=(()=>{
   // Scale original 52.4-wide wing into same framing as the other models.
   adapter.scale.setScalar(.25);
   const actual=window.REDLINE_SPIRIT_TEMPLATE.clone(true);adapter.add(actual);
-  spiritShowroom.add(adapter);spiritShowroom.scale.setScalar(1.93);
+  spiritShowroom.add(adapter);spiritShowroom.scale.setScalar(3.34);
   const cache=new Map();actual.traverse(o=>{if(!o.isMesh)return;
    o.castShadow=true;o.receiveShadow=true;
    const src=Array.isArray(o.material)?o.material:[o.material];
@@ -7697,7 +7697,7 @@ const REDLINE_SHOWROOM=(()=>{
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
    const focusTarget=isGarage
-      ? (visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.725:visibleAirframe==='copper'?.755:.79)
+      ? (visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.725:visibleAirframe==='copper'?.745:.75)
       : .79;
     showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
     focusX=w*showroomFocusFraction;
