@@ -7393,7 +7393,7 @@ const REDLINE_SHOWROOM=(()=>{
   // Scale original 52.4-wide wing into same framing as the other models.
   adapter.scale.setScalar(.25);
   const actual=window.REDLINE_SPIRIT_TEMPLATE.clone(true);adapter.add(actual);
-  spiritShowroom.add(adapter);spiritShowroom.scale.setScalar(2.90);
+  spiritShowroom.add(adapter);spiritShowroom.scale.setScalar(2.58);
   const cache=new Map();actual.traverse(o=>{if(!o.isMesh)return;
    o.castShadow=true;o.receiveShadow=true;
    const src=Array.isArray(o.material)?o.material:[o.material];
@@ -7706,7 +7706,7 @@ const REDLINE_SHOWROOM=(()=>{
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
    const focusTarget=isGarage
-      ? (visibleAirframe==='blade'?.74:visibleAirframe==='spirit'?.69:visibleAirframe==='copper'?.755:.70)
+      ? (visibleAirframe==='blade'?.74:visibleAirframe==='spirit'?.66:visibleAirframe==='copper'?.755:.70)
       : .80;
     showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
     focusX=w*showroomFocusFraction;
