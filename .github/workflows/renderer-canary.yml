@@ -36,6 +36,7 @@ jobs:
         run: |
           python tests/benchmark_sector.py
           cp qa/SHOWCASE_RAVEN_SLALOM_LIVE.png qa/SHOWCASE_RAVEN_SLALOM_R128.png
+          cp qa/BENCHMARK_RESULTS.json qa/BENCHMARK_R128.json
       - name: Build current Three.js r187 canary
         run: |
           node tools/build-modern-renderer.cjs
@@ -49,12 +50,16 @@ jobs:
       - name: True WebGL E2E - modern renderer, all four aircraft
         env: {REDLINE_EXPECT_RENDERER: '187'}
         run: python tests/full_game_e2e.py
+      - name: Real WebGL smoke of the exact self-contained modern HTML
+        env: {REDLINE_EXPECT_RENDERER: '187'}
+        run: python tests/standalone_smoke.py
       - name: True WebGL Raven Slalom benchmark - modern renderer
         env: {REDLINE_EXPECT_RENDERER: '187'}
         run: python tests/benchmark_sector.py
       - name: Verify modern scene against reference screenshot
         run: |
           cp qa/SHOWCASE_RAVEN_SLALOM_LIVE.png qa/SHOWCASE_RAVEN_SLALOM_R187.png
+          cp qa/BENCHMARK_RESULTS.json qa/BENCHMARK_R187.json
           python tests/compare_renderers.py
       - name: Upload modern renderer screenshots and logs
         if: always()
