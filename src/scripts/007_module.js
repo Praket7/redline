@@ -35,14 +35,14 @@
     this.headingTarget=normalize(yaw+requested);
     this.lastYaw=yaw;
     // Around 5 degrees per 70 px at default sensitivity, clamped to 13 deg.
-    this.pitch=clamp(this.pitch-dy*.00220*clamp(pitchSensitivity,.35,2.5),-.23,.23);
+    this.pitch=clamp(this.pitch-dy*.00345*clamp(pitchSensitivity,.35,2.5),-.31,.31);
     this.command=0;
     this.steer=0; // headingTarget is the authoritative input in locked mode
    }else{
     const x=clamp(dx*scale/(Math.max(.5,dt*60)*12),-1,1);
     const y=clamp(-dy*scale/(Math.max(.5,dt*60)*19),-1,1);
     this.steer=damp(this.steer,x,Math.abs(x)>.01?.025:.070,dt);
-    this.command=damp(this.command,y,Math.abs(y)>.01?.035:.090,dt);
+    this.command=damp(this.command,y,Math.abs(y)>.01?.027:.070,dt);
     this.pitch=0;
    }
   },
