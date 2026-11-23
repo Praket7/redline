@@ -127,7 +127,7 @@ def build(mode):
  if V81_ENABLED:
   import base64,gzip
   packed=(ROOT/'src/styles/v81_authority.css.gz.b64').read_text().strip()
-  extra_css=gzip.decompress(base64.b64decode(packed,validate=True)).decode('utf-8')
+  extra_css=gzip.decompress(base64.b64decode(packed,validate=True)).decode('utf-8')+'\n'+(ROOT/'src/styles/v81_narrow_hud.css').read_text()
   # Source is stored compressed only to avoid duplicating a large inherited
   # stylesheet in a single-file game; the emitted CSS is ordinary text.
   if mode=='standalone':
