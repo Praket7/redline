@@ -7558,6 +7558,93 @@ const REDLINE_SHOWROOM=(()=>{
     part.o.scale.copy(part.scale).multiplyScalar(1-.35*u);
    }
   }
+ // V82 camera correction: measure the visible aircraft mesh, not its pivot or
+ // its exhaust planes. Geometry is cached and camera fitting is performed ONLY
+ // on page, model or viewport change. Idle rotation never changes zoom.
+ const heroLocalPoints=new WeakMap();
+ let heroCameraState=null;
+ const HERO_BASE_SCALE={kestrel:2.70,blade:1.93,copper:2.48,spirit:2.58};
+ function getHeroLocalPoints(craft){
+  if(!craft)return [];
+  const cached=heroLocalPoints.get(craft);if(cached)return cached;
+  craft.updateMatrixWorld(true);
+  const inverse=craft.matrixWorld.clone().invert(), matrix=new THREE.Matrix4();
+  const points=[],q=new THREE.Vector3();
+  craft.traverse(o=>{
+   if(!o.isMesh||!o.geometry||!o.visible)return;
+   const mats=Array.isArray(o.material)?o.material:[o.material];
+   if(!mats.some(m=>m&&m.visible!==false&&(!m.transparent||m.opacity>=.16)))return;
+   if(/exhaust|plume|trail|beam|particle|spark|halo|thruster.?flare|smoke|fire|jet.?glow/i.test(o.name||''))return;
+   if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();
+   const box=o.geometry.boundingBox;if(!box||box.isEmpty())return;
+   matrix.multiplyMatrices(inverse,o.matrixWorld);
+   for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
+    q.set(x,y,z).applyMatrix4(matrix);
+    if(Number.isFinite(q.x)&&Number.isFinite(q.y)&&Number.isFinite(q.z))points.push(q.clone());
+   }
+  });
+  heroLocalPoints.set(craft,points);
+  return points;
+ }
+ function heroSafeRectangle(mode,w,h){
+  const compact=w<=720;
+  if(compact){
+   // Small screens have a vertically stacked selector, not a horizontal bay.
+   return {left:w*.15,right:w*.85,top:h*.16,bottom:h*.63};
+  }
+  const headerGap=Math.max(74,Math.min(116,h*.14));
+  const copy=mode==='solo'
+   ? document.querySelector('.rl-garage .rl45-panel,.rl-garage .rl-select-panel')
+   : document.querySelector('.rl-home .rl-hero-copy');
+  const edge=copy?.getBoundingClientRect().right||0;
+  const left=Math.min(w*.73,Math.max(mode==='solo'?w*.435:w*.50,edge+Math.max(19,w*.017)));
+  return {left,right:w-Math.max(18,Math.min(46,w*.025)),
+    top:headerGap,bottom:h-Math.max(26,Math.min(70,h*.095))};
+ }
+ function fitShowroomHero(craft,airframe,mode,w,h){
+  const bounds=heroSafeRectangle(mode,w,h);
+  const verts=getHeroLocalPoints(craft);
+  const frameKey=[mode,airframe,w,h,Math.round(bounds.left),Math.round(bounds.right),verts.length].join(':');
+  if(heroCameraState?.key===frameKey)return heroCameraState;
+  // The real cockpit/body is sampled at all eight yaw orientations. An orbiting
+  // model therefore cannot grow past the available right-side showcase area.
+  const scales=HERO_BASE_SCALE[airframe]||1.93;
+  const home=showroomHomeY(craft);
+  const pt=new THREE.Vector3();
+  camera.fov=44;camera.clearViewOffset();camera.aspect=w/h;camera.updateProjectionMatrix();
+  const samples=Array.from({length:8},(_,i)=>[Math.cos(i*Math.PI/4),Math.sin(i*Math.PI/4)]);
+  function footprint(distance){
+   camera.position.set(5+Math.cos(-1.2)*distance,19.2,4+Math.sin(-1.2)*distance);
+   camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+1,4));
+   camera.updateMatrixWorld(true);
+   let l=Infinity,r=-Infinity,t=Infinity,b=-Infinity;
+   for(const [c,si] of samples)for(const v of verts){
+    const xx=v.x*scales,zz=v.z*scales;
+    pt.set(5+xx*c+zz*si,home+v.y*scales,4-xx*si+zz*c).project(camera);
+    const x=(pt.x+1)*w*.5,y=(1-pt.y)*h*.5;
+    if(x<l)l=x;if(x>r)r=x;if(y<t)t=y;if(y>b)b=y;
+   }
+   if(!Number.isFinite(l))return {l:w*.5,r:w*.5,t:h*.5,b:h*.5};
+   return {l,r,t,b};
+  }
+  let lo=35,hi=125;
+  const limitW=(bounds.right-bounds.left)*.89;
+  const limitH=(bounds.bottom-bounds.top)*.87;
+  for(let i=0;i<14;i++){
+   const mid=(lo+hi)*.5,box=footprint(mid);
+   if(box.r-box.l>limitW||box.b-box.t>limitH)lo=mid;
+   else hi=mid;
+  }
+  const distance=Math.max(35,Math.min(125,hi)),box=footprint(distance);
+  const desiredX=(bounds.left+bounds.right)*.5;
+  const desiredY=(bounds.top+bounds.bottom)*.5;
+  const offsetX=(box.l+box.r)*.5-desiredX;
+  const offsetY=(box.t+box.b)*.5-desiredY;
+  heroCameraState={key:frameKey,distance,offsetX,offsetY,bounds,
+   selected:airframe,mode,measured:[box.l,box.r,box.t,box.b],
+   screenFocus:desiredX/w,pointCount:verts.length};
+  return heroCameraState;
+ }
  function update(dt){
   // The showroom is a presentation feature, not a reason to block every menu.
   // A partial model is still usable if a nonessential polish effect fails.
@@ -7678,48 +7765,22 @@ const REDLINE_SHOWROOM=(()=>{
   });
   // A truly LOCKED architectural view. The hangar must never orbit or sway;
   // only the Kestrel root animates after fly-in, while the platform stays fixed.
-  const fixedAngle=-1.2;
-  // Airframe-dependent cinematic framing. Blade is much wider than the
-   // other aircraft; Spirit is shallow and needs a closer camera.
-   // Critically, interpolate the camera to avoid a visible teleport on swap.
-   const isGarage=screen==='solo';
-   // Keep ONE stable focal length and camera distance through every aircraft change.
-   // Only craft geometry moves during selection, avoiding the old zoom pumping.
-   const craftRadius=43;
-   showroomCameraDistance=craftRadius;
-   const baseRadius=showroomCameraDistance;
-  const viewAspect=Math.max(.42,innerWidth/Math.max(1,innerHeight));
-  const r=innerWidth<=720?Math.max(baseRadius,10.6/(.37*viewAspect)):baseRadius*Math.max(1,1.6/viewAspect);
-  camera.position.set(5+Math.cos(fixedAngle)*r,19.2,4+Math.sin(fixedAngle)*r);
-  // V17.3 right-hand composition: the real Kestrel, platform and orbit target
-  // remain at world (5, 2.65, 4). An OFF-AXIS projection moves their IMAGE to
-  // the right; moving lookAt in world space could never lock the image during orbit.
-  camera.fov=44;
   const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);
-  const compact=w<=720;
-  let focusX=w*.79;
-  if(screen==='solo'){
-   const stage=document.querySelector('.rl-garage .rl-model-stage');
-   if(stage){const rect=stage.getBoundingClientRect();focusX=rect.left+rect.width*.43;}
-   else focusX=w*.60;
-  }
-  // On small devices the selector stacks vertically, so use centered framing.
-  if(!compact && (screen==='landing'||screen==='solo')){
-   const focusTarget=isGarage
-      ? (visibleAirframe==='blade'?.74:visibleAirframe==='spirit'?.66:visibleAirframe==='copper'?.755:.70)
-      : .80;
-    showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
-    focusX=w*showroomFocusFraction;
-   // A virtual screen twice as wide as the focus position places the world
-   // target exactly at focusX pixels without stretching or cropping the model.
-   camera.setViewOffset(w,h,w*.5-focusX,0,w,h);
+  if(model&&(screen==='solo'||screen==='landing')){
+   const frame=fitShowroomHero(model,visibleAirframe,screen,w,h);
+   showroomCameraDistance=frame.distance;
+   showroomFocusFraction=frame.screenFocus;
+   camera.fov=44;
+   camera.position.set(5+Math.cos(-1.2)*frame.distance,19.2,4+Math.sin(-1.2)*frame.distance);
+   camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+1,4));
+   camera.setViewOffset(w,h,frame.offsetX,frame.offsetY,w,h);
+   window.REDLINE_HANGAR_QA.cameraFraming={distance:frame.distance,
+    screenFocus:frame.screenFocus,airframe:visibleAirframe,mode:screen,
+    safeBounds:frame.bounds,offsetX:frame.offsetX,offsetY:frame.offsetY,
+    measured:frame.measured,pointCount:frame.pointCount,stable:true};
   }else{
-   camera.clearViewOffset();
-   camera.aspect=w/h;
-   camera.updateProjectionMatrix();
+   camera.clearViewOffset();camera.aspect=w/h;camera.fov=44;camera.updateProjectionMatrix();
   }
-  camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+1.00,4));
-   window.REDLINE_HANGAR_QA.cameraFraming={distance:showroomCameraDistance,screenFocus:showroomFocusFraction,airframe:visibleAirframe,mode:screen};
   // Diagnose the true on-screen footprint of the aircraft and roof clearance.
   framingSample+=dt;
   if(model&&framingSample>.55){
