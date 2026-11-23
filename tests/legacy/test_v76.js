@@ -47,5 +47,5 @@ check(source.includes('color:0xff1932'),'bright RED projectile');
 check(source.includes('laserWorldHit(from,delta.normalize(),Math.max(0,length-5))'),'rock-occluded AI projectile');
 check(source.includes('chaseAim?0:aim.x'),'camera-center chase aiming');
 check(source.includes('REDLINE_HOVER_Y=6.2'),'higher aircraft showroom');
-check(source.includes('const baseRadius=screen===\'solo\'?30.5'),'hangar has tighter showcase camera framing, validated by live WebGL screenshot tests');
+check(source.includes('const baseRadius=screen===\'solo\'?39.5'),'hangar has tighter showcase camera framing, validated by live WebGL screenshot tests');
 console.log(JSON.stringify({pass:checks,results},null,2));
