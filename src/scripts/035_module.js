@@ -7237,7 +7237,7 @@ const REDLINE_SHOWROOM=(()=>{
   model.name='Redline_Real_Kestrel_X4_Showroom';kestrelShowroom=model;
   // 19% larger physical model, then tighter composition below. It remains inside
   // the geometry-derived roof clearance envelope even during the 6-second approach.
-  model.scale.setScalar(2.85);REDLINE_VISUALS.detailDrone(THREE,model);scene.add(model);
+  model.scale.setScalar(2.60);REDLINE_VISUALS.detailDrone(THREE,model);scene.add(model);
   // v54: never flash the default Kestrel while a saved craft is loading.
   model.visible=false;
   window.REDLINE_HANGAR_QA.modelLocalBounds=new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).toArray();
@@ -7477,9 +7477,9 @@ const REDLINE_SHOWROOM=(()=>{
    // The previous craft has completely departed before the incoming appears.
    // Absolute poses make the animation independent of frame rate.
    const u=rl46Ease((t-.66)/.98),away=1-u;
-   craft.position.set(5+5.2*away,showroomHomeY(craft)+1.2*away,4+39*away);
+   craft.position.set(5+4*away,showroomHomeY(craft)+1.2*away,4+22*away);
    craft.rotation.set(-.12*away,.50*away+displayYaw*u,.18*away);
-   craft.scale.copy(baseScale).multiplyScalar(.69+.31*u);
+   craft.scale.copy(baseScale).multiplyScalar(.82+.18*u);
   }
   function updateShowroomSwitch(dt){
    const tx=showroomSwitch;if(!tx)return;
@@ -7518,8 +7518,8 @@ const REDLINE_SHOWROOM=(()=>{
    }
   }
   function showroomFlightIn(t){
-   const u=rl46Ease(t/2.65),away=1-u;
-   model.position.set(5+5*away,showroomHomeY(model)+1.1*away,4+36*away);
+   const u=rl46Ease(t/1.45),away=1-u;
+   model.position.set(5+2.5*away,showroomHomeY(model)+.9*away,4+18*away);
    model.rotation.set(-.10*away,.50*away,-.19*away);
   }
   function showroomGarageReveal(t){
@@ -7696,9 +7696,7 @@ const REDLINE_SHOWROOM=(()=>{
   }
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
-   const focusTarget=isGarage
-      ? (visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.68:visibleAirframe==='copper'?.735:.72)
-      : (visibleAirframe==='blade'?.84:visibleAirframe==='spirit'?.78:visibleAirframe==='copper'?.87:.96);
+   const focusTarget=(visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.68:visibleAirframe==='copper'?.735:.72);
     showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
     focusX=w*showroomFocusFraction;
    // A virtual screen twice as wide as the focus position places the world
