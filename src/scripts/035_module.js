@@ -7182,7 +7182,7 @@ const REDLINE_SHOWROOM=(()=>{
  const markingTexture=new THREE.CanvasTexture(marking);markingTexture.colorSpace=THREE.SRGBColorSpace;
  const markingMesh=new THREE.Mesh(new THREE.PlaneGeometry(17,3.2),new THREE.MeshBasicMaterial({map:markingTexture,transparent:true,depthWrite:false}));
  markingMesh.position.set(5,16,zBack-1.5);markingMesh.rotation.y=Math.PI;scene.add(markingMesh);
- window.REDLINE_HANGAR_QA.decorations={panels:panelInstances.length,bolts:boltInstances.length,runwayLights:stageAccents.length+safetyBars.length,batchedDraws:5};
+ const hangarDecorationStats={panels:panelInstances.length,bolts:boltInstances.length,runwayLights:stageAccents.length+safetyBars.length,batchedDraws:5};
 
  // Lighting is carefully constrained: three photographic studio sources, two
  // low-intensity practicals, plus faint ambient. Lights don't cast tunnel shadows.
@@ -7213,6 +7213,7 @@ const REDLINE_SHOWROOM=(()=>{
  penumbra.rotation.x=-Math.PI/2;penumbra.position.set(5,-.934,4);scene.add(penumbra);
  const ceilingProfile=x=>archY(x);
   window.REDLINE_HANGAR_QA={theme:'black-led-detailing-tunnel',eave:ySide,ridge:yRidge,front:zFront,rear:zBack,ledArchCount:Math.ceil(bays/2),roofSegments:arcSteps,clearanceAt:x=>ceilingProfile(x),roomForEntranceAtCenter:ceilingProfile(5)-21};
+ window.REDLINE_HANGAR_QA.decorations=hangarDecorationStats;
  let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0;
  let kestrelShowroom=null,bladeShowroom=null,bladeShowroomJets=null,copperShowroom=null,copperShowroomFx=null,spiritShowroom=null,spiritShowroomFx=null,visibleAirframe='kestrel',selectedAirframeArriving=false;
  let showroomSwitch=null,showroomExit=null,garageRevealPose=null;
