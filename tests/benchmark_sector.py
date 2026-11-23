@@ -17,6 +17,13 @@ try:
  with sync_playwright() as p:
   browser=p.chromium.launch(**({'executable_path':os.environ.get('CHROMIUM_PATH') or shutil.which('chromium')} if (os.environ.get('CHROMIUM_PATH') or shutil.which('chromium')) else {}),headless=True,args=['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
   page=browser.new_page(viewport={'width':1600,'height':900},device_scale_factor=1)
+  # Match the passing E2E fixture: skip first-run training without mocking flight.
+  page.add_init_script("""
+    try {
+      localStorage.setItem('redline_raven_training_v22_done','1');
+      localStorage.setItem('redline_v16_options',JSON.stringify({course:'grand',autoPointerLock:false}));
+    } catch (e) {}
+  """)
   page.goto(url,wait_until='domcontentloaded',timeout=12000)
   page.wait_for_function('window.REDLINE_E2E?.status()?.ready === true',timeout=35000)
   page.evaluate('()=>window.REDLINE_E2E.select("kestrel")')
