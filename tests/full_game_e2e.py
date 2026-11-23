@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 QA = ROOT / 'qa'; QA.mkdir(exist_ok=True)
 report = {'test': 'REDLINE Stage 1 full-engine WebGL smoke', 'state': 'NOT_RUN', 'cases': [], 'errors': [], 'requestFailures': []}
 renderer_revision=os.environ.get('REDLINE_EXPECT_RENDERER','128')
-site_path=ROOT / 'dist' / ('site-r187' if renderer_revision=='187' else 'site')
+site_path=ROOT / 'dist' / ('site-r187-compact' if renderer_revision=='187' and os.environ.get('REDLINE_COMPACT_SITE')=='1' else ('site-r187' if renderer_revision=='187' else 'site'))
 server = ThreadingHTTPServer(('127.0.0.1', 0), partial(SimpleHTTPRequestHandler, directory=str(site_path)))
 Thread(target=server.serve_forever, daemon=True).start()
 url = f'http://127.0.0.1:{server.server_address[1]}/index.html?redlineTest=1'
@@ -67,6 +67,13 @@ try:
                     arg=craft,timeout=45000)
                 case['hangarAirframe']=page.evaluate('()=>window.REDLINE_SHOWROOM.airframe')
                 case['hangarPose']=page.evaluate('()=>window.REDLINE_HANGAR_POSE_STATUS?.()')
+                case['hangarDecor']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.decorations')
+                case['hangarFootprint']=page.evaluate('()=>window.REDLINE_HANGAR_QA?.projectedFootprint')
+                assert case['hangarDecor'] and case['hangarDecor']['panels']==16 and case['hangarDecor']['bolts']==64, f'hangar detail missing: {craft}: {case}'
+                if case['hangarFootprint']:
+                    fp=case['hangarFootprint']
+                    assert fp['left']>=-45 and fp['right']<=fp['viewport'][0]+45, f'hangar horizontally clipped: {craft}: {fp}'
+                    assert fp['top']>=-65 and fp['bottom']<=fp['viewport'][1]+65, f'hangar vertically clipped: {craft}: {fp}'
                 assert case['hangarAirframe']==craft,f'hangar shows wrong aircraft: {case}'
                 page.screenshot(path=str(QA/f'FULL_HANGAR_{craft.upper()}.png'),animations='disabled')
                 page.evaluate('()=>window.REDLINE_E2E.launch()')
