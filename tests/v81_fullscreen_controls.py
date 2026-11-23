@@ -31,6 +31,9 @@ try:
   page.goto(url,wait_until='domcontentloaded',timeout=40000)
   page.wait_for_function("window.REDLINE_E2E?.status()?.ready===true",timeout=80000)
   assert page.evaluate("window.THREE.REVISION")=='187'
+  preset=page.evaluate("()=>document.getElementById('quality')?.value")
+  assert preset=='performance',f'fastest graphics preset must be default: {preset}'
+  report['graphicsPreset']=preset
 
   def inspect(screen,size):
    s=page.evaluate("""()=>{
@@ -62,7 +65,7 @@ try:
    page.wait_for_timeout(250)
    inspect('SELECTION',size)
    camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
-   assert abs(camera['distance']-56)<.01,f'hangar model zoom instability: {camera}'
+   assert abs(camera['distance']-37)<.01,f'hangar model zoom instability: {camera}'
    if size[0]==960:
     for craft in ['blade','copper','spirit']:
      page.locator(f'button[data-model="{craft}"]').first.click()
@@ -71,7 +74,7 @@ try:
      page.wait_for_timeout(160)
      inspect('SELECTION_'+craft.upper(),size)
      camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
-     assert abs(camera['distance']-56)<.01,f'per-craft camera zoom must stay fixed: {craft} {camera}'
+     assert abs(camera['distance']-37)<.01,f'per-craft camera zoom must stay fixed: {craft} {camera}'
   page.set_viewport_size({'width':960,'height':540})
   page.evaluate("window.REDLINE_E2E.screen('solo')")
   page.locator('button[data-model="kestrel"]').first.click()
