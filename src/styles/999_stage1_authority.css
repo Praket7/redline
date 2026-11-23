@@ -45,3 +45,98 @@ body.rl-play.rl-cockpit:is(.rl62-tie-cockpit,.rl63-spirit-cockpit,.rl65-blade-co
   }
   #rlScreens .rl45-continue{padding:10px 14px!important;min-height:43px!important}
 }
+
+
+/* REDLINE v81 — the renderer's drawing buffer may be downscaled for performance,
+ * but its CSS rectangle must always cover the ENTIRE display. Never treat a
+ * low pixel ratio as a reason to make the scene visibly smaller. */
+html,body{width:100%!important;height:100%!important;margin:0!important;overflow:hidden!important}
+body>canvas:first-child{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;display:block!important}
+#rlShell,#rlScreens,#rlPersistent{inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important}
+#rlScreens{overflow-x:hidden!important;overflow-y:auto!important;background:linear-gradient(90deg,rgba(2,6,12,.91) 0%,rgba(5,9,17,.75) 30%,rgba(5,9,17,.18) 68%,rgba(3,6,12,.06) 100%)!important}
+#rlScreens .rl-layout,#rlScreens .rl45-layout,#rlScreens .rl45-vehicle-page{width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box}
+#rlScreens .rl-layout,#rlScreens .rl45-vehicle-page{min-height:100dvh!important}
+#rlScreens .rl-hero-visual{min-height:0!important;max-height:calc(100dvh - 80px)!important}
+body.rl-play #rlShell{height:100dvh!important}
+body.rl-play #rlPersistent{width:100vw!important;height:100dvh!important}
+
+/* Minimal FPV glass HUD: remove legacy charcoal dashboard rectangles while
+ * preserving the independent four live aircraft instrument displays. */
+body.rl-play.rl-cockpit :is(#rlGameTop,#rlPositions,#maphud,#rlFlowModule,#rlGameButtons button,#navPointer,#rlToast,#rlMouseUnlock,#rlAimHint){
+ background:transparent!important;
+ background-image:none!important;
+ border:0!important;border-left:0!important;border-right:0!important;
+ border-radius:0!important;
+ box-shadow:none!important;
+ backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+ filter:none!important;
+}
+body.rl-play.rl-cockpit :is(#rlGameTop,#rlPositions,#maphud,#rlFlowModule,#navPointer){
+ color:#f6f7fa!important;text-shadow:0 1px 4px #000,0 0 10px #0009!important;
+}
+body.rl-play.rl-cockpit #rlGameTop{
+ position:fixed!important;top:clamp(10px,2vh,22px)!important;
+ left:clamp(12px,2vw,28px)!important;right:auto!important;
+ z-index:90!important;min-width:0!important;max-width:34vw!important;
+ padding:0!important;margin:0!important;
+ font:800 clamp(10px,1vw,13px)/1.25 system-ui,sans-serif!important;
+ letter-spacing:.11em!important;
+}
+body.rl-play.rl-cockpit #rlGameTop b{color:#f9fafc!important;font-size:clamp(19px,2.2vw,29px)!important}
+body.rl-play.rl-cockpit #rlGameTop small{color:#ff525b!important;opacity:1!important}
+body.rl-play.rl-cockpit #rlPositions{
+ position:fixed!important;top:clamp(85px,12vh,125px)!important;
+ left:clamp(12px,2vw,28px)!important;bottom:auto!important;right:auto!important;
+ width:min(190px,23vw)!important;max-width:min(190px,23vw)!important;
+ max-height:31vh!important;overflow:hidden!important;
+ padding:0!important;margin:0!important;
+ font:700 clamp(10px,.9vw,12px)/1.55 ui-monospace,monospace!important;
+ z-index:89!important;
+}
+body.rl-play.rl-cockpit #rlPositions .rl-pos-row{border:0!important;border-bottom:1px solid #ffffff22!important;color:#f7f7f8!important;padding:3px 0!important}
+body.rl-play.rl-cockpit #rlPositions .rl-pos-row.me,
+body.rl-play.rl-cockpit #rlPositions .rl-pos-row.me .rank{color:#ff4653!important}
+body.rl-play.rl-cockpit #rlPositions .gap{color:#fff!important}
+body.rl-play.rl-cockpit #maphud{
+ position:fixed!important;right:clamp(12px,2vw,28px)!important;
+ top:clamp(70px,10vh,120px)!important;left:auto!important;
+ padding:0!important;margin:0!important;
+ z-index:88!important;opacity:.94!important;
+}
+body.rl-play.rl-cockpit #maphud .lbl{color:#ff555d!important;font-weight:900!important;letter-spacing:.19em!important;text-shadow:0 1px 6px #000!important}
+body.rl-play.rl-cockpit #maphud canvas{width:clamp(105px,12vw,168px)!important;height:clamp(105px,12vw,168px)!important}
+body.rl-play.rl-cockpit #rlFlowModule{
+ position:fixed!important;top:clamp(235px,38vh,365px)!important;
+ right:clamp(12px,2vw,28px)!important;left:auto!important;
+ width:min(150px,19vw)!important;max-width:min(150px,19vw)!important;
+ padding:0!important;z-index:88!important;transform:none!important;
+}
+body.rl-play.rl-cockpit #rlFlowModule *{box-shadow:none!important}
+body.rl-play.rl-cockpit #rlFlowModule :is(.rl-flow-top,.rl-flow-body,.rl-flow-action){
+ background:transparent!important;background-image:none!important;border:0!important;
+ color:#f5f6f8!important;
+}
+body.rl-play.rl-cockpit #rlFlowModule .rl-flow-quantity,
+body.rl-play.rl-cockpit #rlFlowModule :is(.key,.value){color:#ff4653!important}
+body.rl-play.rl-cockpit #rlGameButtons{top:clamp(10px,1.5vh,20px)!important;z-index:93!important}
+body.rl-play.rl-cockpit #rlGameButtons button{color:#f9fafc!important;padding:4px 7px!important;text-shadow:0 2px 7px #000!important}
+body.rl-play.rl-cockpit #rlGameButtons button:hover,
+body.rl-play.rl-cockpit #rlGameButtons button:focus-visible{color:#ff4653!important;text-decoration:underline!important}
+body.rl-play.rl-cockpit #navPointer{color:#ff5360!important;padding:0!important;font-size:10px!important}
+body.rl-play.rl-cockpit #rlToast{color:#fff!important;text-shadow:0 2px 12px #000!important}
+body.rl-play.rl-cockpit #rlToast.danger{color:#ff4558!important}
+body.rl-play.rl-cockpit #rlMouseUnlock{color:#fff!important}
+body.rl-play.rl-cockpit #rlReticle{z-index:95!important}
+body.rl-play.rl-cockpit #rlAimHint{z-index:95!important;color:#ff4855!important}
+@media(max-width:940px){
+ body.rl-play.rl-cockpit #rlGameTop{max-width:37vw!important}
+ body.rl-play.rl-cockpit #rlPositions{width:150px!important;max-width:150px!important;top:82px!important}
+ body.rl-play.rl-cockpit #maphud{top:74px!important;right:9px!important}
+ body.rl-play.rl-cockpit #rlFlowModule{top:215px!important;right:9px!important;width:135px!important;max-width:135px!important}
+ body.rl-play.rl-cockpit #rlGameButtons{top:8px!important;left:52%!important}
+}
+@media(max-height:650px){
+ body.rl-play.rl-cockpit #rlPositions{top:68px!important;max-height:34vh!important}
+ body.rl-play.rl-cockpit #maphud{top:62px!important}
+ body.rl-play.rl-cockpit #rlFlowModule{top:205px!important}
+}
