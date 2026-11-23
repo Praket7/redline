@@ -12,7 +12,7 @@ from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
 QA=ROOT/'qa'; QA.mkdir(exist_ok=True)
 rev=os.environ.get('REDLINE_EXPECT_RENDERER','187')
-file='REDLINE_v78_R187_CANDIDATE.html' if rev=='187' else 'REDLINE_v78_STAGE1_STANDALONE.html'
+file=os.environ.get('REDLINE_STANDALONE_FILE') or ('REDLINE_v78_R187_CANDIDATE.html' if rev=='187' else 'REDLINE_v78_STAGE1_STANDALONE.html')
 assert (ROOT/'dist'/file).exists(),f'missing standalone artifact {file}'
 server=ThreadingHTTPServer(('127.0.0.1',0),partial(SimpleHTTPRequestHandler,directory=str(ROOT/'dist')))
 Thread(target=server.serve_forever,daemon=True).start()
