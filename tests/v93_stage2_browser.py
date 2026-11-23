@@ -1,0 +1,96 @@
+import json, os, pathlib, threading, functools
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from playwright.sync_api import sync_playwright
+ROOT=pathlib.Path(__file__).resolve().parents[1]
+WORLD=os.environ.get('COURSE','raven')
+OUT=ROOT/'qa/v93'/WORLD; OUT.mkdir(parents=True,exist_ok=True)
+server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(SimpleHTTPRequestHandler,directory=str(ROOT/'dist')))
+threading.Thread(target=server.serve_forever,daemon=True).start()
+url=f'http://127.0.0.1:{server.server_port}/REDLINE_v93_STAGE2.html?redlineTest=1&cameraDebug=1'
+report={'world':WORLD,'renderer':'Chromium SwiftShader','checks':[],'errors':[],'fixture':'controlled checkpoint crossings, not a physically flown race'}
+def check(condition,message):
+    assert condition,message
+    report['checks'].append(message)
+try:
+  with sync_playwright() as p:
+    browser=p.chromium.launch(headless=True,args=['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
+    page=browser.new_page(viewport={'width':960,'height':540},device_scale_factor=1)
+    page.on('pageerror',lambda e:report['errors'].append(str(e)))
+    page.add_init_script("localStorage.setItem('redline_raven_training_v22_done','1');if(!localStorage.getItem('redline_v16_options'))localStorage.setItem('redline_v16_options',JSON.stringify("+json.dumps({'model':'kestrel','course':WORLD,'bots':0,'autoPointerLock':False,'hudMode':'race'})+"));")
+    def capture(name): page.screenshot(path=str(OUT/(name+'.png')),timeout=120000)
+    def ready(): page.wait_for_function("window.REDLINE_E2E?.status()?.ready===true",timeout=150000)
+    def step(n=1): page.evaluate("(n)=>{for(let i=0;i<n;i++)window.redlineSimulateFrame(1/60)}",n)
+    def launch():
+        page.evaluate("window.REDLINE_E2E.launch()")
+        page.wait_for_function("window.REDLINE_E2E.status().screen==='race'",timeout=120000)
+        page.evaluate("()=>{for(let i=0;window.REDLINE_UI_STATUS()?.mode==='count'&&i<100;i++)window.redlineSimulateFrame(.05)}")
+        page.wait_for_function("window.REDLINE_UI_STATUS()?.mode==='run'",timeout=60000)
+    page.goto(url,wait_until='domcontentloaded',timeout=120000);ready()
+    check(page.evaluate("window.REDLINE_RELEASE==='v93-stage2-candidate'&&window.THREE.REVISION==='187'"),'exact release and renderer')
+    page.evaluate("window.redlineUI.go('course')")
+    page.locator('#rlS2Course').wait_for()
+    check(page.locator('#rlS2Ghost').count()==1,'ghost selector exists')
+    capture('course')
+    launch()
+    check(page.evaluate("window.REDLINE_SIM_STATE().world") == WORLD,'correct world')
+    initial=page.evaluate("window.REDLINE_SIM_DIAGNOSTICS()")
+    page.keyboard.down('w');step(90);page.keyboard.up('w')
+    after=page.evaluate("window.REDLINE_SIM_DIAGNOSTICS()")
+    check(sum((after[k]-initial[k])**2 for k in ['x','y','z'])>1,'normal keyboard flight moves craft')
+    page.keyboard.down('j');step(8);page.keyboard.up('j')
+    capture('race')
+    count=4 if WORLD=='raven' else 36
+    for i in range(count):
+        step(18)
+        prev=page.evaluate("window.REDLINE_E2E.stage1()")
+        page.evaluate("window.REDLINE_E2E.stage2CheckpointFixture()")
+        step(1)
+        post=page.evaluate("window.REDLINE_E2E.stage1()")
+        assert post['gate']!=prev['gate'] or post['lap']!=prev['lap'],f'fixture failed at {i}: {prev["gate"]} -> {post["gate"]}'
+    page.wait_for_function("window.REDLINE_UI_STATUS()?.screen==='results'",timeout=60000)
+    check(page.evaluate("window.REDLINE_E2E.stage2().session.splits")==count,'actual game update processed all checkpoints')
+    check(page.evaluate("window.REDLINE_E2E.stage2().available"),'complete replay validated')
+    page.locator('[data-op=watchReplay]').wait_for()
+    capture('results')
+    page.locator('.rl-s2-summary summary').click()
+    check(page.locator('.rl-s2-grid > div').count()==count,'one sector entry per checkpoint')
+    capture('sectors')
+    page.locator('[data-op=watchReplay]').click()
+    page.locator('#rlS2Replay').wait_for()
+    page.locator('#rlS2Seek').evaluate("(el)=>{el.value=String(Number(el.max)*.52);el.dispatchEvent(new Event('input',{bubbles:true}))}")
+    page.wait_for_function("window.REDLINE_E2E.stage2().replay?.playing===false")
+    page.locator('#rlS2Camera').select_option('side')
+    page.locator('#rlS2Speed').select_option('2')
+    frozen=page.evaluate("window.REDLINE_SIM_DIAGNOSTICS()")
+    capture('replay_side')
+    page.locator('[data-rp=next]').click()
+    page.locator('#rlS2Camera').select_option('chase')
+    capture('replay_chase')
+    still=page.evaluate("window.REDLINE_SIM_DIAGNOSTICS()")
+    check(all(frozen[k]==still[k] for k in ['ticks','x','y','z']),'replay does not mutate authoritative simulation')
+    page.locator('[data-rp=close]').click()
+    check(page.locator('#rlS2Replay').count()==0,'replay exits to results')
+    page.reload(wait_until='domcontentloaded',timeout=120000);ready()
+    page.evaluate("window.redlineUI.go('course')")
+    page.locator('[data-op=savedReplay]').wait_for()
+    check(page.evaluate("window.REDLINE_E2E.stage2().available"),'last run survives reload')
+    page.locator('[data-op=savedReplay]').click()
+    page.locator('#rlS2Replay').wait_for()
+    capture('saved_replay')
+    page.locator('[data-rp=close]').click()
+    page.locator('#rlS2Ghost').select_option('best')
+    launch()
+    check(page.evaluate("window.REDLINE_E2E.stage2().ghostFrames>2"),'personal best ghost loaded from storage')
+    capture('ghost_rematch')
+    check(not report['errors'],'no uncaught browser errors')
+    report['result']='PASS'
+    browser.close()
+except Exception as e:
+    report['result']='FAIL';report['failure']=str(e)
+    try: capture('failure')
+    except Exception: pass
+finally:
+    server.shutdown()
+    (OUT/'report.json').write_text(json.dumps(report,indent=2))
+    print(json.dumps(report))
+if report.get('result')!='PASS':raise SystemExit(1)
