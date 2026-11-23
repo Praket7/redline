@@ -74,7 +74,7 @@
     lateralGrip:14.8,lateralAccel:810,
     headingGain:5.55,turnAccelerationEasy:318,turnAccelerationSport:362,turnAccelerationExpert:391,
     bankStiffness:14.8,bankDamping:1.04,bankAngle:0.60,
-    pitchResponse:7.2,
+    pitchResponse:11.4,
     cameraFollow:0.115,cameraRecover:0.038,cameraVertical:0.16,
     cameraLookahead:0.055
   };
@@ -198,11 +198,11 @@
     // Shallow nose angle has significant vertical flight authority: a small
     // visual pitch must not mean almost no climb. This is assisted arcade
     // altitude control rather than full thrust-vector quadrotor aerodynamics.
-    const commandedPitch=clamp(Number.isFinite(input.pitch)?input.pitch:0,-.23,.23);
-    const pitchClimb=Math.sin(commandedPitch)*(46+Math.min(230,Math.abs(f.speed))*1.08)*profile.vertical;
-    const verticalLimit=82*profile.vertical;
+    const commandedPitch=clamp(Number.isFinite(input.pitch)?input.pitch:0,-.31,.31);
+    const pitchClimb=Math.sin(commandedPitch)*(50+Math.min(230,Math.abs(f.speed))*1.18)*profile.vertical;
+    const verticalLimit=96*profile.vertical;
     const wantedY=clamp(f.lift*liftSpeed+pitchClimb,-verticalLimit,verticalLimit);
-    f.vy=damp(f.vy,wantedY,1/((4+stability*5)*profile.vertical),dt);
+    f.vy=damp(f.vy,wantedY,1/((5.3+stability*6)*profile.vertical),dt);
     f.x+=f.vx*dt;f.z+=f.vz*dt;
     f.y=clamp(f.y+f.vy*dt,4.5,430);
     if((f.y===4.5&&f.vy<0)||(f.y===430&&f.vy>0))f.vy=0;
@@ -215,7 +215,7 @@
     // Pilot-owned pitch overrides the former hardcoded forward-lean bias.
     // Pointer-locked vertical mouse motion is persistent nose attitude, not a
     // short-lived lift impulse; FPV reads this same rendered pitch.
-    const pilotPitch=clamp(Number.isFinite(input.pitch)?input.pitch:0,-.23,.23);
+    const pilotPitch=clamp(Number.isFinite(input.pitch)?input.pitch:0,-.31,.31);
     const targetPitch=pilotPitch;
     f.pitch=damp(f.pitch,targetPitch,1/C.pitchResponse,dt);
     // Post-integration acceleration is the authoritative signal for the
