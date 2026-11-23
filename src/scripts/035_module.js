@@ -7141,6 +7141,49 @@ const REDLINE_SHOWROOM=(()=>{
   const mir=new THREE.Mesh(new THREE.PlaneGeometry(2.8,115),new THREE.MeshBasicMaterial({map:reflTex,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}));
   mir.rotation.x=-Math.PI/2;mir.position.set(x,-1.165,23);mir.renderOrder=1;scene.add(mir);
  }
+
+ // V80 hangar: architectural hardware authored as 5 batches, not dozens of draws.
+ // Each accent follows the actual platform, runway or wall, without affecting
+ // the vehicle model's root, collision shape, material or selected-airframe state.
+ const detailBolt=new THREE.MeshStandardMaterial({color:0x87949b,metalness:.86,roughness:.30});
+ const detailPanel=new THREE.MeshStandardMaterial({color:0x313c46,metalness:.69,roughness:.41,envMapIntensity:1.05});
+ const detailTread=new THREE.MeshStandardMaterial({color:0x141c24,metalness:.42,roughness:.71});
+ function hangarInstances(name,geometry,material,arr){
+  const mesh=new THREE.InstancedMesh(geometry,material,arr.length),dummy=new THREE.Object3D();mesh.name=name;
+  for(let i=0;i<arr.length;i++){
+   const [x,y,z,sx,sy,sz,ry=0]=arr[i];
+   dummy.position.set(x,y,z);dummy.rotation.set(0,ry,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate=true;mesh.frustumCulled=false;scene.add(mesh);return mesh;
+ }
+ const panelInstances=[],boltInstances=[],treadInstances=[];
+ for(const side of[-1,1])for(let bay=0;bay<8;bay++){
+  const z=-26+bay*17.2,x=5+side*15.5;
+  panelInstances.push([x,-1.133,z,5.1,.032,6.4]);
+  for(const dx of[-2.15,2.15])for(const dz of[-2.7,2.7])boltInstances.push([x+dx,-1.106,z+dz,.11,.10,.11]);
+  treadInstances.push([x,-1.108,z+4.0,4.7,.016,.07]);
+ }
+ hangarInstances('Maintenance_Deck_Panels',new THREE.BoxGeometry(1,1,1),detailPanel,panelInstances);
+ hangarInstances('Recessed_Steel_Fasteners',new THREE.CylinderGeometry(.5,.5,1,8),detailBolt,boltInstances);
+ hangarInstances('Panel_Seams',new THREE.BoxGeometry(1,1,1),detailTread,treadInstances);
+ const stageAccents=[],safetyBars=[];
+ for(const side of[-1,1])for(let k=0;k<12;k++){
+  const z=-32+k*11.4,x=5+side*10.4;
+  stageAccents.push({a:[x,-1.095,z],b:[x,-1.095,z+4.3],w:.09,d:.07});
+  safetyBars.push({a:[x+side*1.6,-1.085,z+5.1],b:[x+side*1.6,-1.085,z+5.75],w:.13,d:.10});
+ }
+ batchedBeams('Runway_Edge_Cool_White',stageAccents,new THREE.MeshBasicMaterial({color:0xb9dcef,toneMapped:false}));
+ batchedBeams('Runway_Safety_Red',safetyBars,new THREE.MeshBasicMaterial({color:0xff263a,toneMapped:false}));
+ const marking=document.createElement('canvas');marking.width=1024;marking.height=192;
+ const mctx=marking.getContext('2d');mctx.clearRect(0,0,1024,192);
+ mctx.fillStyle='#dfe9f2';mctx.font='900 italic 126px Arial';mctx.fillText('REDLINE',42,128);
+ mctx.fillStyle='#f04453';mctx.fillRect(44,155,465,8);
+ mctx.font='500 30px Arial';mctx.fillStyle='#a9b8c5';mctx.fillText('AIRFRAME TEST FACILITY  /  BAY 04',44,186);
+ const markingTexture=new THREE.CanvasTexture(marking);markingTexture.colorSpace=THREE.SRGBColorSpace;
+ const markingMesh=new THREE.Mesh(new THREE.PlaneGeometry(17,3.2),new THREE.MeshBasicMaterial({map:markingTexture,transparent:true,depthWrite:false}));
+ markingMesh.position.set(5,16,zBack-1.5);markingMesh.rotation.y=Math.PI;scene.add(markingMesh);
+ window.REDLINE_HANGAR_QA.decorations={panels:panelInstances.length,bolts:boltInstances.length,runwayLights:stageAccents.length+safetyBars.length,batchedDraws:5};
+
  // Lighting is carefully constrained: three photographic studio sources, two
  // low-intensity practicals, plus faint ambient. Lights don't cast tunnel shadows.
  const ambient=new THREE.HemisphereLight(0xb5cde5,0x10151d,.31);scene.add(ambient);if(Number(THREE.REVISION)>=155)ambient.intensity*=Math.PI;
