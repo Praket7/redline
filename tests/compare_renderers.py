@@ -39,6 +39,8 @@ result['r187_cliff_coverage']=round(cliff_coverage(y),3)
 print(json.dumps(result,indent=2))
 # Diagnose broken/blank scenes, without asserting that different PBR engines
 # must produce pixel-identical photos.
+if result['candidate_mean_luma'] < result['reference_mean_luma'] * 0.75:
+    raise SystemExit('LIGHTING REGRESSION: migrated scene is more than 25% darker than baseline')
 if result['r128_cliff_coverage']>.5 and result['r187_cliff_coverage']<.4:
     raise SystemExit('MAJOR REGRESSION: canyon cliffs disappeared in modern renderer')
 if result['candidate_edge_activity']<2 or result['candidate_mean_luma']<3:
