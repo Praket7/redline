@@ -4,10 +4,10 @@ assert(s.includes("localStorage.getItem('redline_graphics_preset')"),'respect ex
 assert(s.includes("localStorage.setItem('redline_graphics_preset',qualityTier)"),'store user changes');
 assert(s.includes("Rn.shadowMap.enabled=qualityTier!=='performance'"),'disable costly shadows by default');
 assert(s.includes("REDLINE_MOBILE?.68:.68"),'first WebGL allocation uses low rendering resolution');
-assert(s.includes('const craftRadius=43;'), 'one fixed closer camera distance for all four models');
-assert(s.includes('camera.position.set(5+Math.cos(fixedAngle)*r,19.2,'),'higher three-quarter overhead view');
-assert(s.includes('REDLINE_HOVER_Y+1.00'),'showcase target moved up to show aircraft body');
-assert(s.includes(": .80;"),'title aircraft focused on right-side hero space');
-assert(s.includes("visibleAirframe==='spirit'?.66"),'Spirit targets right showcase lane');
+assert(s.includes('fitShowroomHero(model,visibleAirframe,screen,w,h)'), 'each craft camera fits its real geometry into the safe right-side bay');
+assert(s.includes('camera.position.set(5+Math.cos(-1.2)*frame.distance,19.2,'),'raised, locked overhead camera with geometry-fitted distance');
+assert(s.includes('REDLINE_HOVER_Y+1,4'),'showcase target remains raised to show aircraft body');
+assert(s.includes("document.querySelector('.rl-home .rl-hero-copy')"),'title hero avoids visible text bounding box');
+assert(s.includes('safeBounds:frame.bounds'),'every craft targets a measured and reserved right-side safe bay');
 assert(!s.includes("const craftRadius=56;"),'old distant camera removed');
-console.log('PASS v82: fastest default and player preference, no premature shadow allocations, fixed closer raised hangar camera, right-side title/selection composition');
+console.log('PASS v82: fastest default and player preference, no premature shadow allocations, cached geometry-fit camera, nonoverlapping right-side title/selection composition');

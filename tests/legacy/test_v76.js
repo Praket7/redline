@@ -50,6 +50,6 @@ check(source.includes('color:0xff1932'),'bright RED projectile');
 check(source.includes('laserWorldHit(from,delta.normalize(),Math.max(0,length-5))'),'rock-occluded AI projectile');
 check(source.includes('chaseAim?0:aim.x'),'camera-center chase aiming');
 check(source.includes('REDLINE_HOVER_Y=6.2'),'higher aircraft showroom');
-check(source.includes('const craftRadius=43;'),'all selectable models retain a stable hangar focal distance');
-check(source.includes('showroomCameraDistance=craftRadius;'),'switching models cannot trigger zoom pumping');
+check(source.includes('fitShowroomHero(model,visibleAirframe,screen,w,h)'),'showroom camera fits actual aircraft geometry within the right-side viewport');
+check(source.includes('if(heroCameraState?.key===frameKey)return heroCameraState;'),'showroom camera stays stable between airframe and viewport changes');
 console.log(JSON.stringify({pass:checks,results},null,2));
