@@ -7441,7 +7441,8 @@ const REDLINE_SHOWROOM=(()=>{
     return home;
    }
    window.REDLINE_HANGAR_POSE_STATUS=()=>({airframe:visibleAirframe,homeY:showroomHomeY(model),
-     modelY:model?.position.y??null,switchTime:showroomSwitch?.t??null,
+     modelY:model?.position.y??null,modelScale:model?.scale?.toArray()??null,
+     modelYaw:model?.rotation.y??null,switchTime:showroomSwitch?.t??null,
      landingElapsed:elapsed,screen});
   function showroomOnly(craft){
    for(const choice of Object.values(rl46ModelChoices()))if(choice)choice.visible=choice===craft;
@@ -7661,19 +7662,30 @@ const REDLINE_SHOWROOM=(()=>{
    if(!pose||pose.r-pose.l>limitW||pose.b-pose.t>limitH)lo=mid;
    else hi=mid;
   }
-  const distance=Math.max(26,Math.min(130,hi));
+  // The GLB's conservatively sampled mesh extents are larger than its actual
+  // visible painted silhouette (particularly Kestrel's rotor and FX hierarchy).
+  // The original geometric fit therefore pulled the craft far into the tunnel.
+  // Enforce per-craft art-direction limits verified by full WebGL screenshots.
+  const isWide=w>=1200;
+  const calibratedCap=mode==='landing'
+   ? (airframe==='kestrel'?(isWide?56:56):airframe==='spirit'?(isWide?56:72):130)
+   : (airframe==='kestrel'?(isWide?62:55):130);
+  const distance=Math.max(26,Math.min(130,hi,calibratedCap));
   const box=footprint(distance);
   const best=box.poses[preferredIndex]||box;
   const desiredX=(bounds.left+bounds.right)*.5;
   const desiredY=(bounds.top+bounds.bottom)*.5;
-  const offsetX=(best.l+best.r)*.5-desiredX;
-  const offsetY=(best.t+best.b)*.5-desiredY;
+  // Center the actual aircraft root, not the conservative body+FX union.
+  // The 3D pivot is the stable target for landing, selection and switching.
+  const offsetX=w*.5-desiredX;
+  const offsetY=h*.5-desiredY+(mode==='solo'?18:0);
   heroCameraState={key:frameKey,distance,offsetX,offsetY,bounds,
    selected:airframe,mode,measured:[best.l,best.r,best.t,best.b],
    preferredYaw:preferredIndex*Math.PI/4,
    restMeasured:[best.l,best.r,best.t,best.b],
    unionMeasured:[box.l,box.r,box.t,box.b],
-   screenFocus:desiredX/w,pointCount:verts.length,lockedRestPose:true};
+   screenFocus:desiredX/w,pointCount:verts.length,lockedRestPose:true,
+   calibratedCap,geometryFitDistance:hi,anchorBased:true};
   return heroCameraState;
  }
  function update(dt){
@@ -7734,6 +7746,11 @@ const REDLINE_SHOWROOM=(()=>{
     const landedFor=Math.max(0,elapsed-(screen==='landing'?2.65:1.45));
      const breathe=.10*Math.sin(landedFor*1.3)*rl46Ease(landedFor/.85);
      model.position.set(5,showroomHomeY(model)+breathe,4);
+     // A stale interrupted arrival must never leave the selected aircraft at
+     // 62–69% of its real size. Selection changes animate scale; idle does not.
+     const properScale=HERO_BASE_SCALE[visibleAirframe];
+     if(properScale&&Math.abs(model.scale.x-properScale)>1e-4)
+      model.scale.setScalar(properScale);
     // A gently turning MODEL gives a showroom orbit without rotating the walls,
     // ceiling, ground or fixed red luminaires in the frame.
     if(!window.redlineUI?.config.reducedMotion){
