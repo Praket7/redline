@@ -1,10 +1,10 @@
 name: REDLINE v82 right-side hangar hero and performance default QA
 on:
   push:
-    branches: [stage1/v82-hangar-hero-performance-default]
+    branches: [stage1/v82-hangar-hero-performance-default, fix/v82-camera-safe-right-showcase]
   workflow_dispatch:
 concurrency:
-  group: redline-v82-hero-perf-main
+  group: redline-v82-hero-perf-${{ github.ref_name }}
   cancel-in-progress: true
 permissions:
   contents: read
@@ -73,7 +73,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: REDLINE-v82-hero-performance-browser-verified
+          name: REDLINE-v82-camera-safe-right-browser-verified
           path: |
             dist/REDLINE_v82_HANGAR_HERO_PERFORMANCE.html
             dist/REDLINE_v78_STAGE1_STANDALONE.html
