@@ -22,7 +22,10 @@ class T(unittest.TestCase):
  def test_modular_assets(self):
   site=self.dist/'site';self.assertEqual(len(list((site/'assets/images').glob('*'))),19)
   self.assertEqual(len(list((site/'src/scripts').glob('*.js'))),38)  # 40 scripts minus 2 deferred assets and 1 CDN + 1 diagnostic
-  self.assertEqual(len(list((site/'src/styles').glob('*.css'))),37)
+  self.assertEqual(len(list((site/'src/styles').glob('*.css'))),3)
+  html=(site/'index.html').read_text()
+  self.assertEqual(html.count('src/styles/000_redline-core-bundle.css'),1)
+  self.assertNotIn('src/styles/023_legacy.css',html)
  def test_valid_js_syntax(self):
   tested=0
   for a in self.manifest['script_modules']:
