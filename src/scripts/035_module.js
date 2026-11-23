@@ -17,7 +17,7 @@ window.REDLINE_MOBILE=REDLINE_MOBILE;
 window.REDLINE_BOOT_PHASE='renderer';
 // Limit GPU startup allocations on tile-based mobile browsers; desktop quality is untouched.
 const Rn=new THREE.WebGLRenderer({antialias:!REDLINE_MOBILE,alpha:false,powerPreference:'high-performance'});
-Rn.setPixelRatio(Math.min(devicePixelRatio,REDLINE_MOBILE?.75:.86));Rn.setSize(innerWidth,innerHeight,false);
+Rn.setPixelRatio(Math.min(devicePixelRatio,REDLINE_MOBILE?.68:.68));Rn.setSize(innerWidth,innerHeight,false);
 Rn.shadowMap.enabled=true;Rn.shadowMap.type=THREE.PCFSoftShadowMap;Rn.toneMapping=THREE.ACESFilmicToneMapping;Rn.outputEncoding=THREE.sRGBEncoding;Rn.toneMappingExposure=.93;
 Rn.domElement.style.cssText='position:fixed;left:0;top:0;width:100vw;height:100dvh;display:block;margin:0;padding:0;max-width:none;max-height:none';document.body.prepend(Rn.domElement);
 const S=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.5,6000);S.fog=new THREE.Fog(0xd08a68,250,3200);
@@ -3796,10 +3796,19 @@ window.REDLINE_NAV_DIAGNOSTICS=()=>({...(window.REDLINE_NAV_STATUS||{}),
  onlineRivals:REDLINE_ONLINE.minimapRivals()});
 // ---- state, input
 const P={t:80,a:75,s:70};['t','a','s'].forEach(k=>$('s'+k).oninput=e=>{P[k]=+e.target.value;$('n'+k).textContent=P[k]});
-const quality=$('quality');let qualityTier='balanced',maxRenderDpr=.94;
+const quality=$('quality');
+// Fastest preset is the first-launch default. Respect a player who explicitly
+// selected Balanced or Ultra in a previous visit, rather than forcing it back.
+let qualityTier='performance',maxRenderDpr=.68;
+try{const saved=localStorage.getItem('redline_graphics_preset');if(['performance','balanced','ultra'].includes(saved)){
+ qualityTier=saved;maxRenderDpr=saved==='ultra'?1.40:saved==='balanced'?.94:.68;
+}}catch(_){}
 quality.value=qualityTier;
+Rn.setPixelRatio(Math.min(devicePixelRatio,maxRenderDpr));Rn.setSize(innerWidth,innerHeight,false);
+Rn.shadowMap.enabled=qualityTier!=='performance';
 quality.addEventListener('change',()=>{
  qualityTier=quality.value;
+ try{localStorage.setItem('redline_graphics_preset',qualityTier)}catch(_){}
  const factor=qualityTier==='performance'?.68:qualityTier==='ultra'?1.40:.94;
  Rn.setPixelRatio(Math.min(devicePixelRatio,factor));Rn.setSize(innerWidth,innerHeight,false);rsz();
  Rn.shadowMap.enabled=qualityTier!=='performance';
@@ -7199,7 +7208,7 @@ const REDLINE_SHOWROOM=(()=>{
  const ceilingProfile=x=>archY(x);
   window.REDLINE_HANGAR_QA={theme:'black-led-detailing-tunnel',eave:ySide,ridge:yRidge,front:zFront,rear:zBack,ledArchCount:Math.ceil(bays/2),roofSegments:arcSteps,clearanceAt:x=>ceilingProfile(x),roomForEntranceAtCenter:ceilingProfile(5)-21};
  window.REDLINE_HANGAR_QA.decorations=hangarDecorationStats;
- let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0,showroomCameraDistance=56,showroomFocusFraction=.75;
+ let model=null,mixer=null,materialOverrides=[],ready=false,elapsed=0,screen='landing',lastScreen='',displayYaw=0,framingSample=0,showroomCameraDistance=43,showroomFocusFraction=.76;
  let kestrelShowroom=null,bladeShowroom=null,bladeShowroomJets=null,copperShowroom=null,copperShowroomFx=null,spiritShowroom=null,spiritShowroomFx=null,visibleAirframe='kestrel',selectedAirframeArriving=false;
  let showroomSwitch=null,showroomExit=null,garageRevealPose=null;
  let showroomSelectionInitialized=false;
@@ -7676,12 +7685,12 @@ const REDLINE_SHOWROOM=(()=>{
    const isGarage=screen==='solo';
    // Keep ONE stable focal length and camera distance through every aircraft change.
    // Only craft geometry moves during selection, avoiding the old zoom pumping.
-   const craftRadius=56;
+   const craftRadius=43;
    showroomCameraDistance=craftRadius;
    const baseRadius=showroomCameraDistance;
   const viewAspect=Math.max(.42,innerWidth/Math.max(1,innerHeight));
   const r=innerWidth<=720?Math.max(baseRadius,10.6/(.37*viewAspect)):baseRadius*Math.max(1,1.6/viewAspect);
-  camera.position.set(5+Math.cos(fixedAngle)*r,11.6,4+Math.sin(fixedAngle)*r);
+  camera.position.set(5+Math.cos(fixedAngle)*r,19.2,4+Math.sin(fixedAngle)*r);
   // V17.3 right-hand composition: the real Kestrel, platform and orbit target
   // remain at world (5, 2.65, 4). An OFF-AXIS projection moves their IMAGE to
   // the right; moving lookAt in world space could never lock the image during orbit.
@@ -7697,8 +7706,8 @@ const REDLINE_SHOWROOM=(()=>{
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
    const focusTarget=isGarage
-      ? (visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.70:visibleAirframe==='copper'?.745:.75)
-      : .79;
+      ? (visibleAirframe==='blade'?.74:visibleAirframe==='spirit'?.76:visibleAirframe==='copper'?.755:.77)
+      : .825;
     showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
     focusX=w*showroomFocusFraction;
    // A virtual screen twice as wide as the focus position places the world
@@ -7709,7 +7718,7 @@ const REDLINE_SHOWROOM=(()=>{
    camera.aspect=w/h;
    camera.updateProjectionMatrix();
   }
-  camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+.10,4));
+  camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+1.00,4));
    window.REDLINE_HANGAR_QA.cameraFraming={distance:showroomCameraDistance,screenFocus:showroomFocusFraction,airframe:visibleAirframe,mode:screen};
   // Diagnose the true on-screen footprint of the aircraft and roof clearance.
   framingSample+=dt;
