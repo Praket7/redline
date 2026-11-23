@@ -28,6 +28,9 @@ try:
             args=['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
         page = browser.new_page(viewport={'width':960 if renderer_revision=='187' else 1600,'height':540 if renderer_revision=='187' else 900}, device_scale_factor=1)
         page.on('pageerror', lambda e: report['errors'].append(str(e)))
+        report['consoleShaderErrors']=[]
+        page.on('console',lambda m:report['consoleShaderErrors'].append(m.text[:6000])
+                if m.type=='error' and ('WebGLProgram' in m.text or 'Shader Error' in m.text or 'VALIDATE_STATUS' in m.text) else None)
         page.on('requestfailed', lambda r: report['requestFailures'].append({'url':r.url,'failure':r.failure}))
         # Suppress a one-time tutorial overlay; no game-state objects are modified.
         page.add_init_script("""
