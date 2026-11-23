@@ -7614,7 +7614,7 @@ const REDLINE_SHOWROOM=(()=>{
  function fitShowroomHero(craft,airframe,mode,w,h){
   const bounds=heroSafeRectangle(mode,w,h);
   const verts=getHeroLocalPoints(craft);
-  const frameKey=[mode,airframe,w,h,Math.round(bounds.left),Math.round(bounds.right),verts.length].join(':');
+  const frameKey=[mode,airframe,w,h,Math.round(bounds.left),Math.round(bounds.right),Math.round(bounds.top),Math.round(bounds.bottom),verts.length].join(':');
   if(heroCameraState?.key===frameKey)return heroCameraState;
   // The real cockpit/body is sampled at all eight yaw orientations. An orbiting
   // model therefore cannot grow past the available right-side showcase area.
