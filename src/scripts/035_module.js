@@ -7696,7 +7696,7 @@ const REDLINE_SHOWROOM=(()=>{
   }
   // On small devices the selector stacks vertically, so use centered framing.
   if(!compact && (screen==='landing'||screen==='solo')){
-   const focusTarget=(visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.68:visibleAirframe==='copper'?.735:.72);
+   const focusTarget=(visibleAirframe==='blade'?.70:visibleAirframe==='spirit'?.66:visibleAirframe==='copper'?.735:.72);
     showroomFocusFraction+=(focusTarget-showroomFocusFraction)*(1-Math.exp(-Math.min(dt,.1)*4.2));
     focusX=w*showroomFocusFraction;
    // A virtual screen twice as wide as the focus position places the world
