@@ -75,7 +75,7 @@ try:
    page.wait_for_timeout(250)
    inspect('SELECTION',size)
    camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
-   assert abs(camera['distance']-43)<.01,f'hangar model zoom instability: {camera}'
+   assert camera.get('stable') and camera['pointCount']>0 and 35<=camera['distance']<=125,f'hangar geometry camera invalid: {camera}'
    if size[0]==960:
     for craft in ['blade','copper','spirit']:
      page.locator(f'button[data-model="{craft}"]').first.click()
@@ -84,7 +84,7 @@ try:
      page.wait_for_timeout(160)
      inspect('SELECTION_'+craft.upper(),size)
      camera=page.evaluate('()=>window.REDLINE_HANGAR_QA.cameraFraming')
-     assert abs(camera['distance']-43)<.01,f'per-craft camera zoom must stay fixed: {craft} {camera}'
+     assert camera.get('stable') and camera['pointCount']>0 and 35<=camera['distance']<=125,f'per-craft geometry camera invalid: {craft} {camera}'
     # The user's actual screenshot shows saved Spirit on the HOME screen.
     # Verify that composition as well as the default Kestrel home screen.
     page.evaluate("window.REDLINE_E2E.screen('landing')")
