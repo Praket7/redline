@@ -1,0 +1,75 @@
+
+/* REDLINE v26 — one intentional visual hierarchy, inspired by the clear HUD
+ * of Episode I: Racer. No assets, fonts or imagery from the reference game.
+ * Selection persists; never silently remove gameplay controls or tutorials.
+ */
+body.rl-play #rlSpeedBox{transition:opacity .20s ease,transform .25s ease!important}
+/* Cinematic: true speedometer/reticle-only chase. Contextual warnings and
+   countdowns remain, because hiding critical racing feedback is unsafe UX. */
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #rlGameTop,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #rlPositions,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #rlFlowModule,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #maphud,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #rlSprintTelemetry,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #rlFpTelemetry,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #section,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #racePanel,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #clashShell,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #clashTips,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #clashTV,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #rlAimHint,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #rlTutorial,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #navPointer,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #routeHint,
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide) #rlOnlineHud {display:none!important}
+/* Contextual hits, collision warning, respawn and Flight School remain. */
+body.rl-play.rl-hud-cinematic:not(.rl-hud-guide):not(.rl-hud-peek) #rlGameButtons,
+body.rl-play.rl-hud-race:not(.rl-hud-guide):not(.rl-hud-peek) #rlGameButtons{opacity:0!important;pointer-events:none!important;transform:translate(-50%,-10px)!important}
+body.rl-play.rl-hud-peek #rlGameButtons,
+body.rl-play.rl-hud-guide #rlGameButtons{opacity:1!important;pointer-events:auto!important;transform:translateX(-50%)!important}
+/* Speedometer is the only permanent chase instrument in Cinematic.
+   FPV already contains instrument dials; keep the sky and canyon clear. */
+body.rl-play.rl-hud-cinematic:not(.rl-cockpit) #rlSpeedBox{
+ display:block!important;right:clamp(10px,2.8vw,48px)!important;bottom:clamp(9px,2.7vh,30px)!important;
+ transform:scale(.88)!important;transform-origin:right bottom!important;
+ background:transparent!important;border:0!important;box-shadow:none!important;
+}
+body.rl-play.rl-hud-cinematic:not(.rl-cockpit) #rlSpeedFooter,
+body.rl-play.rl-hud-cinematic:not(.rl-cockpit) #rlBoostLinear{display:none!important}
+body.rl-play.rl-hud-cinematic.rl-cockpit #rlSpeedBox{display:none!important}
+/* Race profile: small unobtrusive lap/position at upper left and one map at
+   upper right; no tactical cards. */
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #rlPositions,
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #rlFlowModule,
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #rlFpTelemetry,
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #rlAimHint,
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #rlTutorial,
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #section,
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #clashShell,
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #clashTips,
+body.rl-play.rl-hud-race:not(.rl-hud-guide) #clashTV{display:none!important}
+body.rl-play.rl-hud-race #rlGameTop{background:rgba(12,12,17,.38)!important;
+ border:0!important;border-left:2px solid rgba(248,76,94,.60)!important;border-radius:3px!important;
+ padding:7px 11px!important;min-width:0!important;box-shadow:none!important;backdrop-filter:blur(4px)}
+body.rl-play.rl-hud-race #maphud{background:rgba(9,12,18,.40)!important;
+ border:0!important;border-radius:5px!important;box-shadow:none!important;padding:4px!important}
+body.rl-play.rl-hud-race #maphud canvas{width:clamp(92px,12vw,146px)!important;height:auto!important;aspect-ratio:1}
+body.rl-play.rl-hud-race #rlSprintTelemetry{background:rgba(9,9,14,.40)!important;
+ border:0!important;border-radius:4px!important;box-shadow:none!important;
+ top:72px!important;padding:5px 10px!important;letter-spacing:.5px}
+/* Tactical remains available but with better scale and quieter borders. */
+body.rl-play.rl-hud-tactical #rlPositions,
+body.rl-play.rl-hud-tactical #rlFlowModule{border-color:rgba(255,255,255,.11)!important;
+ border-top-color:rgba(234,67,82,.63)!important;box-shadow:0 8px 28px #0007!important}
+/* Fast in-race settings remain operable even with all HUD cards hidden. */
+body.rl-play #rlRaceShade.open,body.rl-play .rl-race-modal.open{display:block!important}
+body.rl-play.rl-hud-cinematic #rlReticle{opacity:.7!important;transform:scale(.8)!important}
+body.rl-play.rl-hud-cinematic.rl-cockpit #rlReticle{opacity:.47!important}
+@media(max-width:650px){
+ body.rl-play.rl-hud-cinematic:not(.rl-cockpit) #rlSpeedBox{transform:scale(.66)!important;right:8px!important;bottom:8px!important}
+ body.rl-play.rl-hud-race #rlGameTop{top:7px!important;left:6px!important;padding:5px 8px!important}
+ body.rl-play.rl-hud-race #maphud{top:12px!important;right:6px!important}
+ body.rl-play.rl-hud-race #rlSprintTelemetry{top:95px!important;left:8px!important;max-width:calc(100vw - 125px)!important}
+}
+@media(prefers-reduced-motion:reduce){body.rl-play #rlGameButtons{transition:none!important}}
+

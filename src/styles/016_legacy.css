@@ -1,0 +1,155 @@
+/* REDLINE v45 / A disciplined, white-on-glass airframe selection experience.
+ * The aircraft and hangar are the visual center. No heavy dark cards obscure the scene. */
+body.rl-menu #rlScreens:has(.rl45-vehicle-page){
+ background:linear-gradient(90deg,rgba(3,6,10,.91) 0%,rgba(3,6,10,.79) 19%,
+ rgba(3,6,10,.35) 37%,rgba(3,6,10,0) 67%,rgba(3,6,10,.11) 100%)!important;
+}
+#rlScreens .rl45-vehicle-page{
+ position:relative!important;max-width:1680px!important;margin:0 auto!important;
+ width:min(100%,1680px)!important;padding:clamp(54px,6.4vh,94px) clamp(24px,5vw,86px) 25px!important;
+ color:#f4f6f8;isolation:isolate;
+ animation:rl45-reveal .68s cubic-bezier(.18,.88,.26,1) both;
+}
+@keyframes rl45-reveal{from{opacity:0;transform:translate3d(0,22px,0);filter:blur(3px)}to{opacity:1;transform:translate3d(0,0,0);filter:none}}
+#rlScreens .rl45-vehicle-page.rl45-leaving{animation:rl45-leave .4s cubic-bezier(.66,0,.89,.34) forwards;pointer-events:none}
+@keyframes rl45-leave{to{opacity:0;transform:translate3d(-24px,0,0);filter:blur(5px)}}
+#rlScreens .rl45-head{display:flex;align-items:center;justify-content:space-between;gap:18px;
+ border-bottom:1px solid rgba(255,255,255,.18);padding-bottom:17px;
+ font:650 10px/1.3 'Arial',sans-serif;letter-spacing:.2em;color:#cdd4d9}
+#rlScreens .rl45-head .rl45-back{border:0;background:none;color:#d0d5d8;padding:6px 0;
+ font:750 11px Arial,sans-serif;letter-spacing:.16em;cursor:pointer;transition:color .2s,transform .2s}
+#rlScreens .rl45-head .rl45-back:hover{color:#fff;transform:translateX(-4px)}
+.rl45-mark{color:#fff;font-weight:900;letter-spacing:.32em}
+.rl45-mark span{font-weight:500;color:#b3bfc7;letter-spacing:.17em}
+.rl45-step{color:#9dabb6;font-variant-numeric:tabular-nums}
+#rlScreens .rl45-vehicle-page .rl45-layout{
+ display:grid!important;grid-template-columns:minmax(300px,390px) minmax(0,1fr)!important;
+ align-items:center!important;gap:clamp(42px,5.4vw,98px)!important;
+ min-height:min(75vh,700px)!important;padding:26px 0 25px!important;
+}
+#rlScreens .rl45-vehicle-page .rl45-panel{
+ position:relative!important;z-index:7!important;align-self:center!important;
+ width:100%!important;max-width:390px!important;margin:0!important;padding:0!important;
+ background:transparent!important;border:0!important;box-shadow:none!important;
+ backdrop-filter:none!important;
+}
+#rlScreens .rl45-kicker{display:flex;justify-content:space-between;gap:12px;
+ color:#d5dee4;font:800 10px Arial,sans-serif;letter-spacing:.22em;margin-bottom:17px}
+#rlScreens .rl45-kicker span{font-weight:550;color:#7d929f;font-size:9px;letter-spacing:.12em}
+#rlScreens .rl45-title{font:italic 900 clamp(39px,4vw,62px)/.96 'Arial Narrow',Arial,sans-serif;
+ letter-spacing:-.052em;color:#fff;margin:0 0 14px;text-shadow:0 3px 22px rgba(0,0,0,.26);
+ max-width:350px;min-height:113px;text-wrap:balance;transition:opacity .25s}
+#rlScreens .rl45-deck-sub{font:550 10px/1.55 Arial,sans-serif;letter-spacing:.165em;
+ color:#aabac4;margin:0 0 36px}
+#rlScreens .rl45-scroll-heading{display:flex;justify-content:space-between;align-items:center;
+ color:#dce6ec;font:800 10px Arial,sans-serif;letter-spacing:.17em;
+ border-bottom:1px solid rgba(240,244,247,.24);padding-bottom:13px;margin-bottom:14px}
+#rlScreens .rl45-count{font-weight:550;color:#aab5bb;letter-spacing:.18em}
+#rlScreens .rl45-scroll-chrome{display:grid;grid-template-columns:28px minmax(0,1fr) 28px;gap:8px;align-items:center}
+#rlScreens .rl45-airframe-track{
+ display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;
+ overscroll-behavior-x:contain;scroll-behavior:smooth;padding:4px 10% 11px;
+ min-width:0;-webkit-overflow-scrolling:touch;touch-action:pan-x;
+}
+#rlScreens .rl45-airframe-track::-webkit-scrollbar{display:none}
+#rlScreens .rl45-arrow{color:#f3f7f9;border:1px solid rgba(241,246,248,.23);
+ height:42px;width:28px;font:200 23px Arial,sans-serif;background:rgba(255,255,255,.018);
+ backdrop-filter:blur(5px);cursor:pointer;transition:background .2s,border-color .2s}
+#rlScreens .rl45-arrow:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.65)}
+#rlScreens .rl45-airframe{
+ flex:0 0 80%;min-height:162px;display:flex;flex-direction:column;align-items:flex-start;
+ justify-content:flex-start;text-align:left;scroll-snap-align:center;
+ padding:18px 17px 14px;border:1px solid rgba(226,240,248,.14);
+ background:linear-gradient(142deg,rgba(255,255,255,.085),rgba(255,255,255,.015) 65%);
+ backdrop-filter:blur(6px);color:#ebf1f4;cursor:pointer;
+ transition:border-color .35s,background .3s,transform .4s,box-shadow .4s,opacity .3s;
+ opacity:.67;
+}
+#rlScreens .rl45-airframe:hover{opacity:1;border-color:rgba(255,255,255,.5);transform:translateY(-2px)}
+#rlScreens .rl45-airframe.selected{opacity:1;border-color:rgba(242,247,250,.89);
+ background:linear-gradient(145deg,rgba(250,253,255,.15),rgba(255,255,255,.024) 69%);
+ box-shadow:inset 0 1px rgba(255,255,255,.15),0 18px 48px rgba(0,0,0,.12)}
+.rl45-card-no{font:700 10px Arial,sans-serif;letter-spacing:.2em;color:#d5dee5;opacity:.92}
+.rl45-card-name{font:italic 900 clamp(18px,2vw,24px)/1 Arial,sans-serif;
+ letter-spacing:-.025em;color:#fff;margin:15px 0 5px;white-space:normal}
+.rl45-card-type{font:650 9px Arial,sans-serif;letter-spacing:.115em;color:#c9d5de}
+.rl45-card-status{font:800 9px Arial,sans-serif;letter-spacing:.14em;
+ color:#fff;margin-top:auto;display:flex;justify-content:space-between;width:100%;opacity:.85}
+.rl45-card-status span{font-size:14px;font-weight:500}
+#rlScreens .rl45-scroll-instruction{margin:12px 36px 20px;display:flex;align-items:center;
+ gap:9px;color:#9cacb5;font:700 9px Arial,sans-serif;letter-spacing:.15em}
+#rlScreens .rl45-scroll-instruction>span:first-child{font-size:16px;color:#e8eff3}
+.rl45-progress{margin-left:auto;display:block;width:64px;height:2px;background:rgba(255,255,255,.18);position:relative}
+.rl45-progress i{position:absolute;display:block;top:0;left:0;width:33.333%;height:2px;background:#fafcfd;transition:transform .5s cubic-bezier(.21,.88,.29,1)}
+#rlScreens .rl45-description{font:500 12px/1.55 Arial,sans-serif;color:#d8e1e7;
+ margin:0 0 23px;max-width:335px;min-height:43px;letter-spacing:.01em}
+#rlScreens .rl45-options-label{display:flex;align-items:center;justify-content:space-between;
+ padding:9px 0 12px;color:#e8eef1;font:750 9px Arial,sans-serif;letter-spacing:.13em}
+#rlScreens .rl45-options-label span{color:#a9b8c1}
+#rlScreens .rl45-vehicle-page .rl34-finishes{gap:6px!important}
+#rlScreens .rl45-advanced{margin-top:17px!important;border-bottom:1px solid rgba(255,255,255,.15)!important}
+#rlScreens .rl45-advanced>summary{color:#c9d5dc!important}
+#rlScreens .rl45-vehicle-page .rl45-actions{margin:20px 0 0!important}
+#rlScreens .rl45-continue{
+ display:flex;width:100%;align-items:center;justify-content:space-between;padding:15px 17px;
+ border:1px solid rgba(255,255,255,.9);background:rgba(247,250,252,.94);color:#071016;
+ font:900 12px Arial,sans-serif;letter-spacing:.12em;cursor:pointer;
+ transition:background .25s,transform .3s,box-shadow .3s;
+}
+#rlScreens .rl45-continue span{font:normal 23px Arial,sans-serif}
+#rlScreens .rl45-continue:hover{background:#fff;transform:translateY(-2px);box-shadow:0 15px 40px rgba(255,255,255,.08)}
+#rlScreens .rl45-continue:disabled{opacity:.6;cursor:wait}
+#rlScreens .rl45-bottom-meta{font:650 9px Arial,sans-serif;color:#8fa1ae;
+ letter-spacing:.12em;margin-top:15px}
+#rlScreens .rl45-bottom-meta span{padding:0 7px;color:#fff}
+#rlScreens .rl45-vehicle-page .rl45-stage{
+ position:relative!important;min-height:clamp(440px,67vh,730px)!important;
+ background:transparent!important;border:0!important;box-shadow:none!important;
+ align-self:stretch!important;cursor:grab;
+}
+#rlScreens .rl45-vehicle-page .rl45-model-readout{
+ display:flex!important;flex-direction:column;align-items:flex-end;justify-content:flex-end;
+ position:absolute!important;right:0!important;bottom:34px!important;left:auto!important;
+ width:auto!important;max-width:330px!important;padding:0!important;
+ text-align:right!important;background:none!important;border:0!important;
+ box-shadow:none!important;backdrop-filter:none!important;pointer-events:none!important;
+}
+#rlScreens .rl45-model-readout h3{color:#fff!important;font:italic 900 clamp(20px,2.4vw,35px)/1 Arial,sans-serif!important;
+ letter-spacing:-.04em!important;margin:8px 0 7px!important}
+#rlScreens .rl45-model-readout .rl-flyer-label{color:#c9d8e0!important;opacity:.83;
+ font:650 9px Arial,sans-serif!important;letter-spacing:.15em}
+.rl45-readout-kicker{color:#9caebb;font:700 9px Arial,sans-serif;letter-spacing:.15em}
+.rl45-stage-mark{position:absolute;top:15px;right:0;color:rgba(240,246,249,.36);
+ font:850 10px Arial,sans-serif;letter-spacing:.3em}
+.rl45-stage-mark span{font-size:7px;vertical-align:super;letter-spacing:0}
+#rlScreens .rl45-vehicle-page [hidden]{display:none!important}
+@media(max-width:980px){
+ #rlScreens .rl45-vehicle-page .rl45-layout{grid-template-columns:minmax(270px,340px) minmax(0,1fr)!important;gap:20px!important}
+ #rlScreens .rl45-title{font-size:clamp(34px,4vw,51px);min-height:94px}
+ #rlScreens .rl45-kicker span{display:none}
+}
+@media(max-width:720px){
+ #rlScreens .rl45-vehicle-page{padding:65px 18px 24px!important}
+ #rlScreens .rl45-vehicle-page .rl45-layout{display:flex!important;flex-direction:column-reverse!important;
+ gap:8px!important;min-height:0!important;padding:4px 0!important}
+ #rlScreens .rl45-vehicle-page .rl45-stage{height:35vh!important;min-height:235px!important;
+ max-height:315px!important;width:100%!important;flex:none}
+ #rlScreens .rl45-vehicle-page .rl45-panel{max-width:100%!important;align-self:stretch!important}
+ #rlScreens .rl45-title{font-size:44px;min-height:0;margin-top:2px}
+ #rlScreens .rl45-deck-sub{margin-bottom:16px}
+ #rlScreens .rl45-scroll-heading{margin-bottom:8px}
+ #rlScreens .rl45-airframe{min-height:132px}
+ #rlScreens .rl45-vehicle-page .rl45-model-readout{bottom:5px!important}
+ #rlScreens .rl45-model-readout h3{font-size:21px!important}
+ #rlScreens .rl45-model-readout .rl-flyer-label{font-size:8px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ #rlScreens .rl45-vehicle-page,#rlScreens .rl45-vehicle-page.rl45-leaving{animation:none!important}
+ #rlScreens .rl45-vehicle-page *,#rlScreens .rl45-vehicle-page *::before{scroll-behavior:auto!important;transition:none!important}
+}
+body.rl-reduced-motion #rlScreens .rl45-vehicle-page,
+body.rl-reduced-motion #rlScreens .rl45-vehicle-page.rl45-leaving{animation:none!important}
+
+/* REDLINE v49 - fourth hangar selection tick. */
+.rl45-progress{overflow:hidden}
+.rl45-progress i{width:25%;transition:transform .42s cubic-bezier(.22,.7,.18,1)}

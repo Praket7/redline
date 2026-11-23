@@ -1,0 +1,582 @@
+{
+  "baseline": "REDLINE_v77_FORWARD_ONLY_BOT_FIRE.html",
+  "baseline_sha256": "4752c0256ff8425b02a262cd55ef660c3a5debf27a51fbd049dc03e0989061a6",
+  "script_modules": [
+    {
+      "path": "scripts/000_module.js",
+      "attrs": {},
+      "length": 4378,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/001_module.js",
+      "attrs": {},
+      "length": 1468,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/002_module.js",
+      "attrs": {},
+      "length": 10113,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/003_module.js",
+      "attrs": {
+        "src": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
+      },
+      "length": 0,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/004_module.js",
+      "attrs": {},
+      "length": 123,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/005_module.js",
+      "attrs": {},
+      "length": 112,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/006_module.js",
+      "attrs": {},
+      "length": 15213,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/007_module.js",
+      "attrs": {},
+      "length": 3206,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/008_module.js",
+      "attrs": {},
+      "length": 1135,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/009_module.js",
+      "attrs": {},
+      "length": 1288,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/010_module.js",
+      "attrs": {},
+      "length": 3001,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/011_module.js",
+      "attrs": {},
+      "length": 932,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/012_module.js",
+      "attrs": {},
+      "length": 11427,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/013_module.js",
+      "attrs": {},
+      "length": 5404,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/014_module.js",
+      "attrs": {},
+      "length": 2380,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/015_module.js",
+      "attrs": {},
+      "length": 3146,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/016_module.js",
+      "attrs": {},
+      "length": 5027,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/017_module.js",
+      "attrs": {},
+      "length": 6952,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/018_module.js",
+      "attrs": {},
+      "length": 3698,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/019_module.js",
+      "attrs": {},
+      "length": 14287,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/020_module.js",
+      "attrs": {},
+      "length": 2371,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/021_module.js",
+      "attrs": {},
+      "length": 283451,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/022_module.js",
+      "attrs": {},
+      "length": 1045176,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/023_module.js",
+      "attrs": {},
+      "length": 1403182,
+      "kind": "script"
+    },
+    {
+      "path": "data/024_redlineCopperDeferred.js",
+      "attrs": {
+        "type": "application/redline-asset",
+        "id": "redlineCopperDeferred"
+      },
+      "length": 3605988,
+      "kind": "data"
+    },
+    {
+      "path": "scripts/025_module.js",
+      "attrs": {},
+      "length": 7725,
+      "kind": "script"
+    },
+    {
+      "path": "data/026_redlineSpiritDeferred.js",
+      "attrs": {
+        "type": "application/redline-asset",
+        "id": "redlineSpiritDeferred"
+      },
+      "length": 2135020,
+      "kind": "data"
+    },
+    {
+      "path": "scripts/027_module.js",
+      "attrs": {},
+      "length": 7411,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/028_module.js",
+      "attrs": {},
+      "length": 1537,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/029_module.js",
+      "attrs": {},
+      "length": 5881,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/030_redlineFixedStepClock.js",
+      "attrs": {
+        "id": "redlineFixedStepClock"
+      },
+      "length": 1794,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/031_module.js",
+      "attrs": {},
+      "length": 965345,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/032_module.js",
+      "attrs": {},
+      "length": 3578,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/033_module.js",
+      "attrs": {},
+      "length": 1049618,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/034_module.js",
+      "attrs": {},
+      "length": 826492,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/035_module.js",
+      "attrs": {},
+      "length": 3321553,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/036_module.js",
+      "attrs": {},
+      "length": 1150,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/037_rl74PhotoAssets.js",
+      "attrs": {
+        "id": "rl74PhotoAssets"
+      },
+      "length": 5795140,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/038_rl74FpvHudRenderer.js",
+      "attrs": {
+        "id": "rl74FpvHudRenderer"
+      },
+      "length": 1591,
+      "kind": "script"
+    },
+    {
+      "path": "scripts/039_redline-v76-build.js",
+      "attrs": {
+        "id": "redline-v76-build",
+        "type": "text/javascript"
+      },
+      "length": 53,
+      "kind": "script"
+    }
+  ],
+  "style_modules": [
+    {
+      "path": "styles/000_legacy.css",
+      "attrs": {},
+      "length": 99384
+    },
+    {
+      "path": "styles/001_legacy.css",
+      "attrs": {},
+      "length": 4048
+    },
+    {
+      "path": "styles/002_legacy.css",
+      "attrs": {},
+      "length": 2731
+    },
+    {
+      "path": "styles/003_legacy.css",
+      "attrs": {},
+      "length": 1439
+    },
+    {
+      "path": "styles/004_legacy.css",
+      "attrs": {},
+      "length": 28272
+    },
+    {
+      "path": "styles/005_legacy.css",
+      "attrs": {},
+      "length": 10404
+    },
+    {
+      "path": "styles/006_legacy.css",
+      "attrs": {},
+      "length": 5303
+    },
+    {
+      "path": "styles/007_legacy.css",
+      "attrs": {},
+      "length": 7088
+    },
+    {
+      "path": "styles/008_legacy.css",
+      "attrs": {},
+      "length": 4884
+    },
+    {
+      "path": "styles/009_legacy.css",
+      "attrs": {},
+      "length": 16167
+    },
+    {
+      "path": "styles/010_legacy.css",
+      "attrs": {},
+      "length": 27461
+    },
+    {
+      "path": "styles/011_legacy.css",
+      "attrs": {},
+      "length": 2868
+    },
+    {
+      "path": "styles/012_legacy.css",
+      "attrs": {},
+      "length": 4135
+    },
+    {
+      "path": "styles/013_legacy.css",
+      "attrs": {},
+      "length": 11307
+    },
+    {
+      "path": "styles/014_legacy.css",
+      "attrs": {},
+      "length": 2278
+    },
+    {
+      "path": "styles/015_legacy.css",
+      "attrs": {},
+      "length": 8822
+    },
+    {
+      "path": "styles/016_legacy.css",
+      "attrs": {},
+      "length": 10645
+    },
+    {
+      "path": "styles/017_legacy.css",
+      "attrs": {},
+      "length": 1672
+    },
+    {
+      "path": "styles/018_legacy.css",
+      "attrs": {},
+      "length": 6919
+    },
+    {
+      "path": "styles/019_legacy.css",
+      "attrs": {},
+      "length": 1253
+    },
+    {
+      "path": "styles/020_legacy.css",
+      "attrs": {},
+      "length": 1832
+    },
+    {
+      "path": "styles/021_redline-v60-hud-layout.css",
+      "attrs": {
+        "id": "redline-v60-hud-layout"
+      },
+      "length": 2516
+    },
+    {
+      "path": "styles/022_legacy.css",
+      "attrs": {},
+      "length": 6314
+    },
+    {
+      "path": "styles/023_legacy.css",
+      "attrs": {},
+      "length": 1910
+    },
+    {
+      "path": "styles/024_legacy.css",
+      "attrs": {},
+      "length": 3154
+    },
+    {
+      "path": "styles/025_legacy.css",
+      "attrs": {},
+      "length": 4068
+    },
+    {
+      "path": "styles/026_legacy.css",
+      "attrs": {},
+      "length": 1595
+    },
+    {
+      "path": "styles/027_rl68Style.css",
+      "attrs": {
+        "id": "rl68Style"
+      },
+      "length": 2579
+    },
+    {
+      "path": "styles/028_rl69CockpitFinal.css",
+      "attrs": {
+        "id": "rl69CockpitFinal"
+      },
+      "length": 1239
+    },
+    {
+      "path": "styles/029_rl70TieHudStyle.css",
+      "attrs": {
+        "id": "rl70TieHudStyle"
+      },
+      "length": 1840
+    },
+    {
+      "path": "styles/030_rl71KestrelFix.css",
+      "attrs": {
+        "id": "rl71KestrelFix"
+      },
+      "length": 197
+    },
+    {
+      "path": "styles/031_rl72TieInstrumentFix.css",
+      "attrs": {
+        "id": "rl72TieInstrumentFix"
+      },
+      "length": 942
+    },
+    {
+      "path": "styles/032_rl73FpvUnified.css",
+      "attrs": {
+        "id": "rl73FpvUnified"
+      },
+      "length": 2152
+    },
+    {
+      "path": "styles/033_rl74FullFpvUi.css",
+      "attrs": {
+        "id": "rl74FullFpvUi"
+      },
+      "length": 5522
+    },
+    {
+      "path": "styles/034_rl75-chase-ui.css",
+      "attrs": {
+        "id": "rl75-chase-ui"
+      },
+      "length": 1163
+    },
+    {
+      "path": "styles/035_rl75-flow-dock.css",
+      "attrs": {
+        "id": "rl75-flow-dock"
+      },
+      "length": 459
+    }
+  ],
+  "image_assets": [
+    {
+      "name": "cockpit-5c7d62648b0707.webp",
+      "type": "webp",
+      "bytes": 13090,
+      "sha256": "5c7d62648b07075d79eee45b0b3535d491226a6b9afb97ca8b65e17c6b67de1e"
+    },
+    {
+      "name": "cockpit-d5810e74766bc4.webp",
+      "type": "webp",
+      "bytes": 817742,
+      "sha256": "d5810e74766bc4355f3f1d00292adb330c7564fb2986f8cd92b05130a539e85f"
+    },
+    {
+      "name": "cockpit-53c0fc5de62e58.jpg",
+      "type": "jpeg",
+      "bytes": 56976,
+      "sha256": "53c0fc5de62e58f77c607ad9f73ba6b7ed843a85efdde03dd5a458036529292c"
+    },
+    {
+      "name": "cockpit-e91a5fc1b6b91d.jpg",
+      "type": "jpeg",
+      "bytes": 145195,
+      "sha256": "e91a5fc1b6b91d209cebf37aa9eea0618fbc52146132e3715227415447e2b268"
+    },
+    {
+      "name": "cockpit-69da3501235414.webp",
+      "type": "webp",
+      "bytes": 723960,
+      "sha256": "69da350123541458a4320dcf068da8886d8c551b79c2f8b283e342a154cb114f"
+    },
+    {
+      "name": "cockpit-77fe6eb45a8aec.webp",
+      "type": "webp",
+      "bytes": 782204,
+      "sha256": "77fe6eb45a8aec6977d65d9e7ade347b820eb1b9ac4d39735a75d7a91e1e1352"
+    },
+    {
+      "name": "cockpit-8efb6bc248b43a.webp",
+      "type": "webp",
+      "bytes": 610430,
+      "sha256": "8efb6bc248b43a971e9e469fce5eef34708ae024f42e8d02641e961b10befb8b"
+    },
+    {
+      "name": "cockpit-4b5ccdccf1ad39.webp",
+      "type": "webp",
+      "bytes": 609808,
+      "sha256": "4b5ccdccf1ad39b9957f85a705a8e95074fbdc172ca0c59ad938f467d6cd133a"
+    },
+    {
+      "name": "cockpit-674af82fcd3f2f.webp",
+      "type": "webp",
+      "bytes": 298024,
+      "sha256": "674af82fcd3f2f07fd779a0470b192841f934848bd02f95b9a763bc161df352e"
+    },
+    {
+      "name": "cockpit-ba1a9d606cc4de.webp",
+      "type": "webp",
+      "bytes": 12204,
+      "sha256": "ba1a9d606cc4ded56e2851fbaf6c34229cb0e5f758cb0396eb5507ebbbd21abf"
+    },
+    {
+      "name": "cockpit-a3f32f43159613.webp",
+      "type": "webp",
+      "bytes": 487878,
+      "sha256": "a3f32f43159613e41b49c51de0e69aed78a6e43bcbc06d003ee015486e564fdd"
+    },
+    {
+      "name": "cockpit-8d6c43e6bfc1f0.webp",
+      "type": "webp",
+      "bytes": 539896,
+      "sha256": "8d6c43e6bfc1f0cd1632c5ce6adeedc7d3f1147a2c245b7c334bfb24d5aa65ed"
+    },
+    {
+      "name": "cockpit-67e5e3815357e6.webp",
+      "type": "webp",
+      "bytes": 11900,
+      "sha256": "67e5e3815357e60d2742ed7815882699217cd9a9456074c11a322bbb174a6f90"
+    },
+    {
+      "name": "cockpit-3a7bb1cf69dd96.webp",
+      "type": "webp",
+      "bytes": 108946,
+      "sha256": "3a7bb1cf69dd969834b83f200a8da3e2b890c3e92ef420e003b7adc04923d625"
+    },
+    {
+      "name": "cockpit-b0165594a2eb8d.jpg",
+      "type": "jpeg",
+      "bytes": 21822,
+      "sha256": "b0165594a2eb8df975c4dde9cff63eba3511d62d040a8c5477ee8a281787e75a"
+    },
+    {
+      "name": "cockpit-4bd3b82a39afd7.jpg",
+      "type": "jpeg",
+      "bytes": 16661,
+      "sha256": "4bd3b82a39afd7fb0dd0d08481505b96017dcae100dad0348cfa8fd551eb0fbd"
+    },
+    {
+      "name": "cockpit-fd6bd43c81066c.png",
+      "type": "png",
+      "bytes": 1100431,
+      "sha256": "fd6bd43c81066c89f7517a302459c99f59a021c5766ab82b036975cd98e9ba3a"
+    },
+    {
+      "name": "cockpit-e982344e62813d.png",
+      "type": "png",
+      "bytes": 1652715,
+      "sha256": "e982344e62813dfb8cf24cb3d6882876cc3a8fa49b0f5eaa1afd334915680cfb"
+    },
+    {
+      "name": "cockpit-46bfe726433d67.png",
+      "type": "png",
+      "bytes": 1587638,
+      "sha256": "46bfe726433d678284eaa305a4c5d8e09b15e2b437df85b40a3ffc3c21cb1a35"
+    }
+  ],
+  "template_sha256": "d853ce4853be0743a14588ed55845aa6d04b173a7e8a2585de8fbf14ffcfed74"
+}

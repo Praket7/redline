@@ -1,0 +1,63 @@
+
+/* REDLINE v61 — airframe tuning & unique FPV instrumentation.
+   Original chase camera speedometer is intentionally removed in all FPV views. */
+.rl61-performance{background:rgba(6,7,11,.8);border:1px solid rgba(255,255,255,.16);border-left:2px solid #ee3745;padding:10px 12px;margin:9px 0 12px;color:#e9e4e4}
+.rl61-spec-top,.rl61-spec-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font:800 9px Arial,sans-serif;letter-spacing:.8px}
+.rl61-spec-top b{color:#fff}.rl61-spec-top span{color:#a59da0;font-size:8px}
+.rl61-spec-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:10px 0}
+.rl61-spec{min-width:0;display:flex;flex-direction:column;gap:4px}
+.rl61-spec>span{color:#a9a6a9;font:700 8px Arial,sans-serif;white-space:nowrap;letter-spacing:.25px}
+.rl61-spec strong{font:900 16px Arial,sans-serif;white-space:nowrap;letter-spacing:-.5px}
+.rl61-spec small{font:700 8px Arial,sans-serif;margin-left:2px;color:#c0b4b4}
+.rl61-spec i{height:3px;background:#33232a;width:100%;overflow:hidden}.rl61-spec i em{height:100%;display:block;background:#ed3a48}
+.rl61-spec-foot{border-top:1px solid #ffffff22;padding-top:8px;color:#a9a4a8;letter-spacing:.3px}
+.rl61-spec-foot b{color:#f0eeee;font-size:11px}
+body.rl-play.rl-cockpit #rlSpeedBox,body.rl-play.rl-cockpit #rlSpeedDial{display:none!important;visibility:hidden!important}
+/* Unique non-dial numerical readout aligned to the bottom-edge dashboard. */
+#rl61CockpitReadout{display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);width:min(510px,calc(100vw - 440px));min-width:380px;z-index:72;pointer-events:none;color:#f3eeee;padding:11px 15px 10px;border:1px solid #cd344155;border-top:2px solid #ed3445;background:linear-gradient(125deg,rgba(7,8,12,.9),rgba(12,9,13,.85));font-family:Arial,sans-serif;box-shadow:0 5px 20px #000a;backdrop-filter:blur(7px)}
+body.rl-play.rl-cockpit #rl61CockpitReadout{display:block}
+#rl61CockpitReadout[data-airframe=blade]{border-top-color:#ff9c62}
+#rl61CockpitReadout[data-airframe=copper]{border-top-color:#f0a46e}
+#rl61CockpitReadout[data-airframe=spirit]{border-top-color:#a6c3cb}
+.rl61-fpv-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+.rl61-fpv-head b{font:900 10px Arial,sans-serif;letter-spacing:1.1px}.rl61-fpv-head span{font-size:8px;color:#9da2aa;letter-spacing:1px}
+.rl61-fpv-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr 1fr 1.05fr;gap:6px}
+.rl61-fpv-grid>div{min-width:0;border-right:1px solid #ffffff24;padding-right:4px}.rl61-fpv-grid>div:last-child{border:0}
+.rl61-fpv-grid small{display:block;color:#aea6a8;font:bold 8px Arial,sans-serif;letter-spacing:.6px;margin-bottom:3px}
+.rl61-fpv-grid strong{display:block;font:800 19px Arial,sans-serif;white-space:nowrap;letter-spacing:-.45px}
+.rl61-fpv-grid em{font:700 9px Arial,sans-serif;margin-left:3px;color:#bfb5b6;font-style:normal}
+.rl61-fpv-rail{height:3px;margin-top:9px;background:#3d2229;overflow:hidden}.rl61-fpv-rail i{display:block;height:100%;width:100%;background:#f04753;transition:width .12s linear}
+#rl61CockpitReadout[data-airframe=blade] .rl61-fpv-rail i{background:#ff9c62}
+#rl61CockpitReadout[data-airframe=copper] .rl61-fpv-rail i{background:#f0a46e}
+#rl61CockpitReadout[data-airframe=spirit] .rl61-fpv-rail i{background:#a6c3cb}
+@media(max-width:1080px){#rl61CockpitReadout{width:min(455px,calc(100vw - 330px));min-width:330px;padding:9px}.rl61-fpv-grid strong{font-size:16px}}
+@media(max-width:770px){.rl61-performance{padding:9px}.rl61-spec strong{font-size:14px}.rl61-spec>span{font-size:7px}#rl61CockpitReadout{left:10px;bottom:6px;transform:none;width:calc(100vw - 20px);min-width:0;padding:9px 10px}.rl61-fpv-grid strong{font-size:15px}.rl61-fpv-head{margin-bottom:6px}}
+@media(max-width:460px){.rl61-fpv-grid{gap:3px}.rl61-fpv-grid strong{font-size:12px}.rl61-fpv-grid small{font-size:7px}.rl61-fpv-grid em{font-size:7px}.rl61-spec-grid{gap:3px}.rl61-spec strong{font-size:12px}.rl61-spec-foot{font-size:8px}}
+@media(max-height:650px){#rl61CockpitReadout{bottom:4px;padding:7px 10px}.rl61-fpv-head{margin-bottom:4px}.rl61-fpv-rail{margin-top:4px}}
+/* v61 hangar: remove unnecessary whitespace so all specifications and the start action
+   fit on normal laptop displays; retain the original white-on-glass visual language. */
+#rlScreens .rl45-vehicle-page{padding-top:clamp(48px,5.4vh,75px)!important}
+#rlScreens .rl45-vehicle-page .rl45-layout{padding:12px 0 14px!important;min-height:min(70vh,620px)!important;align-items:start!important}
+#rlScreens .rl45-kicker{margin-bottom:8px!important}
+#rlScreens .rl45-title{min-height:67px!important;font-size:clamp(34px,3.4vw,53px)!important;margin-bottom:7px!important}
+#rlScreens .rl45-deck-sub{margin-bottom:15px!important}
+#rlScreens .rl45-scroll-heading{padding-bottom:7px!important;margin-bottom:8px!important}
+#rlScreens .rl45-airframe{min-height:115px!important;padding:12px!important}
+#rlScreens .rl45-airframe-track{padding-bottom:6px!important}
+#rlScreens .rl45-card-name{margin:9px 0 4px!important}
+#rlScreens .rl45-scroll-instruction{margin:6px 36px 9px!important}
+#rlScreens .rl45-description{min-height:0!important;margin-bottom:8px!important}
+#rlScreens .rl45-advanced{margin-top:8px!important}
+#rlScreens .rl45-vehicle-page .rl45-actions{margin:8px 0 0!important}
+#rlScreens .rl61-performance{padding:8px 10px;margin:6px 0 8px}
+#rlScreens .rl61-spec-grid{margin:6px 0}
+#rlScreens .rl61-spec-foot{padding-top:5px}
+@media(max-width:720px){
+  #rlScreens .rl45-vehicle-page,#rlScreens .rl45-vehicle-page .rl45-layout{animation:none!important;transform:none!important;filter:none!important;will-change:auto!important}
+  #rlScreens .rl45-vehicle-page .rl45-layout{min-height:0!important;gap:6px!important;padding:4px 0 95px!important}
+  #rlScreens .rl45-vehicle-page .rl45-stage{height:24vh!important;min-height:160px!important;max-height:205px!important}
+  #rlScreens .rl45-vehicle-page .rl45-actions{position:fixed!important;left:12px!important;right:12px!important;bottom:max(10px,env(safe-area-inset-bottom))!important;z-index:105!important;margin:0!important;width:auto!important;box-shadow:0 8px 30px #000a}
+  #rlScreens .rl45-title{min-height:0!important;font-size:38px!important}
+  #rlScreens .rl45-deck-sub{margin-bottom:8px!important}
+}
+

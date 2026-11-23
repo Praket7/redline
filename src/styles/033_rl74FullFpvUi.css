@@ -1,0 +1,61 @@
+
+/* v74: presentation-only image cockpits. Previous overlays and competing gauges
+   are deliberately suppressed; flight simulation and targeting remain untouched. */
+#rl74Cockpit {position:absolute;inset:0;z-index:14;pointer-events:none;overflow:hidden;display:none;user-select:none}
+#rl74Cockpit .rl74Scene{position:absolute;inset:0;display:none;pointer-events:none}
+#rl74Cockpit svg{display:block;width:100%;height:100%;overflow:hidden}
+body.rl-play.rl-cockpit:is(.rl65-blade-cockpit,.rl63-spirit-cockpit,.rl67-kestrel-cockpit) #rl74Cockpit{display:block!important}
+body.rl-play.rl-cockpit.rl65-blade-cockpit #rl74Blade,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rl74Spirit,
+body.rl-play.rl-cockpit.rl67-kestrel-cockpit #rl74Kestrel{display:block!important}
+#rl74Blade{top:auto!important;height:clamp(210px,43vh,560px)!important}
+#rl74Blade svg{preserve-aspect-ratio:none}
+body.rl-play.rl-cockpit.rl65-blade-cockpit #rl65BladeOverlay,
+body.rl-play.rl-cockpit.rl63-spirit-cockpit #rl66SpiritOverlay,
+body.rl-play.rl-cockpit.rl67-kestrel-cockpit #rl67KestrelOverlay{display:none!important}
+body.rl-play.rl-cockpit:is(.rl65-blade-cockpit,.rl63-spirit-cockpit,.rl67-kestrel-cockpit,.rl62-tie-cockpit) :is(#rl61CockpitReadout,#rl68Telemetry,#rlSpeedBox,#rlCockpitVis,#rlKeys,#rlFpTelemetry,#rlTacticalFlow){display:none!important}
+/* Copper's extra cream targeting circle duplicates the game's own reticle. */
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70reticle{display:none!important}
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70middle{justify-content:space-between!important}
+/* The Flow widget stays usable but no longer sits on top of instrument screens. */
+body.rl-play.rl-cockpit #rlFlowModule{
+ position:absolute!important;left:auto!important;right:14px!important;
+ top:275px!important;bottom:auto!important;width:174px!important;
+ z-index:86!important;transform:scale(.78)!important;transform-origin:top right!important;
+ background:rgba(5,9,16,.62)!important;border:1px solid #ffffff2a!important;
+ border-radius:8px!important;backdrop-filter:blur(6px)!important;
+ filter:none!important;
+}
+body.rl-play.rl-cockpit #rlFlowModule .rl-flow-top{padding:5px 8px 4px!important;background:transparent!important}
+body.rl-play.rl-cockpit #rlFlowModule .rl-flow-top .rl-flow-quantity{font-size:19px!important}
+body.rl-play.rl-cockpit #rlFlowModule .rl-flow-body{padding:1px 7px 6px!important}
+body.rl-play.rl-cockpit #rlFlowModule .rl-flow-help{display:none!important}
+body.rl-play.rl-cockpit #rlFlowModule .rl-flow-actions{gap:3px!important;margin:5px 0 0!important}
+body.rl-play.rl-cockpit #rlFlowModule .rl-flow-action{min-height:26px!important;padding:2px!important}
+@media(max-width:800px){body.rl-play.rl-cockpit #rlFlowModule{top:238px!important;right:4px!important;transform:scale(.66)!important}}
+/* Heads-up race information lives in the empty windshield corners. */
+body.rl-play.rl-cockpit #rlGameTop{position:absolute!important;left:14px!important;top:12px!important;z-index:88!important;min-width:0!important;padding:7px 12px!important;background:rgba(3,7,12,.65)!important;border:1px solid rgba(255,255,255,.18)!important;border-left:2px solid #f44850!important;border-radius:7px!important;box-shadow:0 3px 16px #0006!important;backdrop-filter:blur(6px)!important}
+body.rl-play.rl-cockpit #rlGameTop b{font-size:21px!important}
+body.rl-play.rl-cockpit #rlPositions{left:14px!important;right:auto!important;top:92px!important;bottom:auto!important;width:176px!important;max-width:176px!important;max-height:154px!important;z-index:86!important;background:rgba(4,9,14,.6)!important;border:1px solid rgba(255,255,255,.16)!important;border-radius:7px!important;backdrop-filter:blur(5px)!important;padding:7px 9px!important;box-shadow:none!important}
+body.rl-play.rl-cockpit #rlGameButtons{top:13px!important;z-index:91!important;gap:4px!important}
+body.rl-play.rl-cockpit #rlGameButtons button{background:rgba(4,9,14,.55)!important;padding:6px 8px!important;font-size:9px!important;border:1px solid #ffffff28!important}
+body.rl-play.rl-cockpit #maphud{top:78px!important;right:16px!important;z-index:87!important;background:rgba(5,10,16,.22)!important;border-color:#ffffff2a!important;box-shadow:none!important}
+body.rl-play.rl-cockpit #maphud canvas{width:155px!important;height:155px!important}
+body.rl-play.rl-cockpit #navPointer{z-index:87!important}
+body.rl-play.rl-cockpit #rlTutorial{z-index:89!important}
+/* The original targeting reticle still renders and remains authoritative. */
+body.rl-play.rl-cockpit #rlReticle{z-index:88!important}
+@media(max-width:800px){
+ body.rl-play.rl-cockpit #rlGameButtons{top:50px!important}
+ body.rl-play.rl-cockpit #rlGameButtons button{font-size:8px!important;padding:5px 6px!important}
+ body.rl-play.rl-cockpit #rlPositions{top:94px!important;left:7px!important;width:117px!important;max-width:117px!important;font-size:9px!important}
+ body.rl-play.rl-cockpit #maphud{top:96px!important;right:7px!important}
+ body.rl-play.rl-cockpit #maphud canvas{width:112px!important;height:112px!important}
+ #rl74Blade{height:clamp(180px,38vh,360px)!important}
+}
+@media(max-width:520px) and (orientation:portrait){
+ #rl74Spirit svg,#rl74Kestrel svg{width:max(100%,830px);position:relative;left:50%;transform:translateX(-50%)}
+ body.rl-play.rl-cockpit #rlGameTop{padding:5px 8px!important;top:7px!important;left:7px!important}
+ body.rl-play.rl-cockpit #rlGameTop b{font-size:17px!important}
+ body.rl-play.rl-cockpit #rlPositions{font-size:8px!important}
+}

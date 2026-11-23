@@ -1,0 +1,22 @@
+
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud{
+ display:block!important;visibility:visible!important;opacity:1!important;
+ position:fixed!important;inset:0!important;z-index:2147481000!important;
+ pointer-events:none!important;color:#f3ddae!important;
+ font-variant-numeric:tabular-nums;
+}
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70top{
+ top:30%!important;left:50%!important;
+}
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70middle{
+ top:42%!important;width:min(41vw,620px)!important;
+}
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70value{
+ color:#ffedc7!important;text-shadow:0 1px 4px #291c12,0 0 9px #d6aa74aa!important;
+}
+body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70bars i.on{
+ background:#f1c38a!important;box-shadow:0 0 9px #f1c38aaa!important;
+}
+@media(max-width:700px){
+ body.rl-play.rl-cockpit.rl62-tie-cockpit #rl70TieHud .r70middle{width:60vw!important;top:42%!important}
+}
