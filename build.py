@@ -8,9 +8,10 @@ ROOT=Path(__file__).resolve().parent
 DIST=ROOT/'dist'
 THREE_VARIANT=os.environ.get('REDLINE_THREE_VARIANT','r128')
 COMPACT_ASSETS=os.environ.get('REDLINE_COMPACT','0')=='1' and THREE_VARIANT=='r187'
+V81_ENABLED=os.environ.get('REDLINE_V81','0')=='1' and COMPACT_ASSETS
 if THREE_VARIANT not in ('r128','r187'):
  raise RuntimeError('Unknown renderer variant: '+THREE_VARIANT)
-SITE_ROOT=DIST/('site-r187-compact' if COMPACT_ASSETS else ('site-r187' if THREE_VARIANT=='r187' else 'site'))
+SITE_ROOT=DIST/('site-r187-compact-v81' if V81_ENABLED else ('site-r187-compact' if COMPACT_ASSETS else ('site-r187' if THREE_VARIANT=='r187' else 'site')))
 m=json.loads((ROOT/'manifest.json').read_text())
 img={f'{{{{REDLINE_ASSET_{x["sha256"][:14]}}}}}':x for x in m['image_assets']}
 styles={x['path']:x for x in m['style_modules']}
@@ -123,6 +124,24 @@ def build(mode):
   css_dest=SITE_ROOT/'src/styles/999_stage1_authority.css';css_dest.write_text(fill((ROOT/'src/styles/999_stage1_authority.css').read_text(),mode,'style'))
   js_dest=SITE_ROOT/'src/scripts/999_stage1_diagnostics.js';js_dest.write_text(fill((ROOT/'src/scripts/999_stage1_diagnostics.js').read_text(),mode,'script'))
   addition='\n<link rel="stylesheet" href="src/styles/999_stage1_authority.css">\n<script src="src/scripts/999_stage1_diagnostics.js"></script>\n'
+ if V81_ENABLED:
+  import base64,gzip
+  packed=(ROOT/'src/styles/v81_authority.css.gz.b64').read_text().strip()
+  extra_css=gzip.decompress(base64.b64decode(packed,validate=True)).decode('utf-8')
+  # Source is stored compressed only to avoid duplicating a large inherited
+  # stylesheet in a single-file game; the emitted CSS is ordinary text.
+  if mode=='standalone':
+   addition+='\n<style id="redline-v81-viewport-controls-fpv">'+extra_css+'</style>\n'
+  else:
+   dest=SITE_ROOT/'src/styles/v81_authority.css'
+   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(extra_css)
+   addition+='\n<link rel="stylesheet" href="src/styles/v81_authority.css">\n'
+  addition+='''<script id="redline-v81-viewport-diagnostics">
+window.REDLINE_V81_VIEWPORT=()=>{const measure=id=>{const e=document.getElementById(id),r=e?.getBoundingClientRect();return r?{x:r.x,y:r.y,width:r.width,height:r.height}:null};const c=document.body.querySelector('canvas');const b=c?.getBoundingClientRect();return {viewport:{width:innerWidth,height:innerHeight},shell:measure('rlShell'),screens:measure('rlScreens'),canvas:b?{x:b.x,y:b.y,width:b.width,height:b.height}:null,body:document.body.className};};
+window.REDLINE_V81_CONTROLS=Object.freeze({fire:'KeyE',reload:'KeyF',shield:'Space',stop:'KeyJ',crashDowntime:1.05});
+</script>'''
+  output=output.replace('title="J · Spend 24 Flow on a defensive shield"><span class="key">J</span>','title="SPACE · Spend 24 Flow on a defensive shield"><span class="key">SPACE</span>')
+  output=output.replace('title="Z · Spend 30 Flow to reload all laser charges"><span class="key">Z</span>','title="F · Spend 30 Flow to reload all laser charges"><span class="key">F</span>')
  assert '</body>' in output
  output=output.replace('</body>',addition+'</body>')
  assert '<!-- REDLINE_MODULE_' not in output
@@ -131,7 +150,7 @@ def build(mode):
 def main():
  DIST.mkdir(parents=True,exist_ok=True)
  if SITE_ROOT.exists():shutil.rmtree(SITE_ROOT) # no stale CSS/JS from prior variants
- html_name='REDLINE_v80_LIGHTWEIGHT_HANGAR_PITCH.html' if COMPACT_ASSETS else ('REDLINE_v78_R187_CANDIDATE.html' if THREE_VARIANT=='r187' else 'REDLINE_v78_STAGE1_STANDALONE.html')
+ html_name='REDLINE_v81_FULLSCREEN_COMBAT_MINIMAL_FPV.html' if V81_ENABLED else ('REDLINE_v80_LIGHTWEIGHT_HANGAR_PITCH.html' if COMPACT_ASSETS else ('REDLINE_v78_R187_CANDIDATE.html' if THREE_VARIANT=='r187' else 'REDLINE_v78_STAGE1_STANDALONE.html'))
  (DIST/html_name).write_text(build('standalone'))
  site=SITE_ROOT;site.mkdir(exist_ok=True)
  (site/'index.html').write_text(build('site'))
@@ -155,8 +174,9 @@ def main():
  }
  result['renderer_variant']=THREE_VARIANT
  result['compact_assets']=COMPACT_ASSETS
+ result['v81_viewport_hud_and_controls']=V81_ENABLED
  result['image_reduction_bytes']=sum(x['original_bytes']-x['compressed_bytes'] for x in compact_manifest)
  result['optimized_image_count']=len(compact_manifest)
- (DIST/('BUILD_V80_REPORT.json' if COMPACT_ASSETS else ('BUILD_R187_REPORT.json' if THREE_VARIANT=='r187' else 'BUILD_REPORT.json'))).write_text(json.dumps(result,indent=2))
+ (DIST/('BUILD_V81_REPORT.json' if V81_ENABLED else ('BUILD_V80_REPORT.json' if COMPACT_ASSETS else ('BUILD_R187_REPORT.json' if THREE_VARIANT=='r187' else 'BUILD_REPORT.json')))).write_text(json.dumps(result,indent=2))
  print(json.dumps(result,indent=2))
 if __name__=='__main__':main()
