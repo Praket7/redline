@@ -36,7 +36,12 @@ class T(unittest.TestCase):
   s=(ROOT/'src/scripts/035_module.js').read_text()
   self.assertIn('REDLINE_SIM_CLOCK.advance(dt, fixedDt =>',s)
   self.assertIn('redlinePublishSimState(fixedDt);',s)
-  self.assertIn('Object.freeze({x:st.p.x,y:st.p.y,z:st.p.z,yaw:st.yaw,speed:st.spd,boost:st.boost})',s)
+  self.assertIn('const craft=Object.freeze({',s)
+  self.assertIn('const rivals=Object.freeze(',s)
+  self.assertIn('const race=Object.freeze(',s)
+  self.assertIn('altitude:Math.max(0,finite(redlineRiverAltitude(st.p.y)))',s)
+  self.assertIn('if(run)redlineUpdateLock(dt);',s)
+  self.assertNotIn('redlineUpdateLock(dt);\\n if(REDLINE_ONLINE.isRacing)',s)
   self.assertIn('REDLINE_SIM_STATE = () => redlinePublishedState',s)
   self.assertIn('dr.quaternion.copy(redlinePreviousPose.orientation).slerp',s)
  def test_camera_showcase_capture_is_view_only(self):
