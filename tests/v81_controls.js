@@ -29,7 +29,7 @@ assert.equal(b.isDown({KeyF:true},'reload'),true);
 assert.equal(b.isDown({KeyF:true},'fire'),false);
 assert.equal(b.actionFor('KeyZ'),null,'old reload shortcut must be removed');
 assert(world.includes('REDLINE_PLAYER_CRASH.t=1.15;'),'player respawn delay must be 1.15 s');
-assert(world.includes('if(hardStop){FL.speed=FL.vx=FL.vy=FL.vz=FL.strafeSpeed=0;}'),'J must stop momentum in fixed step');
+assert(world.includes('if(hardStop){FL.speed=FL.vx=FL.vy=FL.vz=FL.strafeSpeed=0;FL.x=p.x;FL.y=p.y;FL.z=p.z;'),'J must stop momentum in fixed step');
 assert(world.includes('if(!hardStop){p.x+=w[0]*cp*dt;'),'wind must not drift a fully stopped player');
 assert(world.includes("window.REDLINE_LASER_INPUT.lastTrigger='KeyE'"),'keyboard fire should report KeyE');
 assert(!world.includes("lastTrigger='double click'")&&!world.includes("lastTrigger='dblclick fallback'"),'mouse gestures may not fire');
