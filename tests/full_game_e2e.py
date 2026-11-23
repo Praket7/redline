@@ -26,7 +26,7 @@ try:
         browser = p.chromium.launch(
             **({'executable_path':os.environ.get('CHROMIUM_PATH') or shutil.which('chromium')} if (os.environ.get('CHROMIUM_PATH') or shutil.which('chromium')) else {}), headless=True,
             args=['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
-        page = browser.new_page(viewport={'width':1600,'height':900}, device_scale_factor=1)
+        page = browser.new_page(viewport={'width':960 if renderer_revision=='187' else 1600,'height':540 if renderer_revision=='187' else 900}, device_scale_factor=1)
         page.on('pageerror', lambda e: report['errors'].append(str(e)))
         page.on('requestfailed', lambda r: report['requestFailures'].append({'url':r.url,'failure':r.failure}))
         # Suppress a one-time tutorial overlay; no game-state objects are modified.
