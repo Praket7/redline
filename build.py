@@ -142,6 +142,8 @@ window.REDLINE_V81_CONTROLS=Object.freeze({fire:'KeyE',reload:'KeyF',shield:'Spa
 </script>'''
   output=output.replace('title="J · Spend 24 Flow on a defensive shield"><span class="key">J</span>','title="SPACE · Spend 24 Flow on a defensive shield"><span class="key">SPACE</span>')
   output=output.replace('title="Z · Spend 30 Flow to reload all laser charges"><span class="key">Z</span>','title="F · Spend 30 Flow to reload all laser charges"><span class="key">F</span>')
+  output=output.replace('Double-click fires; Esc releases mouse.','E fires lasers. F reloads cells; SPACE shields; J stops. Esc releases mouse.')
+  output=output.replace('Double-tap or double-click to capture flight · Esc releases','Double-click to capture flight · E fires lasers · Esc releases')
  assert '</body>' in output
  output=output.replace('</body>',addition+'</body>')
  assert '<!-- REDLINE_MODULE_' not in output
