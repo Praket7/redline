@@ -7723,6 +7723,7 @@ const REDLINE_SHOWROOM=(()=>{
    camera.updateProjectionMatrix();
   }
   camera.lookAt(new THREE.Vector3(5,REDLINE_HOVER_Y+.10,4));
+   window.REDLINE_HANGAR_QA.cameraFraming={distance:showroomCameraDistance,screenFocus:showroomFocusFraction,airframe:visibleAirframe,mode:screen};
   // Diagnose the true on-screen footprint of the aircraft and roof clearance.
   framingSample+=dt;
   if(model&&framingSample>.55){
