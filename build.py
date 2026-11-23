@@ -52,10 +52,21 @@ def build(mode):
  assert mode in ('standalone','site')
  output=template
  three_path,three_src=available_three()
+ # The first 35 styles are contiguous in template.html: combine them
+ # without changing their order or the later 035/999 cascade positions.
+ # This reduces dozens of blocking CSS requests to one in hosted builds.
+ if mode=='site':
+  core_css='\n'.join(fill((ROOT/'src'/p).read_text(),mode,'style')
+    for p in styles if int(p.split('/')[-1][:3])<35)
+  target=SITE_ROOT/'src/styles/000_redline-core-bundle.css'
+  target.parent.mkdir(parents=True,exist_ok=True)
+  target.write_text(core_css)
  for path,meta in styles.items():
   payload=fill((ROOT/'src'/path).read_text(),mode,'style')
   slot=f'<!-- REDLINE_MODULE_STYLE_{path} -->'
   if mode=='standalone':tag=f'<style{script_attrs(meta["attrs"])}>{payload}</style>'
+  elif int(path.split('/')[-1][:3])<35:
+   tag='<link rel="stylesheet" href="src/styles/000_redline-core-bundle.css">' if path.startswith('styles/000_') else ''
   else:
    dest=SITE_ROOT/'src'/path;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(payload)
    tag=f'<link rel="stylesheet" href="src/{path}">'
