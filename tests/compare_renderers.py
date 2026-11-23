@@ -35,6 +35,17 @@ def cliff_coverage(im):
 
 result['r128_cliff_coverage']=round(cliff_coverage(x),3)
 result['r187_cliff_coverage']=round(cliff_coverage(y),3)
+for rev in ('r128','r187'):
+    record=qa/('BENCHMARK_'+rev.upper()+'.json')
+    if record.exists():
+        stats=json.loads(record.read_text()).get('summary') or {}
+        result[rev+'_benchmark']={
+            'fpsMedian':stats.get('fpsMedian'),
+            'frameP95MedianMs':stats.get('frameP95MedianMs'),
+            'callsMedian':stats.get('callsMedian')
+        }
+if result.get('r128_benchmark',{}).get('fpsMedian') and result.get('r187_benchmark',{}).get('fpsMedian'):
+    result['software_fps_ratio']=round(result['r187_benchmark']['fpsMedian']/result['r128_benchmark']['fpsMedian'],3)
 (qa/'RENDERER_COMPARE.json').write_text(json.dumps(result,indent=2))
 print(json.dumps(result,indent=2))
 # Diagnose broken/blank scenes, without asserting that different PBR engines
