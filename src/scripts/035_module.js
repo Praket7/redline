@@ -6947,7 +6947,7 @@ const REDLINE_COCKPIT3D=(()=>{
 
 /* REDLINE HANGAR V17 — actual embedded Kestrel GLB, shared GPU context. */
 const REDLINE_SHOWROOM=(()=>{
- const REDLINE_HOVER_Y=5.15;
+ const REDLINE_HOVER_Y=6.2;
  const scene=new THREE.Scene();scene.background=null;scene.environment=null;
  // REDLINE v33 — dark architectural detailing tunnel, based on the supplied reference.
  // All fixtures are real geometry; illumination is kept to a small, fixed light budget.
