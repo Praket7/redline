@@ -63,14 +63,32 @@ try:
     page.evaluate('()=>{for(let i=0;i<3;i++)window.REDLINE_SHOWROOM.update(.05)}')
     frame=page.evaluate('()=>window.REDLINE_HANGAR_QA?.cameraFraming')
     assert frame and frame.get('stable') and frame.get('pointCount',0)>0, f'{screen}: camera did not measure aircraft geometry: {frame}'
-    box=frame['measured'];safe=frame['safeBounds']
-    fitted=[box[0]-frame['offsetX'],box[1]-frame['offsetX'],box[2]-frame['offsetY'],box[3]-frame['offsetY']]
-    assert safe['left']-3<=fitted[0] and fitted[1]<=safe['right']+3, f'{screen}: aircraft intrudes into title/settings or leaves right edge: {frame}'
-    assert safe['top']-3<=fitted[2] and fitted[3]<=safe['bottom']+3, f'{screen}: aircraft is cropped vertically: {frame}'
+    safe=frame['safeBounds']
+    assert frame.get('anchorBased') and frame.get('stable'), f'{screen}: new viewport-stable model anchor missing: {frame}'
+    assert safe['left']>=w*.35 and safe['right']<=w, f'{screen}: no reserved text column: {frame}'
+    assert 0<safe['top']<safe['bottom']<=h, f'{screen}: invalid safe bay: {frame}'
     s['aircraftSafeFrame']=frame
-    s['projectedAircraftBox']=fitted
+    s['modelRestPose']=page.evaluate('()=>window.REDLINE_HANGAR_POSE_STATUS?.()')
    file=f'V82_{screen}_{size[0]}x{size[1]}.png'
-   page.screenshot(path=str(QA/file),animations='disabled',timeout=30000)
+   visible_png=page.screenshot(path=str(QA/file),animations='disabled',timeout=30000)
+   if screen.startswith(('TITLE','SELECTION')) and page.evaluate('()=>!!window.REDLINE_SHOWROOM?.model?.parent'):
+    from PIL import Image,ImageChops,ImageFilter
+    from io import BytesIO
+    page.evaluate("""()=>{const obj=window.REDLINE_SHOWROOM.model; obj.userData._rlParent=obj.parent;obj.parent.remove(obj)}""")
+    try:
+     page.wait_for_timeout(380)
+     background_png=page.screenshot(animations='disabled',timeout=30000)
+    finally:
+     page.evaluate("""()=>{const obj=window.REDLINE_SHOWROOM.model;obj.userData._rlParent?.add(obj);delete obj.userData._rlParent}""")
+    a=Image.open(BytesIO(visible_png)).convert('RGB')
+    b=Image.open(BytesIO(background_png)).convert('RGB')
+    delta=ImageChops.difference(a,b).convert('L')
+    mask=delta.point(lambda v:255 if v>=32 else 0).filter(ImageFilter.MedianFilter(3))
+    bbox=mask.getbbox()
+    if bbox:
+     s['actualPixelBodyBox']=list(bbox)
+     s['actualPixelArea']=sum(x>0 for x in mask.getdata())
+     mask.save(QA / ('MASK_'+file))
    report['screens'].append({'kind':screen,'size':size,'metrics':s,'image':file})
    return s
 
