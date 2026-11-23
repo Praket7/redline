@@ -15,7 +15,9 @@ import json, os, sys, time, traceback, shutil
 ROOT = Path(__file__).resolve().parents[1]
 QA = ROOT / 'qa'; QA.mkdir(exist_ok=True)
 report = {'test': 'REDLINE Stage 1 full-engine WebGL smoke', 'state': 'NOT_RUN', 'cases': [], 'errors': [], 'requestFailures': []}
-server = ThreadingHTTPServer(('127.0.0.1', 0), partial(SimpleHTTPRequestHandler, directory=str(ROOT / 'dist/site')))
+renderer_revision=os.environ.get('REDLINE_EXPECT_RENDERER','128')
+site_path=ROOT / 'dist' / ('site-r187' if renderer_revision=='187' else 'site')
+server = ThreadingHTTPServer(('127.0.0.1', 0), partial(SimpleHTTPRequestHandler, directory=str(site_path)))
 Thread(target=server.serve_forever, daemon=True).start()
 url = f'http://127.0.0.1:{server.server_address[1]}/index.html?redlineTest=1'
 browser=None; page=None
@@ -24,8 +26,11 @@ try:
         browser = p.chromium.launch(
             **({'executable_path':os.environ.get('CHROMIUM_PATH') or shutil.which('chromium')} if (os.environ.get('CHROMIUM_PATH') or shutil.which('chromium')) else {}), headless=True,
             args=['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
-        page = browser.new_page(viewport={'width':1600,'height':900}, device_scale_factor=1)
+        page = browser.new_page(viewport={'width':960 if renderer_revision=='187' else 1600,'height':540 if renderer_revision=='187' else 900}, device_scale_factor=1)
         page.on('pageerror', lambda e: report['errors'].append(str(e)))
+        report['consoleShaderErrors']=[]
+        page.on('console',lambda m:report['consoleShaderErrors'].append(m.text[:6000])
+                if m.type=='error' and ('WebGLProgram' in m.text or 'Shader Error' in m.text or 'VALIDATE_STATUS' in m.text) else None)
         page.on('requestfailed', lambda r: report['requestFailures'].append({'url':r.url,'failure':r.failure}))
         # Suppress a one-time tutorial overlay; no game-state objects are modified.
         page.add_init_script("""
@@ -41,7 +46,7 @@ try:
         check=page.evaluate('''()=>({three:window.THREE?.REVISION||null,canvases:[...document.querySelectorAll('canvas')].length,
              gl:[...document.querySelectorAll('canvas')].some(c=>!!(c.getContext('webgl2')||c.getContext('webgl'))),phase:window.REDLINE_BOOT_PHASE||null})''')
         report['engine']=check
-        assert check['three']=='128',f'wrong Three renderer: {check}'
+        assert check['three']==renderer_revision,f'wrong Three renderer: expected {renderer_revision}, got {check}'
         assert check['gl'],f'no actual WebGL context: {check}'
         for craft in ['kestrel','blade','copper','spirit']:
             case={'craft':craft,'state':'RUNNING'}
@@ -134,6 +139,23 @@ try:
                 # Confirm scene continued in FPV.
                 afterFpv=page.evaluate('()=>window.REDLINE_E2E.status()')
                 assert afterFpv['simulation']['tick']>=after['simulation']['tick'], 'simulation regressed'
+                # Verify the panel comes from the same authoritative fixed-step state,
+                # not baked-in artwork or a second, independently changing counter.
+                if afterFpv['simulation'].get('craft'):
+                    sim=afterFpv['simulation']['craft']
+                    case['instrumentError']={
+                      'speed':abs(case['liveHud']['speed']-sim['speed']),
+                      'altitude':abs(case['liveHud']['altitude']-sim['altitude']),
+                    }
+                    assert case['instrumentError']['speed']<=30,f'FPV speed stale or disconnected: {craft}: {case["instrumentError"]}'
+                    assert case['instrumentError']['altitude']<=20,f'FPV altitude stale or disconnected: {craft}: {case["instrumentError"]}'
+                case['reticleClear']=page.evaluate('''()=>{
+                  const c=document.getElementById('rlReticle'), m=document.getElementById('maphud');
+                  if(!c||!m)return false;
+                  const a=c.getBoundingClientRect(),b=m.getBoundingClientRect();
+                  return a.right<b.left||b.right<a.left||a.bottom<b.top||b.bottom<a.top;
+                }''')
+                assert case['reticleClear'],f'minimap overlaps central aiming reticle for {craft}'
                 page.keyboard.press('p')
                 page.wait_for_function("!document.body.classList.contains('rl-cockpit')",timeout=10000)
                 case['state']='PASS'

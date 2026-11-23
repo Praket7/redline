@@ -1,0 +1,74 @@
+name: REDLINE Stage 1 modern renderer canary
+on:
+  push:
+    branches: [stage1/completion-renderer-sim-ui]
+  workflow_dispatch:
+concurrency:
+  group: renderer-stage1-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  renderer_canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install pinned renderers and real browser tests
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          pip install Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Restore and verify baseline assets
+        run: |
+          python tools_restore_sources.py
+          python tools_restore_baseline.py
+          python tools_validate.py
+      - name: Build r128 reference
+        env: {REDLINE_REQUIRE_VENDOR: '1'}
+        run: python build.py
+      - name: Capture r128 reference Raven Slalom in real Chromium WebGL
+        env: {REDLINE_EXPECT_RENDERER: '128'}
+        run: |
+          python tests/benchmark_sector.py
+          cp qa/SHOWCASE_RAVEN_SLALOM_LIVE.png qa/SHOWCASE_RAVEN_SLALOM_R128.png
+          cp qa/BENCHMARK_RESULTS.json qa/BENCHMARK_R128.json
+      - name: Build current Three.js r187 canary
+        run: |
+          node tools/build-modern-renderer.cjs
+          REDLINE_THREE_VARIANT=r187 REDLINE_REQUIRE_VENDOR=1 python build.py
+      - name: Syntax and deterministic simulation tests
+        run: |
+          python tests/test_stage1.py
+          node tests/test_stage1_runtime.js
+          node tests/simulation_determinism.js
+          for f in tests/legacy/*.js; do node "$f"; done
+      - name: True WebGL E2E - modern renderer, all four aircraft
+        env: {REDLINE_EXPECT_RENDERER: '187'}
+        run: python tests/full_game_e2e.py
+      - name: Real WebGL smoke of the exact self-contained modern HTML
+        env: {REDLINE_EXPECT_RENDERER: '187'}
+        run: python tests/standalone_smoke.py
+      - name: True WebGL Raven Slalom benchmark - modern renderer
+        env: {REDLINE_EXPECT_RENDERER: '187'}
+        run: python tests/benchmark_sector.py
+      - name: Verify modern scene against reference screenshot
+        run: |
+          cp qa/SHOWCASE_RAVEN_SLALOM_LIVE.png qa/SHOWCASE_RAVEN_SLALOM_R187.png
+          cp qa/BENCHMARK_RESULTS.json qa/BENCHMARK_R187.json
+          python tests/compare_renderers.py
+      - name: Upload modern renderer screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redline-r187-canary-and-evidence
+          path: |
+            qa/
+            dist/REDLINE_v78_R187_CANDIDATE.html
+            dist/REDLINE_v78_STAGE1_STANDALONE.html
+            dist/BUILD_R187_REPORT.json
+          retention-days: 7

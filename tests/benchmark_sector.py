@@ -9,7 +9,9 @@ from threading import Thread
 from playwright.sync_api import sync_playwright
 import json,sys,time,statistics,base64,os,shutil
 r=Path(__file__).resolve().parents[1];o=r/'qa';o.mkdir(exist_ok=True)
-server=ThreadingHTTPServer(('127.0.0.1',0),partial(SimpleHTTPRequestHandler,directory=str(r/'dist/site')))
+renderer_revision=os.environ.get('REDLINE_EXPECT_RENDERER','128')
+site_path=r/'dist'/('site-r187' if renderer_revision=='187' else 'site')
+server=ThreadingHTTPServer(('127.0.0.1',0),partial(SimpleHTTPRequestHandler,directory=str(site_path)))
 Thread(target=server.serve_forever,daemon=True).start()
 url=f'http://127.0.0.1:{server.server_address[1]}/index.html?redlineTest=1'
 report={'test':'raven-slalom-60hz','state':'UNTESTED','reference':'fixed camera / 1600 x 900 / balanced graphics','samples':[]}
@@ -24,6 +26,9 @@ try:
       localStorage.setItem('redline_v16_options',JSON.stringify({course:'grand',autoPointerLock:false}));
     } catch (e) {}
   """)
+  shader_errors=[]
+  page.on('console',lambda m:shader_errors.append(m.text[:6000])
+          if m.type=='error' and ('WebGLProgram' in m.text or 'Shader Error' in m.text or 'VALIDATE_STATUS' in m.text) else None)
   page.goto(url,wait_until='domcontentloaded',timeout=12000)
   page.wait_for_function('window.REDLINE_E2E?.status()?.ready === true',timeout=35000)
   page.evaluate('()=>window.REDLINE_E2E.select("kestrel")')
@@ -57,6 +62,7 @@ try:
 except Exception as exc:
  report['state']='BLOCKED' if 'ERR_BLOCKED_BY_ADMINISTRATOR' in str(exc) else 'FAIL';report['reason']=str(exc)[:1000]
 finally:
+ report['consoleShaderErrors']=locals().get('shader_errors',[])
  server.shutdown();(o/'BENCHMARK_RESULTS.json').write_text(json.dumps(report,indent=2))
  print(json.dumps({k:v for k,v in report.items() if k!='samples'},indent=2))
 sys.exit(0 if report['state']=='PASS' else 2)

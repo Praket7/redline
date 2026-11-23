@@ -10,6 +10,12 @@ class T(unittest.TestCase):
   cls.manifest=json.loads((ROOT/'manifest.json').read_text());cls.dist=ROOT/'dist'
  def test_frozen_source(self):
   self.assertEqual(hashlib.sha256((ROOT/'originals/REDLINE_v77_FROZEN.html').read_bytes()).hexdigest(),self.manifest['baseline_sha256'])
+ def test_archived_v77_does_not_overwrite_editable_engine(self):
+  before=hashlib.sha256((ROOT/'src/scripts/035_module.js').read_bytes()).hexdigest()
+  run=subprocess.run([sys.executable,str(ROOT/'tools_restore_sources.py')],cwd=str(ROOT),capture_output=True,text=True)
+  self.assertEqual(run.returncode,0,run.stderr[-1000:])
+  after=hashlib.sha256((ROOT/'src/scripts/035_module.js').read_bytes()).hexdigest()
+  self.assertEqual(before,after,'Restoring original GLBs must not discard newer engine code')
  def test_exact_asset_sha256(self):
   for a in self.manifest['image_assets']:
    path=ROOT/'assets/images'/a['name'];self.assertTrue(path.exists());self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),a['sha256'])
@@ -22,7 +28,10 @@ class T(unittest.TestCase):
  def test_modular_assets(self):
   site=self.dist/'site';self.assertEqual(len(list((site/'assets/images').glob('*'))),19)
   self.assertEqual(len(list((site/'src/scripts').glob('*.js'))),38)  # 40 scripts minus 2 deferred assets and 1 CDN + 1 diagnostic
-  self.assertEqual(len(list((site/'src/styles').glob('*.css'))),37)
+  self.assertEqual(len(list((site/'src/styles').glob('*.css'))),3)
+  html=(site/'index.html').read_text()
+  self.assertEqual(html.count('src/styles/000_redline-core-bundle.css'),1)
+  self.assertNotIn('src/styles/023_legacy.css',html)
  def test_valid_js_syntax(self):
   tested=0
   for a in self.manifest['script_modules']:
@@ -36,7 +45,12 @@ class T(unittest.TestCase):
   s=(ROOT/'src/scripts/035_module.js').read_text()
   self.assertIn('REDLINE_SIM_CLOCK.advance(dt, fixedDt =>',s)
   self.assertIn('redlinePublishSimState(fixedDt);',s)
-  self.assertIn('Object.freeze({x:st.p.x,y:st.p.y,z:st.p.z,yaw:st.yaw,speed:st.spd,boost:st.boost})',s)
+  self.assertIn('const craft=Object.freeze({',s)
+  self.assertIn('const rivals=Object.freeze(',s)
+  self.assertIn('const race=Object.freeze(',s)
+  self.assertIn('altitude:Math.max(0,finite(redlineRiverAltitude(st.p.y)))',s)
+  self.assertIn('if(run)redlineUpdateLock(dt);',s)
+  self.assertNotIn('redlineUpdateLock(dt);\\n if(REDLINE_ONLINE.isRacing)',s)
   self.assertIn('REDLINE_SIM_STATE = () => redlinePublishedState',s)
   self.assertIn('dr.quaternion.copy(redlinePreviousPose.orientation).slerp',s)
  def test_camera_showcase_capture_is_view_only(self):

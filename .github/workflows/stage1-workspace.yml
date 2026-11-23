@@ -1,0 +1,28 @@
+name: REDLINE Stage1 source snapshot for in-depth browser validation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: python tools_restore_sources.py && python tools_restore_baseline.py
+      - run: python build.py
+      - name: Pack editable source and both complete builds for browser validation
+        run: |
+          tar --exclude='.git' --exclude='node_modules' --exclude='bundles' --exclude='originals' --exclude='qa' --exclude='__pycache__' --exclude='*.pyc' -czf stage1-workspace.tar.gz src assets tests docs vendor .github template.html manifest.json package.json package-lock.json build.py tools_validate.py tools_restore_baseline.py tools_restore_sources.py tools_renderer_canary.py dist
+          ls -lh stage1-workspace.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage1-workspace-and-html
+          path: stage1-workspace.tar.gz
+          compression-level: 0
+          retention-days: 3

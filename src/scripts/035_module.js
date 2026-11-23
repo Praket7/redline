@@ -76,13 +76,14 @@ function positionStableSun(anchor){
 }
 const TOD=[['MORNING',22,110,0xffc890,2.2,'#f4b48a','#4a6fb0',0xcfa28a,'#ffc0a0'],['NOON',62,160,0xfff2dc,2.65,'#c8d8e6','#3d78c8',0xbccbd6,'#ffffff'],['SUNSET',30,250,0xffd5a1,2.04,'#e7b996','#6185c2',0xb5a9a0,'#ffe0b9']];let tod=1,sunDir=new THREE.Vector3();
 function setTod(i){const[n,el,az,lc,li,hz,zn,fg,cc]=TOD[i],e=el*Math.PI/180,a=az*Math.PI/180;sunDir.set(Math.cos(e)*Math.sin(a),Math.sin(e),Math.cos(e)*Math.cos(a));
- SU.sd.value.copy(sunDir);SU.hz.value.set(hz);SU.zn.value.set(zn);sun.color.setHex(lc);sun.intensity=li*.92;S.fog.color.setHex(fg);hemi.color.set(zn);SU.cc.value.set(cc);if(window.envUp)envUp();msg(n,900)}
+ SU.sd.value.copy(sunDir);SU.hz.value.set(hz);SU.zn.value.set(zn);sun.color.setHex(lc);sun.intensity=li*.92*(Number(THREE.REVISION)>=155?Math.PI:1);S.fog.color.setHex(fg);hemi.color.set(zn);SU.cc.value.set(cc);if(window.envUp)envUp();msg(n,900)}
 let mt;function msg(t,ms){$('msg').textContent=t;clearTimeout(mt);mt=setTimeout(()=>$('msg').textContent='',ms||1200)}
 if(REDLINE_WORLD==='raven'){
  TOD[1]=['STORMLINE',48,151,0xe3eaf6,2.45,'#a5b4c1','#537391',0x778e9d,'#e6eef4'];
  hemi.intensity=.87;fill.intensity=.37;amb.intensity=.10;
 }
 setTod(1);
+if(Number(THREE.REVISION)>=155){hemi.intensity*=Math.PI;fill.intensity*=Math.PI;amb.intensity*=Math.PI;}
 try{
  const rCanvas=document.createElement('canvas');rCanvas.width=512;rCanvas.height=256;
  const g=rCanvas.getContext('2d');
@@ -290,7 +291,7 @@ function pbrTerrain(bankBlend=false,geologyColors=false){
      float darkBed=pow(.5+.5*cos(strataPhase),17.);
      albedo*=mix(.85,1.15,macro)*(1.-.13*darkBed);
      ${geologyColors?`#ifdef USE_COLOR
-       vec3 original=clamp(vColor,vec3(.06),vec3(.95));
+       vec3 original=clamp(${Number(THREE.REVISION)>=180?'vColor.rgb':'vColor'},vec3(.06),vec3(.95));
        float intensity=dot(original,vec3(.299,.587,.114));
        vec3 hue=clamp(original/max(intensity,.06),vec3(.70),vec3(1.38));
        albedo*=mix(vec3(1.),hue,.39)*mix(.87,1.09,smoothstep(.09,.38,intensity));
@@ -5354,6 +5355,7 @@ function update(dt){
  if(window.REDLINE_GUIDE?.active)REDLINE_GUIDE.tick(dt); // Freeze flight, AI and environmental timers without zeroing momentum.
  const th=P.t/100,ag=P.a/100,sb=P.s/100,top=157+79*th,bst=275+79*th,run=mode=='run',p=st.p;st.cd-=dt;st.ic-=dt;st.bt-=dt;advanceLaserFX(dt);
  if(run&&st.las<2){st.laserRecharge=(st.laserRecharge??1.45)-dt; if(st.laserRecharge<=0){st.las=Math.min(2,st.las+1);st.laserRecharge=st.las<2?1.45:0;}}
+ if(run)redlineUpdateLock(dt); // 60Hz authoritative combat targeting; independent of GPU FPS.
  let steer=0,bo=false;const gamepad=readGamepad();if(mode==='ready'&&gamepad?.start&&redlineUI.current==='landing'){redlineUI.go('solo');}FL.x=p.x;FL.y=p.y;FL.z=p.z;FL.yaw=st.yaw;
  REDLINE_MOUSE_ALT.step(dt,(redlineUI?.config?.mouseSensitivity||50)/50,(redlineUI?.config?.pitchSensitivity||90)/100,FL.yaw);
  if(run){
@@ -5761,7 +5763,6 @@ function redlineDrawRadarFallback() {
 let redlineLastHudAt=-1,redlineLastHudMode='';
 let refractionTarget=null;
 function drawRedlineScene(dt=1/60){
- redlineUpdateLock(dt);
  if(REDLINE_ONLINE.isRacing)REDLINE_ONLINE.tick(performance.now());
  REDLINE_COCKPIT3D.update(performance.now());
  let reuseUltraShadows=false;
@@ -5819,8 +5820,29 @@ let redlinePreviousPose = null, redlineCurrentPose = null;
 let redlinePublishedState = null, redlinePublishedIndex = 0;
 window.REDLINE_SIM_STATE = () => redlinePublishedState;
 function redlinePublishSimState(fixedDt){
-  const craft=Object.freeze({x:st.p.x,y:st.p.y,z:st.p.z,yaw:st.yaw,speed:st.spd,boost:st.boost});
-  redlinePublishedState=Object.freeze({tick:++redlinePublishedIndex,time,stepSeconds:fixedDt,world:REDLINE_WORLD,craft});
+  const finite=n=>Number.isFinite(Number(n))?Number(n):0;
+  // Snapshot all primitive presentation values at the same simulation tick;
+  // renderers and cockpit HUDs never receive a mutable Vector3 or a bot mesh.
+  const craft=Object.freeze({
+    x:finite(st.p.x),y:finite(st.p.y),z:finite(st.p.z),
+    yaw:finite(st.yaw),pitch:finite(st.pv),roll:finite(st.roll),
+    speed:Math.abs(finite(st.spd)),verticalSpeed:finite(st.vy),
+    altitude:Math.max(0,finite(redlineRiverAltitude(st.p.y))),
+    boost:Math.max(0,Math.min(100,finite(st.boost))),
+    laserAmmo:Math.max(0,Math.round(finite(st.las)))
+  });
+  const rivals=Object.freeze(((CLASH?.initialized && Array.isArray(CLASH.bots))?CLASH.bots:[])
+    .filter(b=>b && b.index < (redlineUI?.config?.bots??0))
+    .map(b=>Object.freeze({
+      id:b.index,progress:finite(b.progress),speed:Math.abs(finite(b.speed)),
+      x:finite(b.mesh?.position?.x),y:finite(b.mesh?.position?.y),z:finite(b.mesh?.position?.z)
+    })));
+  const race=Object.freeze({mode,lap,gate,elapsed:finite(raceT),
+    playing:redlineUI?.current==='race',rivals:rivals.length});
+  redlinePublishedState=Object.freeze({
+    tick:++redlinePublishedIndex,time,stepSeconds:fixedDt,
+    world:REDLINE_WORLD,craft,race,rivals
+  });
 }
 /* Reproducible fixed camera at the official RAVEN SLALOM checkpoint fraction.
  * Only the render camera is cloned; simulation state never moves for capture. */
@@ -6857,11 +6879,16 @@ const REDLINE_COCKPIT3D=(()=>{
    document.body.classList.toggle('rl62-tie-cockpit',tieViewport);
    document.body.classList.toggle('rl63-spirit-cockpit',spiritViewport);
    document.body.classList.toggle('rl65-blade-cockpit',bladeViewport);
+   // All HUD variants sample the same immutable fixed-tick simulation state.
+   const presented=window.REDLINE_SIM_STATE?.()?.craft;
+   const liveSpeed=presented?.speed??Math.abs(st.spd);
+   const liveAltitude=presented?.altitude??redlineRiverAltitude(st.p.y);
+   const liveBoost=presented?.boost??st.boost;
    // v74: image HUD reads exactly the same simulation data as the other readouts.
    if(live&&window.REDLINE_V74_COCKPITS?.ready()){
      const specs=REDLINE_AIRFRAMES.stats(id,redlineUI.config.handling||'sport',redlineUI.config.thrust||80,redlineUI.config.agility||75);
      window.REDLINE_V74_COCKPITS.update(id,{
-       speed:Math.abs(st.spd),altitude:redlineRiverAltitude(st.p.y),boost:st.boost,
+       speed:liveSpeed,altitude:liveAltitude,boost:liveBoost,
        maxSpeed:specs?.boostSpeed||260,
      });
    }
@@ -6871,9 +6898,9 @@ const REDLINE_COCKPIT3D=(()=>{
      if(tieViewport){
        const finite=n=>Number.isFinite(Number(n))?Number(n):0;
        const set=(id,value)=>{const e=document.getElementById(id);if(e)e.textContent=value;};
-       const pct=Math.max(0,Math.min(100,finite(st.boost)));
+       const pct=Math.max(0,Math.min(100,finite(liveBoost)));
        set('rl70Speed',String(Math.round(Math.abs(finite(st.spd)))));
-       set('rl70Alt',String(Math.round(finite(redlineRiverAltitude(st.p.y)))));
+       set('rl70Alt',String(Math.round(finite(liveAltitude))));
        set('rl70Boost',Math.round(pct)+'%');
        const tieHud=document.getElementById('rl70TieHud');
        if(tieHud) tieHud.dataset.live='true';
@@ -6882,9 +6909,9 @@ const REDLINE_COCKPIT3D=(()=>{
      }
      const write=(name,value)=>{const el=document.getElementById(name);if(el)el.textContent=value;};
      const safe=n=>Number.isFinite(+n)?+n:0;
-     const boost=Math.max(0,Math.min(100,safe(st.boost)));
+     const boost=Math.max(0,Math.min(100,safe(liveBoost)));
      write('rl68Speed',Math.round(Math.abs(safe(st.spd)))+' u/s');
-     write('rl68Alt',Math.round(safe(redlineRiverAltitude(st.p.y)))+' m');
+     write('rl68Alt',Math.round(safe(liveAltitude))+' m');
      write('rl68Boost',Math.round(boost)+'%');
      write('rl68Heading','HDG '+String(((Math.round(safe(st.yaw)*180/Math.PI)%360)+360)%360).padStart(3,'0')+'°');
      write('rl68Turn','TURN '+Math.round(Math.abs(safe(FL.turnRate)*180/Math.PI))+'°/S');
@@ -6893,18 +6920,18 @@ const REDLINE_COCKPIT3D=(()=>{
    // The real HUD stays bound to the simulation; presentation cannot mutate it.
    // If the alternate presentation is absent, retain the original 3D interior.
    group.visible=live&&!tieViewport&&!spiritViewport&&!bladeViewport&&!kestrelViewport;
-   if(kestrelViewport)window.REDLINE_KESTREL_COCKPIT.update({speed:Math.abs(st.spd),altitude:redlineRiverAltitude(st.p.y),boost:st.boost});
+   if(kestrelViewport)window.REDLINE_KESTREL_COCKPIT.update({speed:liveSpeed,altitude:liveAltitude,boost:liveBoost});
    if(spiritViewport)window.REDLINE_SPIRIT_COCKPIT.update({
-     speed:Math.abs(st.spd), altitude:redlineRiverAltitude(st.p.y),
+     speed:liveSpeed, altitude:liveAltitude,
      heading:st.yaw*180/Math.PI, turn:(FL.turnRate||0)*180/Math.PI,
-     boost:st.boost, flow:CLASH.gameMode==='clash'?CLASH.flow:0,
+     boost:liveBoost, flow:CLASH.gameMode==='clash'?CLASH.flow:0,
      ammo:st.las,
     speedRange:REDLINE_AIRFRAMES.stats('spirit',redlineUI.config.handling||'sport',redlineUI.config.thrust||80,redlineUI.config.agility||75).boostSpeed
    });
    if(bladeViewport)window.REDLINE_BLADE_COCKPIT.update({
-     speed:Math.abs(st.spd),altitude:redlineRiverAltitude(st.p.y),
+     speed:liveSpeed,altitude:liveAltitude,
      heading:st.yaw*180/Math.PI,turn:(FL.turnRate||0)*180/Math.PI,
-     boost:st.boost,flow:CLASH.gameMode==='clash'?CLASH.flow:0,
+     boost:liveBoost,flow:CLASH.gameMode==='clash'?CLASH.flow:0,
      speedRange:REDLINE_AIRFRAMES.stats('blade',redlineUI.config.handling||'sport',redlineUI.config.thrust||80,redlineUI.config.agility||75).boostSpeed
    });
    if(live&&!tieViewport&&!spiritViewport&&!bladeViewport&&!kestrelViewport){
@@ -7116,17 +7143,17 @@ const REDLINE_SHOWROOM=(()=>{
  }
  // Lighting is carefully constrained: three photographic studio sources, two
  // low-intensity practicals, plus faint ambient. Lights don't cast tunnel shadows.
- const ambient=new THREE.HemisphereLight(0xb5cde5,0x10151d,.31);scene.add(ambient);
- const key=new THREE.SpotLight(0xf6f8ff,5.3,115,Math.PI*.30,.76,1.15);
+ const ambient=new THREE.HemisphereLight(0xb5cde5,0x10151d,.31);scene.add(ambient);if(Number(THREE.REVISION)>=155)ambient.intensity*=Math.PI;
+ const key=new THREE.SpotLight(0xf6f8ff,Number(THREE.REVISION)>=155?5.3*160:5.3,115,Math.PI*.30,.76,1.15);
  key.position.set(-13,24,-15);key.target.position.set(5,2.6,4);scene.add(key,key.target);
  key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.bias=-.0002;key.shadow.normalBias=.035;
  key.shadow.camera.near=.5;key.shadow.camera.far=115;
- const rim=new THREE.SpotLight(0xb6d5ff,3.5,105,Math.PI*.27,.72,1.18);
+ const rim=new THREE.SpotLight(0xb6d5ff,Number(THREE.REVISION)>=155?3.5*160:3.5,105,Math.PI*.27,.72,1.18);
  rim.position.set(20,23,30);rim.target.position.set(5,2.6,4);scene.add(rim,rim.target);
- const fill=new THREE.SpotLight(0xffffff,1.7,100,Math.PI*.39,.86,1.2);
+ const fill=new THREE.SpotLight(0xffffff,Number(THREE.REVISION)>=155?1.7*160:1.7,100,Math.PI*.39,.86,1.2);
  fill.position.set(18,16,-21);fill.target.position.set(5,2.3,4);scene.add(fill,fill.target);
  for(const x of[-11,21]){
-  const practical=new THREE.PointLight(0xe0f0ff,.62,38,2);
+  const practical=new THREE.PointLight(0xe0f0ff,Number(THREE.REVISION)>=155 ? .62*100 : .62,38,2);
   practical.position.set(x,20,0);scene.add(practical);
  }
  // Low-frequency penumbra reinforces the actual cast shadow, not an opaque disk.
