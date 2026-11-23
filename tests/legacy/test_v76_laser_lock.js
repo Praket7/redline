@@ -25,15 +25,16 @@ sandbox.emit(bot,new Vec3(40,20,-160));check(bot.redShots.length===2&&scene.item
 sandbox.advance(bot,.11);check(bot.redShots.every(f=>f.a.visible&&f.b.visible),'red bolts visible during flight');
 check(bot.redShots[0].b.material.color===0xff1932,'visible core crimson not white');
 sandbox.advance(bot,.50);check(bot.redShots.every(f=>!f.a.visible&&!f.b.visible),'projectiles auto-clean after life');
-// Camera projection geometry: chase craft visually below its camera-center ray.
-// This test uses the actual intended boom/rise/lead constants from source.
-check(s.includes('(camM===1?55:camM===2?90:64)'),'long chase boom');
-check(s.includes('(camM===1?18:camM===2?30:22)'),'higher chase camera');
-const boom=64,rise=22,lead=120;
+// v83 intentional chase composition: airframe just below the reticle,
+// but far closer/larger than the previous 64-unit boom. Browser WebGL tests
+// are authoritative for real projected bounds and collision behavior.
+check(s.includes('kestrel:Object.freeze({close:[17,3.8],normal:[23,5.0]'),'closer v83 kestrel chase');
+check(s.includes('spirit:Object.freeze({close:[27,5.7],normal:[35,7.5]'),'independent wide-wing camera');
+const boom=23,rise=5,lead=96,lookRise=1.7,fov=68;
 const droneAngle=Math.atan2(rise,boom);
-const aimAngle=Math.atan2(rise-5,boom+lead);
-const y=.5+Math.tan(droneAngle-aimAngle)/(2*Math.tan(72*Math.PI/360));
-check(y>.58&&y<.75,`craft stays low in frame, got ${y}`);
+const aimAngle=Math.atan2(rise-lookRise,boom+lead);
+const y=.5+Math.tan(droneAngle-aimAngle)/(2*Math.tan(fov*Math.PI/360));
+check(y>.59&&y<.68,`craft remains below center aim in v83, got ${y}`);
 check(s.includes('chaseAim?0:aim.x'),'chase fires along center ray');
 // Bounds, code integrity, and explicit inclusion of source ref.
 check(s.includes('const REDLINE_HOVER_Y=6.2'),'showroom lift applied');
