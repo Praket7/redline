@@ -30,7 +30,7 @@ try:
   }catch(e){}""")
   page.goto(url,wait_until='domcontentloaded',timeout=40000)
   page.wait_for_function("window.REDLINE_E2E?.status()?.ready===true",timeout=80000)
-  assert page.evaluate("window.THREE.REVISION")==='187'
+  assert page.evaluate("window.THREE.REVISION")=='187'
 
   def inspect(screen,size):
    s=page.evaluate("""()=>{
