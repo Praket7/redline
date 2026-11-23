@@ -1,0 +1,51 @@
+name: v86 exact standalone release audit
+on:
+  push:
+    branches: [fix/v86-release-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  actual-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45275377360
+          name: REDLINE-v83-centered-chase-camera-verified
+          path: v83-artifact
+      - name: Reconstruct exact release and verify hashes
+        run: |
+          python - <<'PY'
+          import pathlib, hashlib, json, gzip, base64
+          p=pathlib.Path('qa/v86_standalone_delta.b64')
+          d=json.loads(gzip.decompress(base64.b64decode(p.read_text())))
+          src=next(pathlib.Path('v83-artifact').rglob('REDLINE_v83_CHASE_CAMERA.html')).read_bytes()
+          assert hashlib.sha256(src).hexdigest()==d['base']
+          lines=src.decode().splitlines(keepends=True)
+          for i,j,rep in reversed(d['ops']):
+              lines[i:j]=rep.splitlines(keepends=True)
+          target=''.join(lines).encode()
+          assert hashlib.sha256(target).hexdigest()==d['target']=='55f80b8bc60a8554ccde13703d671bf5f5f63f34b4ad213ca36436d497d8a480'
+          pathlib.Path('dist').mkdir(exist_ok=True)
+          pathlib.Path('dist/REDLINE_v86_AUDITED.html').write_bytes(target)
+          print('Verified exact release', d['target'], len(target))
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python tests/v86_live_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: REDLINE-v86-exact-browser-audit
+          path: |
+            dist/REDLINE_v86_AUDITED.html
+            qa/v86/
+          retention-days: 14
