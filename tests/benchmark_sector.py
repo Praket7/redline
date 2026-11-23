@@ -22,6 +22,15 @@ try:
   page.evaluate('()=>window.REDLINE_E2E.select("kestrel")')
   page.wait_for_timeout(1000)
   page.evaluate('()=>window.REDLINE_E2E.launch()')
+  # Advance the real 60 Hz race countdown, independent of software GPU frame speed.
+  countdown=page.evaluate("""() => {
+    let steps=0;
+    while(window.REDLINE_UI_STATUS?.()?.mode==='count' && steps<100){
+      window.redlineSimulateFrame(.05);steps++;
+    }
+    return {steps,mode:window.REDLINE_UI_STATUS?.()?.mode};
+  }""")
+  assert countdown['mode']=='run',f'Game never reached run state: {countdown}'
   page.wait_for_function('window.REDLINE_E2E?.status()?.renderer?.drawCalls > 0',timeout=35000)
   capture=page.evaluate('()=>window.REDLINE_E2E.showcase()')
   if not capture or not capture.get('dataURL','').startswith('data:image/png;base64,'):
