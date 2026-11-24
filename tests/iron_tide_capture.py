@@ -75,6 +75,10 @@ try:
             exported[name] = {"bytes":len(data),"meshes":len(doc["meshes"]),"materials":len(doc["materials"])}
         assert not errors, errors
         (OUT / "report.json").write_text(json.dumps({"views":results,"assets":exported,"renderer":"Chromium SwiftShader (software; not real-device performance)","layout":layout},indent=2))
+        page.goto("http://127.0.0.1:8765/iron-tide-output/IRON_TIDE.html", wait_until="load", timeout=90000)
+        page.wait_for_function("Boolean(window.IRON_TIDE)", timeout=90000)
+        assert page.evaluate("IRON_TIDE.stats().gates") == 32
+        assert not errors, errors
         browser.close()
 finally:
     server.terminate()

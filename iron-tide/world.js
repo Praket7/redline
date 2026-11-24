@@ -1,7 +1,7 @@
 /* IRON TIDE independent camera lab; Three r128. Original procedural assets. */
 (async function(){
 'use strict';
-const T=THREE, V=(x,y,z)=>new T.Vector3(x,y,z), layout=await (await fetch('layout.json')).json();
+const T=THREE, V=(x,y,z)=>new T.Vector3(x,y,z), layout=window.IRON_TIDE_LAYOUT || await (await fetch('layout.json')).json();
 const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0xb1aaa1,.00035);
 const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;renderer.physicallyCorrectLights=true;document.body.prepend(renderer.domElement);
 const sun=new T.DirectionalLight(0xffcf99,3.1);sun.position.set(-1600,950,800);scene.add(sun,new T.HemisphereLight(0xc0d8ed,0x49413c,1.35));
@@ -65,7 +65,7 @@ for(const x of [100,270,430])place('service-block',x,5,320);
 place('lighthouse',-1120,0,-1320);
 for(let i=0;i<100;i++){const x=-1175+i*23.5,z=-1340-rnd()*25;part(sphereGeo,m.concrete,x,1,z,8+rnd()*7,4+rnd()*5,7+rnd()*6,new T.Quaternion().setFromAxisAngle(up,rnd()*Math.PI))}
 for(let x=-1110;x<1140;x+=45){box(m.dark,x,5.13,1180,20,.08,.35);box(m.steel,x,5.23,1185,18,.15,.18)}
-for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;scene.add(mesh)}
+for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;scene.add(mesh)}
 const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x344e58,roughness:.24,metalness:.35,bumpMap:waterTex,bumpScale:.6});
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
 function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),waterMat);water.rotation.x=-Math.PI/2;water.position.set(x,-.25,z);scene.add(water)}
