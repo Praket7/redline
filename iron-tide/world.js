@@ -3,8 +3,8 @@
 'use strict';
 const T=THREE, V=(x,y,z)=>new T.Vector3(x,y,z), layout=window.IRON_TIDE_LAYOUT || await (await fetch('layout.json')).json();
 const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0x777b86,.00012);
-const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.96;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
-const sun=new T.DirectionalLight(0xffb36f,2.85);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0x9eafd1,0x69584a,1.02));
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
+const sun=new T.DirectionalLight(0xffb36f,2.85);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0xa9bddd,0x807066,1.16));
 let seed=89423;function rnd(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
 function texture(base,kind){
  const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,256,256);
@@ -69,7 +69,7 @@ if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(
   const phi=((peakIndex%w+.5)/w-.5)*Math.PI*2;
   const elev=Math.max(.085,(.5-(Math.floor(peakIndex/w)+.5)/h)*Math.PI);
   sun.position.set(Math.cos(phi)*Math.cos(elev),Math.sin(elev),Math.sin(phi)*Math.cos(elev)).multiplyScalar(2300);
-  sun.intensity=2.35;sun.color.setHex(0xffb479);sun.shadow.normalBias=.65;
+  sun.intensity=2.85;sun.color.setHex(0xffbe87);sun.shadow.normalBias=.65;
  }
  for(let i=0;i<pixels.length;i+=stride){pixels[i]*=.35;pixels[i+1]*=.29;pixels[i+2]*=.25}envTex.needsUpdate=true;envTex.mapping=T.EquirectangularReflectionMapping;skySource='industrial_sunset_02_puresky';}
 const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(envTex).texture;scene.background=envTex;pmrem.dispose();
@@ -550,38 +550,43 @@ for(const z of [-1050,-840,-600,-400])place('tugboat',1210,.5,z,Math.PI/2);
 // Planar reflected-scene buffers: one bounded-resolution capture shared by
 // wet pavement, or by the harbor surface when viewing the waterfront.
 const reflectionRT=new T.WebGLRenderTarget(768,480,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true});
-const reflectionFallback=new T.DataTexture(new Uint8Array([0,0,0,255]),1,1);reflectionFallback.needsUpdate=true;
-const reflUniforms={uPortReflection:{value:reflectionRT.texture},uPortProjection:{value:new T.Matrix4()},uRoadReflect:{value:0},uSeaReflect:{value:0}};
+const seaReflectionRT=new T.WebGLRenderTarget(640,400,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true});
+const reflectionPlanes={road:{target:reflectionRT,projection:{value:new T.Matrix4()},map:{value:reflectionRT.texture}},sea:{target:seaReflectionRT,projection:{value:new T.Matrix4()},map:{value:seaReflectionRT.texture}}};
+const reflUniforms={uRoadReflect:{value:0},uSeaReflect:{value:0}};
+let dualReflection=false;
 const reflectionCamera=new T.PerspectiveCamera(),reflectionClip=new T.Plane(V(0,1,0),0),waterSurfaces=[],roadFilm=new T.Group(),seaFilm=new T.Group();
 roadFilm.visible=seaFilm.visible=false;scene.add(roadFilm,seaFilm);
 const reflectionCommon='uniform sampler2D uPortReflection;\nuniform mat4 uPortProjection;\nvec4 portSample(vec3 p,vec2 ripple){vec4 clip=uPortProjection*vec4(p,1.);vec2 uv=clip.xy/max(clip.w,.001)*.5+.5+ripple;vec2 edge=min(uv,1.-uv);float coverage=smoothstep(.006,.055,min(edge.x,edge.y))*step(.001,clip.w);return vec4(texture2D(uPortReflection,clamp(uv,vec2(.002),vec2(.998))).rgb,coverage);}\n';
 let reflectionsEnabled=true,reflectionPasses=0,reflectionCalls=0,reflectionTriangles=0,lastReflectionTime=-Infinity,lastReflectionMode='',lastReflectionPlane=NaN;
 function renderPortReflection(cam,plane){
+ const layer=plane<0?reflectionPlanes.sea:reflectionPlanes.road;
  // Reflect the eye, view direction and up across the horizontal water layer.
  cam.updateMatrixWorld();const direction=cam.getWorldDirection(V(0,0,0)),worldUp=V(0,1,0).applyQuaternion(cam.quaternion);
  reflectionCamera.position.copy(cam.position);reflectionCamera.position.y=2*plane-cam.position.y;direction.y*=-1;worldUp.y*=-1;
  reflectionCamera.up.copy(worldUp);reflectionCamera.lookAt(reflectionCamera.position.clone().add(direction));
  reflectionCamera.projectionMatrix.copy(cam.projectionMatrix);reflectionCamera.projectionMatrixInverse.copy(cam.projectionMatrixInverse);reflectionCamera.updateMatrixWorld();
- reflUniforms.uPortProjection.value.multiplyMatrices(reflectionCamera.projectionMatrix,reflectionCamera.matrixWorldInverse);
+ layer.projection.value.multiplyMatrices(reflectionCamera.projectionMatrix,reflectionCamera.matrixWorldInverse);
  const oldTarget=renderer.getRenderTarget(),oldClips=renderer.clippingPlanes,oldGuide=guide.visible,oldHalos=fixtureHalos.visible;fixtureHalos.visible=false;roadFilm.visible=seaFilm.visible=false;
  const oldRoad=reflUniforms.uRoadReflect.value,oldSea=reflUniforms.uSeaReflect.value;
- reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;reflUniforms.uPortReflection.value=reflectionFallback;
+ reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;
  for(const water of waterSurfaces)water.visible=false;
  guide.visible=false;reflectionClip.constant=-plane+.08;renderer.clippingPlanes=[reflectionClip];
- try{updateContainerLOD(reflectionCamera,true);renderer.setRenderTarget(reflectionRT);renderer.render(scene,reflectionCamera);reflectionCalls=renderer.info.render.calls;reflectionTriangles=renderer.info.render.triangles;reflectionPasses++}
- finally{renderer.setRenderTarget(oldTarget);renderer.clippingPlanes=oldClips;guide.visible=oldGuide;fixtureHalos.visible=oldHalos;for(const water of waterSurfaces)water.visible=true;reflUniforms.uRoadReflect.value=oldRoad;reflUniforms.uSeaReflect.value=oldSea;reflUniforms.uPortReflection.value=reflectionRT.texture;updateContainerLOD(cam)}
+ try{updateContainerLOD(reflectionCamera,true);renderer.setRenderTarget(layer.target);renderer.render(scene,reflectionCamera);reflectionCalls+=renderer.info.render.calls;reflectionTriangles+=renderer.info.render.triangles;reflectionPasses++}
+ finally{renderer.setRenderTarget(oldTarget);renderer.clippingPlanes=oldClips;guide.visible=oldGuide;fixtureHalos.visible=oldHalos;for(const water of waterSurfaces)water.visible=true;reflUniforms.uRoadReflect.value=oldRoad;reflUniforms.uSeaReflect.value=oldSea;updateContainerLOD(cam)}
 }
 function updatePortReflection(cam){
- reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;roadFilm.visible=seaFilm.visible=false;
+ reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;roadFilm.visible=seaFilm.visible=false;dualReflection=false;
  if(!reflectionsEnabled||!cam.isPerspectiveCamera||cam.position.y<6||cam.position.y>190)return;
- const p=cam.position,sea=!onLand(p.x,p.z);
- const plane=sea?-.25:5.24,now=performance.now();
- // Static camera captures are exact; continuous flight refreshes at most 8 Hz.
+ const p=cam.position,sea=!onLand(p.x,p.z),plane=sea?-.25:5.14,now=performance.now();
  const moving=tour||keys.size>0||drag;
+ // Stationary inspection captures can show both true reflected planes; flight
+ // retains one bounded secondary pass and an environment-only fallback.
  if(!moving||now-lastReflectionTime>125||lastReflectionMode!==mode||lastReflectionPlane!==plane){
+  reflectionCalls=reflectionTriangles=0;
   renderPortReflection(cam,plane);lastReflectionTime=now;lastReflectionMode=mode;lastReflectionPlane=plane;
+  if(!moving&&p.y<85){renderPortReflection(cam,sea?5.14:-.25);dualReflection=true;}
  }
- if(lastReflectionPlane===plane){reflUniforms[sea?'uSeaReflect':'uRoadReflect'].value=1;roadFilm.visible=!sea;seaFilm.visible=sea}
+ if(lastReflectionPlane===plane){reflUniforms[sea?'uSeaReflect':'uRoadReflect'].value=1;roadFilm.visible=!sea||dualReflection;seaFilm.visible=sea||dualReflection}
 }
 // Approximate baked footprint occlusion, sampled in world coordinates.
  // The atlas is populated once after the complete static placement pass.
@@ -601,7 +606,7 @@ for(const mat of [m.road,asphalt,apron]){
  mat.onBeforeCompile=shader=>{
   shader.uniforms.uContact=contactUniform;shader.uniforms.uYardLight=yardLightUniform;shader.uniforms.uYardLightEnabled=yardLightEnabled;
   shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 pavementP=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n pavementP=instanceMatrix*pavementP;\n#endif\n vPavement=(modelMatrix*pavementP).xyz;');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nuniform sampler2D uContact;uniform sampler2D uYardLight;uniform float uYardLightEnabled;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.045)*.7+wetNoise(vPavement.xz*.19)*.3;float puddle=smoothstep(.55,.82,wet);roughnessFactor=mix(roughnessFactor,.22,puddle*.75);diffuseColor.rgb*=mix(1.0,.68,puddle);').replace('#include <color_fragment>','#include <color_fragment>\nvec2 contactUV=vPavement.xz/3000.+.5;float contact=texture2D(uContact,vec2(contactUV.x,1.-contactUV.y)).r;diffuseColor.rgb*=mix(1.,contact,.78);').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\nfloat yardIrr=texture2D(uYardLight,vec2(contactUV.x,1.-contactUV.y)).r;float surfaceFacing=smoothstep(.78,.98,abs(normalize(cross(dFdx(vPavement),dFdy(vPavement))).y));float level=1.-smoothstep(.5,1.5,abs(vPavement.y-5.22));totalEmissiveRadiance+=diffuseColor.rgb*vec3(2.6,1.35,.55)*yardIrr*surfaceFacing*level*uYardLightEnabled;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nuniform sampler2D uContact;uniform sampler2D uYardLight;uniform float uYardLightEnabled;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.044)*.72+wetNoise(vPavement.xz*.20)*.28;float puddle=smoothstep(.47,.76,wet*.84+wetNoise(vPavement.xz*.57)*.16);roughnessFactor=mix(roughnessFactor,.16,puddle*.78);float repairs=wetNoise(vPavement.xz*.11)*.55+wetNoise(vPavement.xz*.71)*.45;diffuseColor.rgb*=mix(.83,1.16,repairs)*mix(1.0,.69,puddle);').replace('#include <color_fragment>','#include <color_fragment>\nvec2 contactUV=vPavement.xz/3000.+.5;float contact=texture2D(uContact,vec2(contactUV.x,1.-contactUV.y)).r;diffuseColor.rgb*=mix(1.,contact,.78);').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\nfloat yardIrr=texture2D(uYardLight,vec2(contactUV.x,1.-contactUV.y)).r;float surfaceFacing=smoothstep(.78,.98,abs(normalize(cross(dFdx(vPavement),dFdy(vPavement))).y));float level=1.-smoothstep(.5,1.5,abs(vPavement.y-5.22));totalEmissiveRadiance+=diffuseColor.rgb*vec3(3.4,1.70,.72)*yardIrr*surfaceFacing*level*uYardLightEnabled;');
 
  if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
  };
@@ -1582,6 +1587,61 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   for(const x of [-8,0,8])box(m.dark,x,1.7,-6,2.4,2.2,1.0);
  });
 
+ // Production look-development kits. All dimensions are metres, all solid
+ // components share the same root, and no geometry crosses its declared bounds.
+ define('stage3-quay-workbay',()=>{
+  box(m.concrete,0,-.065,0,21,.21,12);
+  for(const x of [-9,9])for(const z of [-5,5]){
+   box(m.steel,x,3.45,z,.32,6.9,.32);box(m.dark,x,.13,z,.7,.26,.7);
+   for(const dx of [-.23,.23])for(const dz of [-.23,.23])cylinder(m.steel,x+dx,.29,z+dz,.075,.07);
+  }
+  for(const z of [-5,5]){beam(m.steel,[-9,6.8,z],[9,6.8,z],.38);beam(m.steel,[-9,4.8,z],[-6.5,6.8,z],.18);beam(m.steel,[9,4.8,z],[6.5,6.8,z],.18)}
+  for(const x of [-9,-3,3,9])beam(m.steel,[x,6.8,-5],[x,7.7,5],.30);
+  part(boxGeo,roofMetal,0,7.35,0,19.1,.18,10.5,new T.Quaternion().setFromAxisAngle(V(1,0,0),-.0898));
+  // Three solid cladding panels, leaving an open loading frontage.
+  box(oxideCladding,-9,3.3,0,.22,6.2,9.7);
+  for(const x of [-6,0,6]){box(cladding,x,3.2,-5,.0+5.8,6.2,.22);box(m.steel,x-2.8,3.3,-5,.12,6.4,.27)}
+  for(const x of [-5,3]){
+   for(const dx of [-2.3,2.3])for(const dz of [-1.5,1.5])box(m.dark,x+dx,.65,dz,.24,1.3,.24);
+   box(m.steel,x,1.4,0,5,.26,3.4);
+   for(let i=0;i<4;i++)box(m.rust,x,1.65+i*.12,0,4.5,.11,2.9);
+  }
+  box(m.blue,6,1.2,-3.3,3.4,2.4,1.9);box(m.dark,6,2.48,-3.3,3.6,.16,2.05);
+  for(let x=4.6;x<7.5;x+=.24)box(m.steel,x,1.5,-2.28,.075,.85,.1);
+  for(const x of [-5,5]){box(m.dark,x,6.62,0,1.8,.3,.7);box(m.light,x,6.42,0,1.55,.12,.52);beam(m.steel,[x,6.8,0],[x,7.3,0],.14)}
+  for(const x of [-8,8]){box(m.yellow,x,.75,4.8,.17,1.5,.17);box(m.dark,x,1.22,4.8,.2,.22,.2)}
+ });
+ define('stage3-forklift',()=>{
+  // Axles, counterweight, chassis, open overhead guard, mast, carriage/forks.
+  box(m.dark,0,.64,0,4.1,.48,1.85);box(m.orange,-1.05,1.2,0,2.3,1.15,1.9);
+  const rot=new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2);
+  for(const x of [-1.35,1.35]){
+   beam(m.steel,[x,.55,-1.1],[x,.55,1.1],.16,.16,true);
+   for(const z of [-1.03,1.03]){part(cylGeo,m.rubber,x,.55,z,.55,.43,.55,rot);part(cylGeo,m.steel,x,.55,z*1.20,.25,.12,.25,rot)}
+  }
+  for(const x of [-.9,.65])for(const z of [-.82,.82])beam(m.dark,[x,1.15,z],[x,2.85,z],.14);
+  box(m.orange,-.12,2.9,0,1.85,.2,1.9);
+  for(let x=-.8;x<=.7;x+=.30)box(m.dark,x,2.77,0,.08,.09,1.7);
+  box(m.dark,-.4,1.55,0,.75,.22,.68);box(m.dark,-.75,1.92,0,.17,.65,.68);
+  beam(m.steel,[.45,1.35,0],[.62,1.95,0],.08,.08,true);
+  part(new T.TorusGeometry(.24,.045,6,16),m.dark,.62,1.97,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+  for(const z of [-.65,.65]){box(m.steel,1.65,1.85,z,.27,3.6,.26);beam(m.steel,[1.42,.75,z],[1.42,3.2,z],.12,.12,true);box(m.steel,1.9,.49,z,.18,1.0,.18);box(m.steel,2.65,.11,z,1.7,.15,.18)}
+  box(m.dark,1.84,.93,0,.25,.6,1.6);
+  box(m.light,.69,2.6,.74,.22,.22,.22);box(m.light,.69,2.6,-.74,.22,.22,.22);
+ });
+ define('stage3-hose-skid',()=>{
+  box(m.dark,0,.19,0,5.4,.38,3.4);for(const x of [-2.1,2.1])box(m.steel,x,.13,0,.3,.26,3.6);
+  for(const z of [-.9,.9]){box(m.steel,-.75,1.1,z,.35,1.9,.35);beam(m.steel,[-1.3,.38,z],[-.75,1.7,z],.19)}
+  const rot=new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2);
+  part(cylGeo,m.dark,-.75,1.45,0,1.05,1.55,1.05,rot);
+  for(const z of [-.78,.78])part(cylGeo,m.orange,-.75,1.45,z,1.2,.14,1.2,rot);
+  for(let z=-.65;z<=.65;z+=.13)part(cylGeo,m.rubber,-.75,1.45,z,1.08,.085,1.08,rot);
+  beam(m.steel,[-.75,1.45,-1.1],[-.75,1.45,1.1],.14,.14,true);
+  box(m.blue,1.25,.86,0,1.8,1.34,1.9);
+  for(let x=.5;x<=2;x+=.20)box(m.steel,x,1.03,1.0,.07,.65,.07);
+  beam(m.rubber,[-.75,2.53,0],[.65,1.55,.15],.09,.09,true);
+  beam(m.rubber,[.65,1.55,.15],[.65,1.53,.15],.12,.12,true);
+ });
  // REFERENCE STAGES 1–2: replace the previous rectangular placement set,
  // keeping its authored GLB templates and material library. The new civil
  // geography and ordered gates come from one canonical JSON source.
@@ -1792,6 +1852,22 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   if(safe('stage3-electrical-substation',x,z,a,1,'utilities'))stage3Sites.substation++;
  }
 
+ // Cluster functional assets beside the lower racing segments, not in
+ // random background rows. Every solid is checked against both route sets,
+ // land support, cargo stacks and pre-existing hero bounds.
+ const lookdevSites={workbays:0,forklifts:0,hoseSkids:0,litBays:0};
+ for(const [x,z,angle] of [[-1140,1040,0],[-1040,855,Math.PI/2],[-1160,745,0],[-1010,630,0],[-980,305,0],[-1140,140,Math.PI/2],[-930,-130,0],[-1100,-460,0],[-820,-650,Math.PI/2],[-1020,-800,0],[740,-550,0],[1115,190,Math.PI/2],[1180,420,0],[830,600,0],[990,730,0],[1140,970,0],[-100,1020,0],[-420,1020,0],[-700,1030,0]]){
+  if(safe('stage3-quay-workbay',x,z,angle,1,'work-zones')){
+   lookdevSites.workbays++;lookdevSites.litBays++;
+   for(const lx of [-5,5]){const xx=x+lx*Math.cos(angle),zz=z-lx*Math.sin(angle);fixturePositions.push([xx,11.66,zz]);pool(xx,5.37,zz,12)}
+   for(const [dx,dz] of [[14,4],[-14,5],[0,10]]){const xx=x+dx*Math.cos(angle)+dz*Math.sin(angle),zz=z-dx*Math.sin(angle)+dz*Math.cos(angle);
+    if(safe('stage3-forklift',xx,zz,angle,1,'work-zones')){lookdevSites.forklifts++;break}
+   }
+   for(const [dx,dz] of [[-14,-3],[14,-4],[4,9]]){const xx=x+dx*Math.cos(angle)+dz*Math.sin(angle),zz=z-dx*Math.sin(angle)+dz*Math.cos(angle);
+    if(safe('stage3-hose-skid',xx,zz,angle,1,'work-zones')){lookdevSites.hoseSkids++;break}
+   }
+  }
+ }
  // Pack each production district with staggered, large-scale buildings and
  // connected service roads. Avoid the centerline and existing model bounds.
  let additionalHalls=0,additionalTanks=0,additionalRacks=0,additionalCranes=0;
@@ -1845,7 +1921,7 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  // Inspect actual hero meshes using a center ray and four radial offsets.
  // This finite sample is not continuous collision certification.
  function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<routePoints.length;i++){const a=routePoints[i],b=routePoints[(i+1)%routePoints.length];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>routePoints.map((a,j)=>intersectsSegment(b,a,routePoints[(j+1)%routePoints.length],radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
- const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites};
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites};
   // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.
@@ -1888,12 +1964,16 @@ for(const tile of lodTiles.values()){
 }
 const lodFrustum=new T.Frustum(),lodMatrix=new T.Matrix4();let lodInitialized=false;
 function updateContainerLOD(cam,reflectionLowDetail=false){cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));for(const batch of worldBatches)batch.mesh.visible=!lodInitialized||lodFrustum.intersectsBox(batch.bounds);for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=!reflectionLowDetail&&lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true}
-const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x142a31,roughness:.46,metalness:.02,envMapIntensity:.40,bumpMap:waterTex,bumpScale:.6});
+const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x132b34,roughness:.32,metalness:.02,envMapIntensity:.72,bumpMap:waterTex,bumpScale:.6});
 // World-position ripples avoid the previous giant repeated bump texture.
 waterMat.bumpMap=null;
+const shoreCanvas=document.createElement('canvas');shoreCanvas.width=shoreCanvas.height=1024;const shoreCtx=shoreCanvas.getContext('2d',{alpha:false});shoreCtx.fillStyle='#000';shoreCtx.fillRect(0,0,1024,1024);
+const shoreK=1024/3000;for(const [a,b,c,d] of land){for(const [width,alpha] of [[12,.18],[6,.32],[2.6,.75]]){shoreCtx.strokeStyle='rgba(255,255,255,'+alpha+')';shoreCtx.lineWidth=width*shoreK;shoreCtx.strokeRect((a+1500)*shoreK,(c+1500)*shoreK,(b-a)*shoreK,(d-c)*shoreK)}}
+shoreCtx.fillStyle='#000';for(const [a,b,c,d] of land)shoreCtx.fillRect((a+1500)*shoreK,(c+1500)*shoreK,(b-a)*shoreK,(d-c)*shoreK);const shoreMap=new T.CanvasTexture(shoreCanvas);shoreMap.minFilter=T.LinearFilter;shoreMap.magFilter=T.LinearFilter;shoreMap.generateMipmaps=false;
 waterMat.onBeforeCompile=shader=>{
+ shader.uniforms.uShore={value:shoreMap};
  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 a=seaP*.31,b=vec2(seaP.x+seaP.y,seaP.y-seaP.x)*.87;float af=1.-smoothstep(.5,2.2,length(fwidth(a))),bf=1.-smoothstep(.5,2.2,length(fwidth(b)));vec2 rip=vec2(seaNoise(a+vec2(.17,0.))-seaNoise(a-vec2(.17,0.)),seaNoise(a+vec2(0.,.17))-seaNoise(a-vec2(0.,.17)))*.15*af;vec2 rb=vec2(seaNoise(b+vec2(.19,0.))-seaNoise(b-vec2(.19,0.)),seaNoise(b+vec2(0.,.19))-seaNoise(b-vec2(0.,.19)));rip+=rb*.075*bf;normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.92+.08*seaRip;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nuniform sampler2D uShore;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 a=seaP*.31,b=vec2(seaP.x+seaP.y,seaP.y-seaP.x)*.87;float af=1.-smoothstep(.5,2.2,length(fwidth(a))),bf=1.-smoothstep(.5,2.2,length(fwidth(b)));vec2 rip=vec2(seaNoise(a+vec2(.17,0.))-seaNoise(a-vec2(.17,0.)),seaNoise(a+vec2(0.,.17))-seaNoise(a-vec2(0.,.17)))*.24*af;vec2 rb=vec2(seaNoise(b+vec2(.19,0.))-seaNoise(b-vec2(.19,0.)),seaNoise(b+vec2(0.,.19))-seaNoise(b-vec2(0.,.19)));rip+=rb*.115*bf;vec2 wave=vec2(.72,.69);float phase=dot(seaP,wave)*.83+seaNoise(seaP*.055)*4.;rip+=wave*cos(phase)*.095*(1.-smoothstep(.5,2.2,length(fwidth(phase))));normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.82+.22*seaRip;vec2 shoreUV=vSea.xz/3000.+.5;float inMap=step(0.,shoreUV.x)*step(shoreUV.x,1.)*step(0.,shoreUV.y)*step(shoreUV.y,1.);float shore=texture2D(uShore,vec2(shoreUV.x,1.-shoreUV.y)).r*inMap;float froth=shore*smoothstep(.49,.84,seaNoise(vSea.xz*.49)*.65+seaNoise(vSea.xz*.12)*.35);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.32,.40,.39),froth*.65);');
 
 };
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
@@ -1906,13 +1986,13 @@ const filmVertex='varying vec3 vFilm;void main(){vFilm=(modelMatrix*vec4(positio
 const filmNoise='float fh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}';
 function filmMaterial(sea){
  const frag='varying vec3 vFilm;\n'+reflectionCommon+filmNoise+'\nvoid main(){vec3 v=normalize(cameraPosition-vFilm);float f=.025+.975*pow(1.-clamp(v.y,0.,1.),5.);vec2 p=vFilm.xz;float m=fn(p*.044)*.72+fn(p*.20)*.28;vec2 noise=vec2(fn(p*.33),fn(p.yx*.37))-.5;'+
- (sea?'float alpha=clamp(.13+f*.64,0.,.75);vec4 reflected=portSample(vFilm,noise*.013);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb*vec3(.88,.94,.96);':'float fine=fn(p*.57);float wet=smoothstep(.54,.81,m*.84+fine*.16);float alpha=wet*clamp(.035+f*.74,0.,.66);vec4 reflected=portSample(vec3(vFilm.x,5.24,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.80,.82,.80);')+
+ (sea?'float alpha=clamp(.09+f*.76,0.,.80);vec2 swell=vec2(sin(p.x*.63+p.y*.27),sin(p.x*.19-p.y*.81));vec4 reflected=portSample(vFilm,noise*.021+swell*.0025);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb*vec3(.88,.94,.96);':'float fine=fn(p*.57);float wet=smoothstep(.47,.76,m*.84+fine*.16);float alpha=wet*clamp(.06+f*.82,0.,.74);vec4 reflected=portSample(vec3(vFilm.x,5.14,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.94,.95,.94);')+
  '\ngl_FragColor=vec4(col,alpha);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}';
- return new T.ShaderMaterial({uniforms:{uPortReflection:reflUniforms.uPortReflection,uPortProjection:reflUniforms.uPortProjection},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
+ return new T.ShaderMaterial({uniforms:{uPortReflection:reflectionPlanes[sea?'sea':'road'].map,uPortProjection:reflectionPlanes[sea?'sea':'road'].projection},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
 }
 const pavementFilmMaterial=filmMaterial(false),waterFilmMaterial=filmMaterial(true);
 function addFilm(group,mat,x,y,z,w,d){const mesh=new T.Mesh(new T.PlaneGeometry(w,d),mat);mesh.rotation.x=-Math.PI/2;mesh.position.set(x,y,z);mesh.renderOrder=4;group.add(mesh)}
-for(const [x,z,w,d] of pavedSlabs)addFilm(roadFilm,pavementFilmMaterial,x,5.365,z,w-1,d-1);
+for(const [x,z,w,d] of pavedSlabs)addFilm(roadFilm,pavementFilmMaterial,x,5.145,z,w-8,d-8);
 for(const water of waterSurfaces){const w=water.geometry.parameters.width,d=water.geometry.parameters.height;addFilm(seaFilm,waterFilmMaterial,water.position.x,-.22,water.position.z,w,d)}
 // Aircraft gates are free-standing in the air, not arches with ground legs.
 const gates=layout.sectors.flatMap((s,i)=>s.gates.map(p=>({p:V(...p),sector:i}))).map((g,i)=>({...g,index:i+1}));
@@ -1964,7 +2044,7 @@ function updatePractical(camera){
  for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){
   light.position.set(...f.p);const [x,y,z]=f.p,insideHull=Math.abs(x-850)<32&&z>-305&&z<75&&y<15;
   // Tight hull fixtures need less output than tall exterior floodlights.
-  light.intensity=insideHull?290:820;light.distance=insideHull?35:95;light.color.setHex(insideHull?0xffaa64:0xffb771);
+  light.intensity=insideHull?390:1050;light.distance=insideHull?35:95;light.color.setHex(insideHull?0xffaa64:0xffb771);
  }else light.intensity=0}
 }
 const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1700,1420,1720],[0,30,0]],north:[[1620,1320,-1700],[0,25,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1170,28,1080],[-1190,29,775]],'2-containers':[[-1030,28,420],[-950,32,100]],'3-crane':[[-1100,39,-395],[-900,85,-575]],'4-skybridge':[[-500,236,-1070],[-140,236,-1070]],'5-drop':[[850,285,-650],[850,-3,-315]],'6-drydock':[[850,-2,-308],[850,-4,-50]],'7-foundry':[[1080,44,230],[1080,43,490]],'8-pipes':[[850,38,690],[1070,50,950]],'9-offshore':[[1050,45,1320],[440,26,1290]],'10-final':[[100,28,1110],[-900,35,1080]]};
@@ -1987,5 +2067,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]]};if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
