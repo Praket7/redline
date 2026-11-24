@@ -72,6 +72,9 @@ try:
         provenance = json.loads((OUT / "texture-provenance.json").read_text()) if (OUT / "texture-provenance.json").exists() else {}
         expected_photos = [k for k in ["concrete","asphalt","rust","paint","steel","door","roof"] if provenance.get(k,{}).get("status") == "downloaded"]
         expected_sky = "industrial_sunset_02_puresky" if provenance.get("sky",{}).get("status") == "downloaded" else "procedural"
+        model_provenance=json.loads((OUT / "model-provenance.json").read_text()) if (OUT / "model-provenance.json").exists() else {}
+        expected_models={k for k,v in model_provenance.items() if v.get("status") == "downloaded"}
+
         for view in views:
             page.evaluate("(id) => IRON_TIDE.setView(id)", view)
             # A real rendered canvas screenshot, not an illustration.
@@ -101,6 +104,15 @@ try:
             assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100 and stats["freightStamps"] > 100, stats
             assert stats["sharedRailBatches"] > 0, stats
             assert stats["photoMaterials"] == expected_photos, stats
+            # Authentic authored CC0 mesh content is optional when the source
+            # host is unavailable. If downloaded, however, it must be decoded
+            # and attached to a real scene assembly (not only stored in a pack).
+            photoreal=stats["importedPhotoreal"]
+            assert expected_models.issubset(set(photoreal["loaded"])), (expected_models,photoreal)
+            for key in expected_models:
+                assert photoreal["placed"].get(key,0)>0, (key,photoreal)
+            assert stats["shadowUpdates"] > 0 and stats["shadowSpan"] > 0, stats
+
             assert stats["skySource"] == expected_sky, stats
             assert 0 < stats["drawCalls"] < 400, stats
             assert 0 < stats["triangles"] < 5000000, stats
