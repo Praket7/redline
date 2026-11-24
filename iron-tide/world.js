@@ -75,12 +75,26 @@ function reserveContainer(x,y,z,angle,scale){
  const q={x,z,hx,hz,next:y+2.94*scale};containerSlots.push(q);stackIndex.set(key,q);return true
 }
 function place(name,x,y,z,angle=0,scale=1){if(name.startsWith('container-')&&!reserveContainer(x,y,z,angle,scale))return false;const group=templates[name];const root=new T.Object3D();root.position.set(x,y,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();if(name.startsWith('container-')){const col=name.split('-').pop(),key=[Math.floor(x/600),Math.floor(z/600),col].join(':');if(!containerChunks.has(key))containerChunks.set(key,{col,matrices:[],bounds:new T.Box3()});const chunk=containerChunks.get(key);chunk.matrices.push(root.matrix.clone());chunk.bounds.expandByPoint(V(x-7,y,z-7));chunk.bounds.expandByPoint(V(x+7,y+3,z+7));return true}for(const mesh of group.children){let key=mesh.geometry.uuid+mesh.material.uuid;if(!batches.has(key))batches.set(key,{g:mesh.geometry,mat:mesh.material,matrices:[]});batches.get(key).matrices.push(root.matrix.clone())}}
+// Dedicated cargo paint and UV atlas: localized chipping, runoff and scale markings.
+const cargoSkin={},cargoSide={};
+for(const [col,base,label] of [['rust','#87382c','IRON TIDE'],['blue','#28546d','NORTHLINE'],['green','#4b6251','HARBOR'],['white','#a7a79a','COASTAL']]){
+ const c=document.createElement('canvas');c.width=1024;c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,1024,256);
+ let sd=col.charCodeAt(0)*7919;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
+ for(let i=0;i<4400;i++){const x=rand()*1024,y=rand()*256;ctx.fillStyle=rand()>.5?'rgba(220,216,199,.055)':'rgba(20,18,16,.07)';ctx.fillRect(x,y,1+rand()*3,1+rand()*4)}
+ for(let i=0;i<28;i++){const x=i*36.6,g=ctx.createLinearGradient(x,0,x+36,0);g.addColorStop(0,'rgba(15,16,16,.17)');g.addColorStop(.23,'rgba(0,0,0,0)');g.addColorStop(.72,'rgba(255,255,255,.045)');g.addColorStop(1,'rgba(23,18,14,.16)');ctx.fillStyle=g;ctx.fillRect(x,0,36,256)}
+ for(let i=0;i<220;i++){const x=rand()*1024,y=rand()>.68?rand()*256:rand()*22+234;ctx.fillStyle='rgba(82,35,16,'+(.12+rand()*.3)+')';ctx.fillRect(x,y,1+rand()*6,2+rand()*15)}
+ for(let i=0;i<35;i++){const x=rand()*1024,y=rand()*256,g=ctx.createLinearGradient(x,y,x,y+48);g.addColorStop(0,'rgba(54,26,12,.32)');g.addColorStop(1,'rgba(54,26,12,0)');ctx.fillStyle=g;ctx.fillRect(x,y,2+rand()*5,48)}
+ ctx.fillStyle=col==='white'?'#333f43':'#c6c5ba';ctx.globalAlpha=.72;ctx.font='bold 43px sans-serif';ctx.fillText(label,82,133);ctx.font='13px monospace';ctx.fillText('ITCU 421087 45G1',824,52);ctx.fillText('MAX GROSS 30480 KG',824,70);ctx.globalAlpha=1;
+ const map=new T.CanvasTexture(c);map.encoding=T.sRGBEncoding;map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+ cargoSide[col]=new T.MeshStandardMaterial({map,metalness:.12,roughness:.70,envMapIntensity:.7});
+ cargoSkin[col]=new T.MeshStandardMaterial({color:base,metalness:.12,roughness:.73,envMapIntensity:.7});
+}
 for(const col of ['rust','blue','green','white'])define('container-'+col,()=>{
- const skin=m[col];box(skin,0,1.45,0,12.1,2.9,2.36);
+ const skin=cargoSkin[col];box(skin,0,1.45,0,12.1,2.9,2.36);
  for(const side of [-1,1]){
   const p=[],uv=[],idx=[];let k=0;
-  for(let i=0;i<=28;i++){const base=-5.88+i*.42;for(const [dx,dz] of [[0,0],[.095,.075],[.24,.075],[.335,0]]){if(base+dx>5.95)continue;const x=base+dx,z=side*(1.19+dz);p.push(x,.17,z,x,2.72,z);uv.push(x/4,.17/4,x/4,2.72/4);if(k>0){const j=2*k;idx.push(...(side>0?[j-2,j,j+1,j-2,j+1,j-1]:[j-2,j+1,j,j-2,j-1,j+1]))}k++}}
-  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();part(g,skin,0,0,0,1,1,1);
+  for(let i=0;i<=28;i++){const base=-5.88+i*.42;for(const [dx,dz] of [[0,0],[.095,.075],[.24,.075],[.335,0]]){if(base+dx>5.95)continue;const x=base+dx,z=side*(1.19+dz);p.push(x,.17,z,x,2.72,z);const u=(x+5.88)/11.83;uv.push(side>0?u:1-u,0,side>0?u:1-u,1);if(k>0){const j=2*k;idx.push(...(side>0?[j-2,j,j+1,j-2,j+1,j-1]:[j-2,j+1,j,j-2,j-1,j+1]))}k++}}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.userData.keepUV=true;part(g,cargoSide[col],0,0,0,1,1,1);
   for(const y of [.10,2.8])box(skin,0,y,side*1.23,12.2,.16,.14);
   for(const x of [-6,6]){box(skin,x,1.45,side*1.23,.22,2.9,.20);for(const y of [.12,2.78])box(m.dark,x,y,side*1.32,.13,.10,.04)}
  }
@@ -88,7 +102,7 @@ for(const col of ['rust','blue','green','white'])define('container-'+col,()=>{
  for(let x=-5.75;x<5.9;x+=.42)box(skin,x,2.93,0,.14,.045,2.22);
  for(const z of [-.8,.8])for(const x of [-3.2,3.2])box(m.dark,x,.05,z,1.15,.11,.3);
 });
-for(const col of ['rust','blue','green','white'])define('container-far-'+col,()=>{box(m[col],0,1.45,0,12.2,2.9,2.44);for(const s of [-1,1]){for(const y of [.13,2.77])box(m.steel,0,y,s*1.23,12.2,.12,.13);for(const x of [-6,6])box(m.steel,x,1.45,s*1.23,.18,2.9,.2)}});
+for(const col of ['rust','blue','green','white'])define('container-far-'+col,()=>{box(cargoSkin[col],0,1.45,0,12.2,2.9,2.44);for(const s of [-1,1]){for(const y of [.13,2.77])box(m.steel,0,y,s*1.23,12.2,.12,.13);for(const x of [-6,6])box(m.steel,x,1.45,s*1.23,.18,2.9,.2)}});
 define('goliath',()=>{for(const x of [-65,65]){for(const z of [-12,12]){beam(m.orange,[x,4,z],[x*.83,108,z*.68],4.4,5.2);box(m.dark,x,2,z,12,4,8);for(const dx of [-3,3])for(const dz of [-2,2])cylinder(m.rubber,x+dx,1,z+dz,1.2,1.6)}for(let y=12;y<100;y+=17){beam(m.steel,[x*(1-y/650),y,-12+y*.035],[x*(1-(y+17)/650),y+17,12-(y+17)*.035],.65);box(m.steel,x*(1-y/650),y,0,10,.65,25);rail(x*(1-y/650),y+1,12,10)}}for(const z of [-8,8]){box(m.orange,0,109,z,130,6,4);for(let x=-62;x<62;x+=10)beam(m.orange,[x,106,z],[x+10,116,z],.55)}box(m.steel,0,115,0,137,1.3,17);rail(0,116,8,137);rail(0,116,-8,137);box(m.orange,10,119,0,15,5,19);box(m.glass,19,114,9,7,4,5);for(const x of [5,15])beam(m.dark,[x,106,0],[x,65,0],.13,.13,true);box(m.yellow,10,64,0,14,2,5);});
 define('luffing-crane',()=>{box(m.dark,0,2,0,14,4,16);for(const x of [-5,5])for(const z of [-5,5])beam(m.orange,[x,4,z],[x*.45,58,z*.45],1.1);for(let y=10;y<58;y+=8)for(const z of [-3,3])beam(m.orange,[-4,y,z],[4,y+8,z],.48);box(m.orange,0,59,0,9,3,11);box(m.glass,5,60,0,4,4,5);beam(m.orange,[0,59,0],[45,83,0],2);beam(m.orange,[0,59,0],[-18,68,0],2);beam(m.dark,[-18,68,0],[45,83,0],.12,.12,true);beam(m.dark,[45,83,0],[45,32,0],.12,.12,true);box(m.yellow,45,31,0,2,2,2);});
 define('warehouse',()=>{const w=112,d=160,h=49;for(const x of [-w/2,w/2]){box(m.blue,x,h/2,0,1,h,d);for(let z=-d/2;z<=d/2;z+=10){box(m.steel,x,h/2,z,1.7,h,1.3);box(m.glass,x,h-12,z,1.15,6,6)}rail(x,h-2,0,d,'z')}for(let z=-d/2;z<=d/2;z+=16){for(const x of [-w/2,w/2]){beam(m.steel,[x,h,z],[0,h+12,z],1.2);beam(m.steel,[x,h,z],[0,h,z],.65);beam(m.steel,[x/2,h,z],[0,h+12,z],.55)}for(const side of [-1,1]){const angle=-side*Math.atan2(12,w/2);part(boxGeo,m.blue,side*w/4,h+6,z,Math.hypot(w/2,12)+.6,.65,15.95,new T.Quaternion().setFromAxisAngle(V(0,0,1),angle));for(let i=0;i<7;i++)box(m.steel,side*(4+i*7),h+12-(4+i*7)*12/(w/2)+.6,z,.18,.28,15.95)}}for(const x of [-w/2,w/2])box(m.orange,x*.8,30,0,1.6,2,d);box(m.orange,0,32,-18,w-18,3,4);box(m.dark,9,34,-18,9,3,6);beam(m.dark,[9,31,-18],[9,18,-18],.14,.14,true);box(m.yellow,9,17,-18,2,2,2);for(let z=-60;z<=60;z+=15)for(const x of [-36,36]){box(m.light,x,47,z,3,.4,1);box(m.dark,x,47.45,z,3.4,.35,1.4)}for(const x of [-w/2+5,w/2-5]){box(m.steel,x,20,0,5,.65,d-4);rail(x+(x<0?2.3:-2.3),21,0,d-4,'z');for(let z=-70;z<80;z+=14){beam(m.dark,[x,20,z],[x+(x<0?-4:4),15,z],.45);box(m.yellow,x,20.4,z,.35,.18,3)}}});
@@ -145,6 +159,8 @@ define('ship-hull',()=>{
    for(let y=4.5;y<=17;y+=.45)beam(flange,[x-.48,y,z],[x+.48,y,z],.065);
   }
  }
+ // Partial transverse bulkheads with center openings and overhead girders.
+ for(const x of [-90,-20,50,120]){for(const side of [-1,1]){const z=side*(profile(x,22)-4.2);box(inner,x,22,z,.50,15,6.8);box(flange,x,22,z-side*3.5,.8,15,.4);for(const y of [17,22,27])box(flange,x,y,z,.7,.3,7.1);beam(primer,[x,27,z-side*3],[x,31,z-side*6],.65)}box(flange,x,32,0,1.05,.85,profile(x,32)*2-2);box(primer,x,32.6,0,1.6,.35,profile(x,32)*2-2)}
  // Inner bottom and parallel girders sit above the keel supports.
  for(let x=-174;x<174;x+=6){const z=Math.min(profile(x,4),profile(x+6,4))-.5;box(m.dark,x+3,3.1,0,6,.55,2*z);for(const side of [-1,1])box(flange,x+3,3.55,side*z*.58,6,.32,.42)}
  for(let x=-165;x<=165;x+=10){const z=profile(x,4)-.8;box(flange,x,3.75,0,.42,.85,z*2)}
