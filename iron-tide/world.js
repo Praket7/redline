@@ -40,6 +40,11 @@ function coat(mat,hex,wear){const src=mat.map.image;const c=document.createEleme
  ctx.putImageData(image,0,0);const map=new T.CanvasTexture(c);map.wrapS=map.wrapT=T.RepeatWrapping;map.encoding=T.sRGBEncoding;map.anisotropy=mat.map.anisotropy;mat.map=map;mat.color.setHex(0xffffff);mat.metalness=.07;mat.roughness=.78;mat.normalScale.set(.28,.28);mat.needsUpdate=true}
 function smoothCoat(x,y){const v=.5+.25*Math.sin(x*31.416+Math.sin(y*12.566)*1.8)+.15*Math.cos(y*25.133+Math.sin(x*18.85));return T.MathUtils.clamp(v,0,1)}
 coat(m.orange,0xc96a2c,.63);coat(m.blue,0x3f6170,.45);coat(m.green,0x586d58,.39);coat(m.white,0xb9b5a5,.36);
+ // Painted machinery is not bare, uniformly corroded steel. Preserve subtle
+ // real photographic wear while using a much lower normal amplitude.
+ if(loadedMaterials.includes('steel')){m.dark.map=m.steel.map;m.dark.normalMap=m.steel.normalMap;m.dark.roughnessMap=m.steel.roughnessMap;}
+ coat(m.dark,0x3d4448,.28);m.dark.metalness=.15;m.dark.roughness=.95;m.dark.normalScale.set(.16,.16);
+ m.wire=new T.MeshStandardMaterial({color:0x535960,metalness:.72,roughness:.43,envMapIntensity:.85});
 // World ground maps tile at approximately industrial pavement scale instead of stretching.
 for(const mat of [m.road,m.concrete]){mat.map.repeat.set(mat===m.road?12:1,mat===m.road?12:1);mat.normalMap.repeat.copy(mat.map.repeat);mat.roughnessMap.repeat.copy(mat.map.repeat);mat.normalScale.set(.2,.2)}
 const asphalt=new T.MeshStandardMaterial({color:0x303335,roughness:.86});const apron=new T.MeshStandardMaterial({color:0x3b3c3b,roughness:.88});const tar=new T.MeshStandardMaterial({color:0x282b2b,roughness:.9});
@@ -1172,12 +1177,16 @@ for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-uni
   const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);
   part(cylGeo,m.steel,0,2.35,0,1.25,4.4,1.25,rot);
   for(const x of [-2.15,2.15])part(cylGeo,m.dark,x,2.35,0,1.68,.24,1.68,rot);
-  for(let x=-1.95;x<2;x+=.16)part(cylGeo,m.dark,x,2.35,0,1.32,.075,1.32,rot);
+  for(let x=-1.95;x<2;x+=.16)part(cylGeo,m.wire,x,2.35,0,1.32,.075,1.32,rot);
   beam(m.steel,[-3.1,2.35,0],[3.4,2.35,0],.32,.32,true);box(m.blue,3.35,2.35,0,1.9,1.6,1.7);
-  box(m.orange,3.35,3.25,0,1.95,.16,1.75);box(m.steel,-3.4,1.2,1.7,1.25,1.6,1.25);
+  box(m.orange,3.35,3.25,0,1.95,.16,1.75);
+  // Motor cooling fins and coupling guard are seated on the housing.
+  for(let x=2.65;x<4.12;x+=.18)box(m.blue,x,2.37,0,.10,1.73,1.84);
+  box(m.steel,2.42,2.35,0,.26,1.32,1.32);box(m.dark,2.17,2.35,0,.28,1.08,1.08);
+  box(m.steel,-3.4,1.2,1.7,1.25,1.6,1.25);
   box(m.glass,-3.4,1.7,2.36,.75,.38,.09);
-  beam(m.dark,[0,3.67,0],[0,3.2,2.2],.075,.075,true);
-  beam(m.dark,[0,3.2,2.2],[0,.55,2.2],.075,.075,true);
+  beam(m.wire,[0,3.67,0],[0,3.2,2.2],.075,.075,true);
+  beam(m.wire,[0,3.2,2.2],[0,.55,2.2],.075,.075,true);
  });
  function craneSite(name,x,z,scale=1){
   const b=placementBounds.get(name).clone().applyMatrix4(new T.Matrix4().makeScale(scale,scale,scale)).translate(V(x,5.25,z));
