@@ -28,7 +28,7 @@ jobs:
           import pathlib,hashlib,json,gzip,base64
           root=pathlib.Path('dist');root.mkdir(exist_ok=True)
           src=next(pathlib.Path('v86-artifact').rglob('REDLINE_v86_AUDITED.html')).read_bytes()
-          for delta,out,expected in [('v93','REDLINE_v93_STAGE2.html','3821a89c199e56c95dd5ce989c9924859ed6074d8d9006d36a460c1934205453'),('v103','REDLINE_v103_STAGE3.html','cbabc85cef8a6675829549df7c8a75b2bba1e8d2990860961f00b74e4b9e44bd'),('v104','REDLINE_v104_GRAND_CANYON.html','b5c87f40db657d121b1c422b629b8626da8f12b67b3b1135d6cfafbbf2e149be')]:
+          for delta,out,expected in [('v93','REDLINE_v93_STAGE2.html','3821a89c199e56c95dd5ce989c9924859ed6074d8d9006d36a460c1934205453'),('v103','REDLINE_v103_STAGE3.html','cbabc85cef8a6675829549df7c8a75b2bba1e8d2990860961f00b74e4b9e44bd'),('v104','REDLINE_v104_GRAND_CANYON.html','f0d5b9c6f0e24b19e8ce37bd15a9f1b8ede7aceb72acc7f9f942f6f67689cdb9')]:
               d=json.loads(gzip.decompress(base64.b64decode(pathlib.Path(f'qa/{delta}_standalone_delta.b64').read_text())))
               assert hashlib.sha256(src).hexdigest()==d['base'],delta
               lines=src.decode().splitlines(keepends=True)
@@ -38,6 +38,9 @@ jobs:
               (root/out).write_bytes(src)
               print('Exact',delta,len(src),expected)
           PY
+      - name: Run production terrain and exact mesh regression
+        if: matrix.case == 'visual'
+        run: node tests/v104_geometry.cjs dist/REDLINE_v103_STAGE3.html dist/REDLINE_v104_GRAND_CANYON.html > qa/v104_geometry.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -60,4 +63,5 @@ jobs:
           path: |
             qa/v93/
             qa/v104/
+            qa/v104_geometry.json
           retention-days: 14
