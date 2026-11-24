@@ -111,7 +111,37 @@ define('goliath',()=>{for(const x of [-65,65]){for(const z of [-12,12]){beam(m.o
 define('luffing-crane',()=>{box(m.dark,0,2,0,14,4,16);for(const x of [-5,5])for(const z of [-5,5])beam(m.orange,[x,4,z],[x*.45,58,z*.45],1.1);for(let y=10;y<58;y+=8)for(const z of [-3,3])beam(m.orange,[-4,y,z],[4,y+8,z],.48);box(m.orange,0,59,0,9,3,11);box(m.glass,5,60,0,4,4,5);beam(m.orange,[0,59,0],[45,83,0],2);beam(m.orange,[0,59,0],[-18,68,0],2);beam(m.dark,[-18,68,0],[45,83,0],.12,.12,true);beam(m.dark,[45,83,0],[45,32,0],.12,.12,true);box(m.yellow,45,31,0,2,2,2);});
 define('warehouse',()=>{const w=112,d=160,h=49;for(const x of [-w/2,w/2]){box(m.blue,x,h/2,0,1,h,d);for(let z=-d/2;z<=d/2;z+=10){box(m.steel,x,h/2,z,1.7,h,1.3);box(m.glass,x,h-12,z,1.15,6,6)}rail(x,h-2,0,d,'z')}for(let z=-d/2;z<=d/2;z+=16){for(const x of [-w/2,w/2]){beam(m.steel,[x,h,z],[0,h+12,z],1.2);beam(m.steel,[x,h,z],[0,h,z],.65);beam(m.steel,[x/2,h,z],[0,h+12,z],.55)}for(const side of [-1,1]){const angle=-side*Math.atan2(12,w/2);part(boxGeo,m.blue,side*w/4,h+6,z,Math.hypot(w/2,12)+.6,.65,15.95,new T.Quaternion().setFromAxisAngle(V(0,0,1),angle));for(let i=0;i<7;i++)box(m.steel,side*(4+i*7),h+12-(4+i*7)*12/(w/2)+.6,z,.18,.28,15.95)}}for(const x of [-w/2,w/2])box(m.orange,x*.8,30,0,1.6,2,d);box(m.orange,0,32,-18,w-18,3,4);box(m.dark,9,34,-18,9,3,6);beam(m.dark,[9,31,-18],[9,18,-18],.14,.14,true);box(m.yellow,9,17,-18,2,2,2);for(let z=-60;z<=60;z+=15)for(const x of [-36,36]){box(m.light,x,47,z,3,.4,1);box(m.dark,x,47.45,z,3.4,.35,1.4)}for(const x of [-w/2+5,w/2-5]){box(m.steel,x,20,0,5,.65,d-4);rail(x+(x<0?2.3:-2.3),21,0,d-4,'z');for(let z=-70;z<80;z+=14){beam(m.dark,[x,20,z],[x+(x<0?-4:4),15,z],.45);box(m.yellow,x,20.4,z,.35,.18,3)}}});
 define('pipe-rack',()=>{for(const z of [-9,9]){for(const x of [-35,0,35]){box(m.steel,x,17,z,1.8,34,1.8);beam(m.dark,[x,8,z],[x,28,-z],.6)}for(const y of [14,29])beam(m.steel,[-38,y,z],[38,y,z],1.5)}for(let i=0;i<4;i++){const y=30+i*2.7;beam(i%2?m.rust:m.steel,[-40,y,-5+i*3.3],[40,y,-5+i*3.3],1.05,1.05,true);for(let x=-35;x<=35;x+=10)beam(m.dark,[x-.45,y,-5+i*3.3],[x+.45,y,-5+i*3.3],1.18,1.18,true)}box(m.steel,0,39,8,76,.5,3);rail(0,40,9.5,76);});
-define('tank',()=>{cylinder(m.white,0,17,0,15,34);part(sphereGeo,m.steel,0,34,0,15,3,15);for(let y=2;y<34;y+=5){const ring=new T.TorusGeometry(15.1,.14,5,48);part(ring,m.steel,0,y,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2))}for(const z of [-.4,.4])beam(m.orange,[15.4,0,z],[15.4,34,z],.1);for(let y=1;y<34;y+=.6)beam(m.orange,[15.4,y,-.4],[15.4,y,.4],.065);});
+define('tank',()=>{
+ // Welded vertical process/storage vessel; higher radial resolution at the
+ // silhouette, real nozzles, roof access and supported ladder cage.
+ const shellGeo=new T.CylinderGeometry(1,1,1,48),roofGeo=new T.CylinderGeometry(.15,1,1,48);
+ const skirtGeo=new T.CylinderGeometry(1,1,1,32);
+ part(skirtGeo,m.concrete,0,.55,0,15.7,1.1,15.7);
+ part(shellGeo,m.white,0,17.4,0,15,32.7,15);
+ part(roofGeo,m.steel,0,35.2,0,15.15,3.1,15.15);
+ for(const y of [1.3,6.6,12,17.5,23,28.5,33.65]){
+  const ring=new T.TorusGeometry(15.04,.09,6,64);part(ring,m.steel,0,y,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+ }
+ for(let i=0;i<16;i++){const a=i*Math.PI/8;const x=Math.cos(a),z=Math.sin(a);beam(m.steel,[15.05*x,1.2,15.05*z],[15.05*x,33.5,15.05*z],.055);box(m.dark,15.38*x,.95,15.38*z,.38,.28,.38)}
+ // Roof ring handrail and working platform.
+ for(let i=0;i<32;i++){const a=i*Math.PI/16,b=(i+1)*Math.PI/16;
+  const P=(theta,y)=>[14.7*Math.cos(theta),y,14.7*Math.sin(theta)];
+  beam(m.yellow,P(a,34.4),P(a,35.55),.09);beam(m.yellow,P(a,35.55),P(b,35.55),.085);
+  beam(m.steel,P(a,34.85),P(b,34.85),.06);
+ }
+ box(m.steel,0,37.05,0,4.2,.35,4.2);cylinder(m.dark,0,37.8,0,1.35,1.15);cylinder(m.steel,0,38.5,0,1.55,.25);
+ for(const z of [-.52,.52])beam(m.yellow,[15.6,1.15,z],[15.6,34.6,z],.105);
+ for(let y=1.45;y<34.5;y+=.48)beam(m.steel,[15.6,y,-.52],[15.6,y,.52],.07);
+ for(let y=3.2;y<34.5;y+=3.1){
+  beam(m.steel,[15.0,y,0],[15.6,y,0],.12);for(let i=0;i<8;i++){const a=-Math.PI/2+i*Math.PI/8,b=a+Math.PI/8;beam(m.steel,[15.62+.78*Math.cos(a),y,.78*Math.sin(a)],[15.62+.78*Math.cos(b),y,.78*Math.sin(b)],.065)}
+ }
+ for(const a of [-Math.PI/3,0,Math.PI/3]){const x=15.62+.78*Math.cos(a),z=.78*Math.sin(a);beam(m.steel,[x,3.2,z],[x,34.2,z],.06)}
+ // Side inspection manway, nozzle and flanged discharge port.
+ beam(m.steel,[0,3.6,14.9],[0,3.6,16.0],.85,.85,true);beam(m.dark,[0,3.6,15.95],[0,3.6,16.25],1.08,1.08,true);
+ for(let i=0;i<10;i++){const a=i*Math.PI/5;beam(m.steel,[.91*Math.cos(a),3.6+.91*Math.sin(a),16.1],[.91*Math.cos(a),3.6+.91*Math.sin(a),16.38],.065,.065,true)}
+ beam(m.rust,[0,6.0,14.9],[0,6.0,17.5],.48,.48,true);beam(m.steel,[0,6,16.8],[0,6,17.1],.66,.66,true);
+ beam(m.rust,[0,6,17.5],[0,1.5,17.5],.48,.48,true);
+});
 define('ship-rib',()=>{for(const s of [-1,1]){const pts=[[0,1,s*5],[0,3,s*14],[0,9,s*25],[0,18,s*31],[0,34,s*32]];for(let i=0;i<pts.length-1;i++)beam(m.rust,pts[i],pts[i+1],1.5,1.1);box(m.steel,0,34,s*32,1.6,.8,3);beam(m.dark,[0,8,s*24],[0,18,s*31],.8)}box(m.steel,0,1,0,1.8,1.2,12)});
 // Open-ended fabrication stage, rather than a falsely completed navigable ship.
 // Transverse web frames intersect longitudinal shell stiffeners; all access decks
@@ -221,6 +251,8 @@ define('cargo-shed',()=>{
   for(const zz of [-47,0,47])beam(m.steel,[side*(W/2+.65),H,zz],[side*(W/2+.65),.8,zz],.14,.14,true);
   for(const zz of [-34,0,34]){const xx=side*13,y=H+roofRise*(1-Math.abs(xx)/(W/2));box(m.steel,xx,y+.7,zz,6,1.8,9);box(m.dark,xx,y+1.7,zz,6.6,.32,9.6);for(let dz=-3;dz<=3;dz+=1.5)box(m.dark,xx,y+1,zz+dz,6.1,.17,.3)}
  }
+ // Close both gable ends so the pitched roof has continuous supporting walls.
+ for(const side of [-1,1]){const z=side*50.1,A=[-W/2,H,z],B=[W/2,H,z],C=[0,H+roofRise,z],p=side>0?[...A,...B,...C]:[...A,...C,...B];const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute([0,0,1,0,.5,1],2));g.computeVertexNormals();part(g,m.blue,0,0,0,1,1,1)}
  beam(m.steel,[0,H+roofRise+.35,-51],[0,H+roofRise+.35,51],.28,.35);
  for(const zz of [-27,27]){box(m.steel,4,H+roofRise+.85,zz,2,2.5,2);box(m.dark,4,H+roofRise+2.2,zz,2.8,.3,2.8)}
 });
@@ -742,7 +774,16 @@ for(const z of [390,550,690,790])for(const x of [-1010,-610])if(clearFootprint(x
 for(const center of [-650,-450,-170,100])for(const x of [-920,-840])for(const dz of [-48,12,54]){const z=center+dz;if(clearFootprint(x,z,13,7,11)){place('fabrication-rack',x,5.25,z,Math.PI/2);place('hydraulic-power-unit',x,5.25,z+9)}}
 for(let x=-1150;x<1150;x+=22)place('quay-fender',x,0,1200.4,-Math.PI/2);
 for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-unit',x,-7.8,z);
-const worldBatches=[];for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh);b.g.computeBoundingBox();const bounds=new T.Box3(),temp=new T.Box3();for(const matrix of b.matrices)bounds.union(temp.copy(b.g.boundingBox).applyMatrix4(matrix));worldBatches.push({mesh,bounds})}
+const worldBatches=[];// Connect the process equipment to supported ground-level headers. These
+// are below the visual racing corridor and leave the gate coordinates intact.
+for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
+ const zz=z+19.2,y=6.5;
+ beam(m.rust,[xa,y,zz],[xb,y,zz],.52,.52,true);
+ for(let x=xa;x<=xb;x+=10){box(m.concrete,x,5.42,zz,1.5,.65,1.5);box(m.steel,x,5.95,zz,.45,.8,.45);beam(m.steel,[x-.15,y,zz],[x+.15,y,zz],.65,.65,true)}
+ for(const x of [xa,xb])beam(m.rust,[x,y,z+17.5],[x,y,zz],.48,.48,true);
+ const x=(xa+xb)/2;place('hydraulic-power-unit',x,5.25,zz+5);place('process-manifold',x,5.25,zz+13);
+}
+for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh);b.g.computeBoundingBox();const bounds=new T.Box3(),temp=new T.Box3();for(const matrix of b.matrices)bounds.union(temp.copy(b.g.boundingBox).applyMatrix4(matrix));worldBatches.push({mesh,bounds})}
 // Build container LODs in spatial chunks. Every container keeps the exact same
 // transform and color when changing mesh detail. Low models cast the static shadow.
 for(const chunk of containerChunks.values()){
