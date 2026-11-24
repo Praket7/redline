@@ -1051,7 +1051,7 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
   const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   return new T.MeshStandardMaterial({map:t,roughness:.78,metalness:.09,normalMap:m.steel.normalMap,normalScale:new T.Vector2(.12,.12),envMapIntensity:.55});
  }
- const hullmat=shipFinish(unfinished?'#777e7d':'#344752',unfinished?.80:.55),bootmat=shipFinish(unfinished?'#85483a':'#713b33',.42);
+ const hullmat=shipFinish(unfinished?'#928477':'#344752',unfinished?.83:.55),bootmat=shipFinish(unfinished?'#85483a':'#713b33',.42);
  const topmat=shipFinish('#3d4546',.32);
  function width(x){const q=x/(length/2);return 16.3*Math.sqrt(Math.max(.0005,1-Math.abs(q)**(q>0?3.8:9)))}
  function P(i,j,side){const x=-length/2+i*length/stations;return [x,sections[j][0]+(i>stations-5?Math.pow((i-stations+5)/5,2)*2.4:0),side*width(x)*sections[j][1]]}
@@ -1093,6 +1093,57 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
    part(cylGeo,m.dark,x,13.9,z,.85,1.7,.85,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
    for(const dz of [-.94,.94])part(cylGeo,m.steel,x,13.9,z+dz,1.0,.18,1.0,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
    beam(m.wire,[x+1.2,13.9,z],[x+7,12.5,z],.16,.16,true);
+  }
+  // A true multi-level side staging system follows the lofted hull shell.
+  // Deck bearers and diagonals tie back to individual shell courses, rather
+  // than sitting as detached cosmetic scaffolding next to the vessel.
+  for(const side of [-1,1])for(let x=-44;x<=72;x+=9){
+   const w=Math.min(width(x-3),width(x+3)),out=side*(w+2.55),shell=side*(w*.955);
+   for(const y of [6.8,14.0,21.2]){
+    box(m.steel,x,y,out,8.4,.24,2.65);
+    beam(m.steel,[x,y,out-side*.4],[x,y,side*(w-.3)],.27,.32);
+    beam(m.steel,[x-3.7,y,out],[x+3.7,y,out],.10);
+    beam(m.steel,[x-3.7,y+1.18,out+side*1.15],[x+3.7,y+1.18,out+side*1.15],.10);
+    beam(m.steel,[x,y,out+side*1.15],[x,y+1.18,out+side*1.15],.11);
+    for(const yy of [y+.22,y+.72])box(m.dark,x,yy,out,8.0,.075,2.3);
+   }
+   for(const off of [-3.8,3.8]){
+    const xx=x+off,z=out+side*.85;
+    beam(m.steel,[xx,4.3,z],[xx,24.0,z],.21);
+    for(const y of [6.8,14.0,21.2]){
+     box(m.steel,xx,y,z,.85,.20,.85);
+     beam(m.steel,[xx,y,z],[xx+side*0.3,y+3.4,side*(w+.45)],.16);
+    }
+    for(let k=0;k<13;k++){
+     const y=5.6+k*1.37;
+     beam(m.steel,[xx-.35,y,z],[xx+.35,y,z],.075);
+    }
+   }
+   // Fire-retardant weather sheeting is hung from actual scaffold frames
+   // at selected bays; most of the ship remains exposed to view.
+   if((x+44)%27===0){box(m.blue,x,17.65,out+side*.85,6.8,5.6,.08);
+    for(const dx of [-3.3,3.3])for(const y of [15,20])box(m.yellow,x+dx,y,out+side*.92,.13,.28,.15)}
+  }
+  // Deck inspection walkways, power takeoffs and bulkhead rib gussets.
+  for(const x of [-65,-40,-15,10,35,60]){
+   for(const side of [-1,1]){
+    const z=side*(width(x)-2.1);
+    box(m.dark,x,12.15,z,5.4,.25,3.6);
+    beam(m.steel,[x-2.6,12.3,z],[x-2.6,14.1,z],.15);
+    beam(m.steel,[x+2.6,12.3,z],[x+2.6,14.1,z],.15);
+    beam(m.yellow,[x-2.6,14.1,z],[x+2.6,14.1,z],.12);
+    beam(m.steel,[x,12.2,z],[x,9,side*(width(x)*.94)],.30);
+    box(m.dark,x,12.9,z,2.7,1.5,1.5);
+    box(m.light,x,14,z,1.05,.24,.44);
+   }
+  }
+  // Embedded weld seams track the actual curved shell at both shoulders.
+  for(const side of [-1,1])for(let x=-92;x<97;x+=7){
+   const z0=side*width(x)*.965,z1=side*width(Math.min(x+7,103))*.965;
+   beam(m.dark,[x,8.5,z0],[Math.min(x+7,103),8.5,z1],.065,.065);
+   if((x+92)%21===0)for(const y of [3.0,6.0,9.0]){
+    beam(m.rust,[x,y,side*width(x)*(.94+y*.003)],[x,y+1.4,side*width(x)*(.94+y*.003)],.10);
+   }
   }
  }
 });}
