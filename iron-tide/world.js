@@ -2424,6 +2424,9 @@ define('stage3-repair-barge',()=>{
   }
  }
  for(const [x,z,a,scale] of [
+  // Foreground skyline counterpart to the 280-m launch vessel: a genuine
+  // scale landmark on the right, not another distant background crane.
+  [-830,975,0,.92],[-875,760,0,.82],
   [-1000,-1030,0,.80],[-1010,-920,0,.80],[-1130,-1000,Math.PI/2,.76],
   [-1090,1010,Math.PI/2,.68],[-760,-1020,0,.77],
   [1120,-980,Math.PI/2,.77],[1000,-1060,0,.76],[-380,-1010,0,.70]
