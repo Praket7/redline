@@ -89,7 +89,18 @@ function reserveContainer(x,y,z,angle,scale){
 }
 function place(name,x,y,z,angle=0,scale=1){if(name.startsWith('container-')&&!reserveContainer(x,y,z,angle,scale))return false;const group=templates[name];const root=new T.Object3D();root.position.set(x,y,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();if(name.startsWith('container-')){const requested=name.split('-').pop(),stack=containerSlots.find(q=>Math.abs(q.x-x)<.001&&Math.abs(q.z-z)<.001),col=stack?(stack.livery||(stack.livery=requested)):requested,key=[Math.floor(x/600),Math.floor(z/600),col].join(':');if(!containerChunks.has(key))containerChunks.set(key,{col,matrices:[],bounds:new T.Box3()});const chunk=containerChunks.get(key);chunk.matrices.push(root.matrix.clone());chunk.bounds.expandByPoint(V(x-7,y,z-7));chunk.bounds.expandByPoint(V(x+7,y+3,z+7));return true}const placementBox=placementBounds.get(name).clone().applyMatrix4(root.matrix);placedSites.push(placementBox);for(const mesh of group.children){let key=mesh.geometry.uuid+mesh.material.uuid;if(!batches.has(key))batches.set(key,{g:mesh.geometry,mat:mesh.material,matrices:[]});batches.get(key).matrices.push(root.matrix.clone())}}
 // Dedicated cargo paint and UV atlas: localized chipping, runoff and scale markings.
-const cargoSkin={},cargoSide={};
+// A paint-wear roughness atlas is separate from the visible color atlas.
+ // Painted sheet is dielectric; the existing photographic normal map contributes
+ // restrained micro-relief, not oversized corrugation displacement.
+ function weatherRoughness(w,h,seed,base=.64){
+  const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');
+  const v=Math.round(base*255);ctx.fillStyle='rgb('+v+','+v+','+v+')';ctx.fillRect(0,0,w,h);
+  let sd=seed;const random=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
+  for(let i=0;i<1600;i++){const x=random()*w,y=random()*h,val=Math.floor(135+random()*95);ctx.fillStyle='rgba('+val+','+val+','+val+',.22)';ctx.fillRect(x,y,1+random()*w*.025,1+random()*h*.08)}
+  const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,'rgba(230,230,230,.18)');g.addColorStop(.20,'rgba(230,230,230,0)');g.addColorStop(.82,'rgba(235,235,235,0)');g.addColorStop(1,'rgba(235,235,235,.42)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return t
+ }
+ const cargoSkin={},cargoSide={};
 for(const [col,base,label] of [['rust','#703e34','IRON TIDE'],['blue','#344b55','NORTHLINE'],['green','#50584a','HARBOR'],['white','#878578','COASTAL']]){
  const c=document.createElement('canvas');c.width=1024;c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,1024,256);
  let sd=col.charCodeAt(0)*7919;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
@@ -99,12 +110,12 @@ for(const [col,base,label] of [['rust','#703e34','IRON TIDE'],['blue','#344b55',
  for(let i=0;i<35;i++){const x=rand()*1024,y=rand()*256,g=ctx.createLinearGradient(x,y,x,y+48);g.addColorStop(0,'rgba(54,26,12,.32)');g.addColorStop(1,'rgba(54,26,12,0)');ctx.fillStyle=g;ctx.fillRect(x,y,2+rand()*5,48)}
  ctx.fillStyle=col==='white'?'#333f43':'#c6c5ba';ctx.globalAlpha=.72;ctx.font='bold 43px sans-serif';ctx.fillText(label,82,133);ctx.font='13px monospace';ctx.fillText('ITCU 421087 45G1',824,52);ctx.fillText('MAX GROSS 30480 KG',824,70);ctx.globalAlpha=1;
  const map=new T.CanvasTexture(c);map.encoding=T.sRGBEncoding;map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
- cargoSide[col]=new T.MeshStandardMaterial({map,metalness:.12,roughness:.70,envMapIntensity:.7});
+ cargoSide[col]=new T.MeshStandardMaterial({map,metalness:.05,roughness:1,roughnessMap:weatherRoughness(512,128,col.charCodeAt(0)*537),normalMap:m.steel.normalMap,normalScale:new T.Vector2(.22,.22),envMapIntensity:.72});
  const tc=document.createElement('canvas');tc.width=tc.height=256;const tctx=tc.getContext('2d');tctx.fillStyle=base;tctx.fillRect(0,0,256,256);
  for(let i=0;i<2500;i++){const x=rand()*256,y=rand()*256;tctx.fillStyle=rand()>.52?'rgba(211,204,188,.06)':'rgba(20,18,16,.075)';tctx.fillRect(x,y,1+rand()*3,1+rand()*5)}
  for(let i=0;i<80;i++){const x=rand()*256,y=rand()*256,g=tctx.createLinearGradient(x,y,x,y+22);g.addColorStop(0,'rgba(78,36,19,.28)');g.addColorStop(1,'rgba(78,36,19,0)');tctx.fillStyle=g;tctx.fillRect(x,y,1+rand()*4,22)}
  const tile=new T.CanvasTexture(tc);tile.encoding=T.sRGBEncoding;tile.wrapS=tile.wrapT=T.RepeatWrapping;tile.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
- cargoSkin[col]=new T.MeshStandardMaterial({map:tile,metalness:.12,roughness:.73,envMapIntensity:.7});
+ cargoSkin[col]=new T.MeshStandardMaterial({map:tile,metalness:.06,roughness:1,roughnessMap:weatherRoughness(256,256,col.charCodeAt(0)*353,.70),normalMap:m.steel.normalMap,normalScale:new T.Vector2(.18,.18),envMapIntensity:.7});
 }
 for(const col of ['rust','blue','green','white'])define('container-'+col,()=>{
  const skin=cargoSkin[col];box(skin,0,1.45,0,12.1,2.9,2.36);
@@ -357,7 +368,7 @@ function clearScenery(x,top,z){for(let i=0;i<routePoints.length;i++){const a=rou
   for(let i=0;i<210;i++){const x=rand()*512,y=rand()*512,h=10+rand()*115,g=ctx.createLinearGradient(x,y,x,y+h);g.addColorStop(0,'rgba(77,41,24,.18)');g.addColorStop(1,'rgba(77,41,24,0)');ctx.fillStyle=g;ctx.fillRect(x,y,1+rand()*4,h)}
   for(let i=0;i<3200;i++){const x=rand()*512,y=rand()*512;ctx.fillStyle=rand()>.55?'rgba(220,214,198,.045)':'rgba(9,12,14,.055)';ctx.fillRect(x,y,1+rand()*3,1+rand()*4)}
   const map=new T.CanvasTexture(c);map.encoding=T.sRGBEncoding;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-  return new T.MeshStandardMaterial({map,roughness:roof?.73:.80,metalness:roof?.23:.12,envMapIntensity:.68});
+  return new T.MeshStandardMaterial({map,roughness:1,roughnessMap:weatherRoughness(256,256,base.charCodeAt(2)*713,roof?.66:.75),normalMap:m.steel.normalMap,normalScale:new T.Vector2(.26,.26),metalness:roof?.18:.06,envMapIntensity:.68});
  }
  const cladding=cladMaterial('#53646a'),oxideCladding=cladMaterial('#755349'),roofMetal=cladMaterial('#464a4c',true);
  const translucentClerestory=new T.MeshStandardMaterial({color:0x57717b,roughness:.37,metalness:.18});
@@ -1213,7 +1224,7 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  // Low silhouettes are intentionally cheaper than detailed playable architecture.
  // Far-shore buildings form irregular waterfront clusters, seated on terrain.
  // Baked silhouette materials avoid overexposed white blocks in the HDR light.
- const horizonMat=new T.MeshBasicMaterial({color:0x363f46}),horizonRoof=new T.MeshBasicMaterial({color:0x272e35}),horizonWindows=new T.MeshBasicMaterial({color:0x77694e});
+ const horizonMat=new T.MeshBasicMaterial({color:0x17252e,toneMapped:false}),horizonRoof=new T.MeshBasicMaterial({color:0x111e27,toneMapped:false}),horizonWindows=new T.MeshBasicMaterial({color:0x51443b,toneMapped:false});
  for(let i=0;i<48;i++){
   const x=-3600+i*148+24*Math.sin(i*2.7),z=shoreline(x)-110-85*Math.abs(Math.sin(i*.73)),ground=coastalHeight(x,z);
   const w=45+45*Math.abs(Math.sin(i*1.38)),d=36+35*Math.abs(Math.cos(i*.95)),h=14+38*Math.abs(Math.sin(i*1.83));
