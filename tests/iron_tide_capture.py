@@ -38,6 +38,12 @@ try:
         page.goto("http://127.0.0.1:8765/iron-tide/", wait_until="load", timeout=90000)
         page.wait_for_function("window.IRON_TIDE || document.getElementById('error').style.display === 'block'", timeout=90000)
         assert page.evaluate("Boolean(window.IRON_TIDE)"), page.locator("#error").inner_text()
+        audit = page.evaluate("IRON_TIDE.assetAudit()")
+        required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
+        assert required.issubset(audit), required-set(audit)
+        for name, info in audit.items():
+            assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)
+        (OUT / "mesh-audit.json").write_text(json.dumps(audit,indent=2))
         views = page.evaluate("IRON_TIDE.views")
         assert len(views) == 11
         page.evaluate("IRON_TIDE.clean(true)")
@@ -89,6 +95,12 @@ try:
         # Same-world camera evidence with no visual route overlay.
         page.evaluate("IRON_TIDE.setView('overview'); IRON_TIDE.route(false)")
         capture(page, OUT / "overview-clean.png")
+        # Capture both ends of the same real model at fixed angles; no generated artwork.
+        (OUT / "hero-models").mkdir(exist_ok=True)
+        for name in sorted(required):
+            for angle, suffix in [(0,"front"),(math.pi,"rear")]:
+                page.evaluate("([n,a]) => IRON_TIDE.assetView(n,a)",[name,angle])
+                capture(page,OUT / "hero-models" / (name+"-"+suffix+".png"))
         if "--preview" in sys.argv:
             assert not errors, errors
             (OUT / "preview-report.json").write_text(json.dumps({"views":results,"layout":layout},indent=2))

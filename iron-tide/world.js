@@ -477,6 +477,22 @@ for(const z of [580,680,780,880,980])for(const x of [300,405,520,650,770,900,104
 for(const x of [-710,-230,270,770]){
  if(clearFootprint(x,1174,24,29,85)){place('quay-container-crane',x,5.16,1174);for(const z of [1162,1186])box(m.steel,x,5.25,z,85,.17,.28)}
 }
+// Connected dock work zones: cargo inspection platform, piping, forklifts and
+// terminal trailers, arranged around existing access paths rather than scattered.
+define('terminal-tractor',()=>{
+ box(m.dark,0,.85,0,2.4,.6,5.6);box(m.orange,0,1.75,-1.5,2.3,1.6,2.25);box(m.glass,0,2.95,-1.5,2.15,.85,2.05);
+ box(m.orange,0,3.5,-1.5,2.5,.22,2.4);box(m.dark,0,1.4,1.4,2.05,.45,2.2);
+ for(const z of [-1.65,1.65])for(const x of [-1.05,1.05]){const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);part(cylGeo,m.rubber,x,.72,z,.72,.48,.72,rot);part(cylGeo,m.steel,x+(x>0?.25:-.25),.72,z,.31,.12,.31,rot)}
+ box(m.yellow,0,1.85,2.7,2.1,.2,.22);for(const x of [-.8,.8])box(m.light,x,1.62,-2.65,.48,.28,.10);
+});
+define('cargo-trailer',()=>{
+ box(m.steel,0,1.4,0,2.6,.42,13.0);for(const x of [-1.1,1.1])box(m.dark,x,1.03,0,.25,.42,12.7);
+ for(const z of [3.6,5.05])for(const x of [-1.1,1.1]){const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);part(cylGeo,m.rubber,x,.72,z,.7,.46,.7,rot);part(cylGeo,m.steel,x+(x>0?.24:-.24),.72,z,.28,.12,.28,rot)}
+ for(const x of [-1,1])box(m.steel,x,.85,-3.2,.16,1.45,.18);for(const z of [-6.25,6.25])for(const x of [-1.12,1.12])box(m.yellow,x,1.7,z,.18,.18,.19);
+});
+for(const [x,z] of [[-875,1143],[-570,1140],[-55,1153],[390,1145],[870,1145],[1000,1120]]){
+ if(clearFootprint(x,z,6,23,11)&&openGround(x,z,6,23)){place('terminal-tractor',x,5.22,z,Math.PI/2);place('cargo-trailer',x+9,5.22,z,Math.PI/2)}
+}
 // Tidal wall equipment: rubber fenders are supported on steel backing plates.
 define('quay-fender',()=>{box(m.steel,0,0,0,2.7,3,.24);box(m.rubber,0,0,.52,2.3,2.7,.82);for(const x of [-.95,.95])for(const y of [-1.12,1.12])box(m.steel,x,y,.98,.18,.18,.12)});
 for(let x=-1160;x<1160;x+=21)place('quay-fender',x,2.6,1200.14);
@@ -516,7 +532,7 @@ const guide=new T.Group();guide.name='aerial-route';scene.add(guide);const gateG
 const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff6456,transparent:true,opacity:.85}));guide.add(route);
 // Separate asset inspection scene shares the exact merged source models and lighting.
 const assetScene=new T.Scene();assetScene.background=new T.Color(0x303941);assetScene.environment=scene.environment;assetScene.add(new T.HemisphereLight(0xc0d8ed,0x49413c,1.35));const assetSun=new T.DirectionalLight(0xffcf99,3.1);assetSun.position.set(-160,100,80);assetScene.add(assetSun);const assetFloor=new T.Mesh(new T.PlaneGeometry(2000,2000),new T.MeshStandardMaterial({color:0x45494b,roughness:.8}));assetFloor.rotation.x=-Math.PI/2;assetFloor.position.y=-.1;assetScene.add(assetFloor);let inspected=null;const assetCamera=new T.PerspectiveCamera(42,1,.1,4000);
-function assetView(name){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();assetCamera.position.copy(center).add(V(r*1.05,r*.68,r*1.1));assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
+function assetView(name,angle=0){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();const delta=V(r*1.05,r*.68,r*1.1).applyAxisAngle(up,angle);assetCamera.position.copy(center).add(delta);assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
 // Keep only a small fixed-size set of real practical point lights active near
 // the camera. Distant fixtures retain their emissive meshes and baked glow pools.
 const practical=Array.from({length:4},()=>{const p=new T.PointLight(0xffbe77,0,75,2);scene.add(p);return p});
@@ -534,5 +550,12 @@ addEventListener('resize',()=>{resize();assetCamera.aspect=innerWidth/innerHeigh
 for(const id of Object.keys(presets)){const b=document.createElement('button');b.dataset.view=id;b.textContent=id; b.onclick=()=>setView(id);document.getElementById('views').append(b)}
 document.getElementById('tour').onclick=()=>{tour=!tour;if(tour){dist=0;sampleCourse(0)}};document.getElementById('route').onclick=()=>{guide.visible=!guide.visible;render()};document.getElementById('capture').onclick=()=>{render();const a=document.createElement('a');a.download='iron-tide-'+mode+'.png';a.href=renderer.domElement.toDataURL('image/png');a.click()};
 renderer.shadowMap.needsUpdate=true;resize();setView('overview');requestAnimationFrame(tick);
-window.IRON_TIDE={assetView,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
+// Native model audit checks finite mesh data, non-empty geometry, bounds, and
+// material usage. It does not substitute for engineering or gameplay clearance validation.
+function assetAudit(){const out={};for(const [name,group] of Object.entries(templates)){const bounds=new T.Box3().setFromObject(group),size=bounds.getSize(V(0,0,0));let verts=0,tris=0,bad=0,degenerate=0;
+ for(const mesh of group.children){const g=mesh.geometry,p=g.getAttribute('position'),n=g.getAttribute('normal'),uv=g.getAttribute('uv'),idx=g.index;verts+=p.count;tris+=(idx?idx.count:p.count)/3;
+ for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
+ const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
+ }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
+window.IRON_TIDE={assetView,assetAudit,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});

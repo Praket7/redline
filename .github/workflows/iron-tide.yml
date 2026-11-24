@@ -32,6 +32,7 @@ jobs:
             iron-tide-output/*.png
             iron-tide-output/*.json
             iron-tide-output/IRON_TIDE.html
+            iron-tide-output/hero-models/
           if-no-files-found: error
       - run: python tests/iron_tide_capture.py
       - uses: actions/upload-artifact@v4
