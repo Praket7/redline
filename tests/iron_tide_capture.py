@@ -2,7 +2,7 @@
 """Headless real WebGL capture and export; exits nonzero on missing/invalid evidence."""
 import base64, json, math, pathlib, struct, subprocess, sys, time
 from playwright.sync_api import sync_playwright
-from PIL import Image, ImageStat
+from PIL import Image, ImageStat, ImageDraw, ImageFont
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "iron-tide-output"
 OUT.mkdir(exist_ok=True)
@@ -50,6 +50,27 @@ try:
             assert 0 < stats["drawCalls"] < 400, stats
             assert 0 < stats["triangles"] < 5000000, stats
             results[view] = stats
+        page.evaluate("IRON_TIDE.setView('top')")
+        projected = page.evaluate("IRON_TIDE.projectGates()")
+        # Overlay exact projected points on the rendered orthographic view.
+        with Image.open(OUT / "top.png").convert("RGB") as im:
+            board = Image.new("RGB", (1800, 900), "#13191d")
+            board.paste(im,(0,0))
+            draw = ImageDraw.Draw(board)
+            font = ImageFont.load_default(size=16)
+            tiny = ImageFont.load_default(size=12)
+            for p in projected:
+                x,y = round(p["x"]), round(p["y"])
+                draw.ellipse((x-9,y-9,x+9,y+9), fill="#a72e2e", outline="white",width=1)
+                draw.text((x,y),str(p["index"]),font=tiny,anchor="mm",fill="white")
+            draw.text((1460,25),"REDLINE / IRON TIDE",font=ImageFont.load_default(size=24),fill="white")
+            draw.text((1460,62),"3,000 m x 3,000 m | 32 airborne gates",font=tiny,fill="#d1d9df")
+            for i,sector in enumerate(layout["sectors"]):
+                y = 110+i*91
+                draw.text((1460,y),f'{i+1:02d}  {sector["name"]}',font=font,fill="#ff7468")
+                draw.text((1460,y+25),f'CP {i*4+1:02d}-{i*4+4:02d}  |  Altitude: '+ " / ".join(str(p[1]) for p in sector["gates"])+" m",font=tiny,fill="#e1e7ec")
+            draw.text((1460,853),"North is up. Render + actual gate projection.",font=tiny,fill="#a5b0b9")
+            board.save(OUT / "top-annotated.png")
         # Same-world camera evidence with no visual route overlay.
         page.evaluate("IRON_TIDE.setView('overview'); IRON_TIDE.route(false)")
         page.locator("canvas").screenshot(path=str(OUT / "overview-clean.png"), timeout=90000)
