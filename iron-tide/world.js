@@ -2297,6 +2297,50 @@ define('stage3-repair-barge',()=>{
 
  for(const [x,z] of [[850,1230],[440,1340]]){hero('reference-offshore-platform',x,0,z,0,1.5);referenceOffshore++;for(const dx of [-33,33])fixturePositions.push([x+dx,28.5,z+27])}
  referenceDistricts.add('offshore');
+ // Stage 3 macro-composition comes BEFORE generic infill: bespoke production
+ // buildings and prominent lift equipment take precedence over shed grids.
+ // Every terrestrial candidate uses the same land, 3D route, and overlap tests.
+ const macroSites={assemblyHalls:0,shipLifts:0,processPlants:0,repairBarges:0};
+ for(const [x,z,a,scale] of [
+  [-430,-1040,0,.95],[130,-1080,0,.98],[-560,-1035,Math.PI/2,.82],
+  [520,-1040,0,.88],[-1090,-1010,0,.78],[-65,400,Math.PI/2,.84],
+  [-430,910,0,.84],[1090,690,0,.90]
+ ]){
+  if(macroSites.assemblyHalls>=3)break;
+  if(safe('stage3-block-assembly-hall',x,z,a,scale,'block-assembly')){
+   macroSites.assemblyHalls++;districtPlan.push({x,z,kind:'stage3-block-assembly-hall'});
+   const lz=z+scale*45;if(onLand(x,lz))lamp(x,5.25,lz);
+  }
+ }
+ for(const [x,z,a,scale] of [
+  [-1000,-1030,0,.80],[-1010,-920,0,.80],[-1130,-1000,Math.PI/2,.76],
+  [-1090,1010,Math.PI/2,.68],[-760,-1020,0,.77],
+  [1120,-980,Math.PI/2,.77],[1000,-1060,0,.76],[-380,-1010,0,.70]
+ ]){
+  if(macroSites.shipLifts>=2)break;
+  if(safe('stage3-ship-lift-portal',x,z,a,scale,'heavy-lifting')){
+   macroSites.shipLifts++;fixturePositions.push([x,5.25+scale*102,z]);pool(x,5.3,z,23);
+  }
+ }
+ for(const [x,z,a,scale] of [
+  [885,1030,0,.85],[990,730,0,.83],[1100,750,Math.PI/2,.83],
+  [735,870,0,.76],[835,660,0,.78],[1100,980,0,.77],
+  [-520,-1120,0,.73],[-1050,-900,0,.70],[980,-850,0,.72]
+ ]){
+  if(macroSites.processPlants>=3)break;
+  if(safe('stage3-process-plant',x,z,a,scale,'process-plant')){
+   macroSites.processPlants++;fixturePositions.push([x,5.25+scale*39,z]);pool(x,5.3,z,20);
+  }
+ }
+ // Four full-size waterside service craft introduce genuinely varied foreground
+ // vessel silhouettes; none modifies the course or the sea-floor collision mesh.
+ for(const [x,z,a,scale] of [[480,835,0,1.06],[-380,355,Math.PI/3,.9],
+  [-410,-140,-Math.PI/5,1.0],[80,600,Math.PI/2,.88]]){
+  const bb=footprint('stage3-repair-barge',x,0,z,a,scale);
+  if(!onLand(x,z)&&routeClear(bb)&&!placedSites.some(p=>p.intersectsBox(bb))){
+   hero('stage3-repair-barge',x,0,z,a,scale);referenceShips++;macroSites.repairBarges++;
+  }
+ }
  // Stage 3: distinctive utility buildings and service yards placed before infill.
  // Use the same supported-footprint and main/alternate swept-AABB rejection
  // as the canonical layout; no hardcoded route changes or remote mesh dependency.
@@ -2408,7 +2452,7 @@ define('stage3-repair-barge',()=>{
  // Inspect actual hero meshes using a center ray and four radial offsets.
  // This finite sample is not continuous collision certification.
  function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<segments.length;i++){const [a,b]=segments[i];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius],[radius*.707,radius*.707],[-radius*.707,radius*.707],[radius*.707,-radius*.707],[-radius*.707,-radius*.707]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>segments.map(([a,c],j)=>intersectsSegment(b,a,c,radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
- const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,quayDetails};
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,quayDetails};
   // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.
