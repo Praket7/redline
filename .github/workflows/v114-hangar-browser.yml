@@ -1,0 +1,59 @@
+name: REDLINE v114 live hangar acceptance
+on:
+  push:
+    branches: [stage3/v114-hangar-refined]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [desktop, laptop, ultrawide]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45289606393
+          name: REDLINE-v86-exact-browser-audit
+          path: v86-artifact
+      - name: Reconstruct exact standalone releases
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,json,gzip,base64
+          root=pathlib.Path('dist');root.mkdir(exist_ok=True)
+          src=next(pathlib.Path('v86-artifact').rglob('REDLINE_v86_AUDITED.html')).read_bytes()
+          for delta,out,expected in [('v93','REDLINE_v93_STAGE2.html','3821a89c199e56c95dd5ce989c9924859ed6074d8d9006d36a460c1934205453'),('v103','REDLINE_v103_STAGE3.html','cbabc85cef8a6675829549df7c8a75b2bba1e8d2990860961f00b74e4b9e44bd'),('v104','REDLINE_v104_GRAND_CANYON.html','f0d5b9c6f0e24b19e8ce37bd15a9f1b8ede7aceb72acc7f9f942f6f67689cdb9'),('v105','REDLINE_v105_EROSION_REMASTER.html','a53cee876706231cb03a3ee03f549b40b1208a1b029c0f0538e11a32d9c4f35c'),('v106','REDLINE_v106_STRATIFIED_CANYON.html','a6887a39609ac1cd2d13763627aa2f85ae1a42d96c577dbf87ab450fe0dd000b'),('v107','REDLINE_v107_CANYON.html','3f08f4d072bcfeef734722a73f33e716fa160ccb466ece009b553c82ee6a9155'),('v108','REDLINE_v108_FRACTURED_CANYON.html','60ff7071c7ac5aa3c56aedafab95197d2f6b387fbe0bfea75b870cec675ac5bf'),('v109','REDLINE_v109_JOINTED_CANYON.html','4f28f7e0f0a06730c3cae8530f51aa5387357e75150523f06973979faafb7a2d'),('v110','REDLINE_v110_STRATIFIED_LANDSCAPE.html','04eb362c88c9d5ecaee5d3f55fcc6ba3f88ee1b4364270ed3d246088a318b7d2'),('v111','REDLINE_v111_INTERFACE.html','c2c2bbdf835d14a9b078f9a1d14b1caae74f0c453551d9a889ecb9014c39cb11'),('v111_refined','REDLINE_v111_REFINED.html','2cb834e2029e84f3cccd15f0856898a3b7d712d20a8b56b4467a4e4a2bebcd8f'),('v112','REDLINE_v112_INTERFACE_REFINED.html','3e02d767d157c1eb161d7d99653b6e30c93411b2c82e6cd8323fc2bd50008996'),('v114','REDLINE_v114_HANGAR_REFINED.html','926676bdaddee75e051cf568a7def1323aa91b4c110a87b11038c9dc5beec4da')]:
+              d=json.loads(gzip.decompress(base64.b64decode(pathlib.Path(f'qa/{delta}_standalone_delta.b64').read_text())))
+              assert hashlib.sha256(src).hexdigest()==d['base'],delta
+              lines=src.decode().splitlines(keepends=True)
+              for i,j,rep in reversed(d['ops']):lines[i:j]=rep.splitlines(keepends=True)
+              src=''.join(lines).encode()
+              assert hashlib.sha256(src).hexdigest()==d['target']==expected,delta
+              (root/out).write_bytes(src)
+              print('Exact',delta,len(src),expected)
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright Pillow
+      - run: python -m playwright install --with-deps chromium
+      - name: Actual hangar camera, shadow and reflection acceptance
+        if: true
+        env:
+          WIDTH: ${{ matrix.case == 'desktop' && '1525' || matrix.case == 'ultrawide' && '1910' || '960' }}
+          HEIGHT: ${{ matrix.case == 'desktop' && '780' || matrix.case == 'ultrawide' && '688' || '540' }}
+        run: python tests/v114_hangar.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: REDLINE-v114-${{ matrix.case }}
+          path: |
+            qa/v93/
+            qa/v114/
+          retention-days: 14
