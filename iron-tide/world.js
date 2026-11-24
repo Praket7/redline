@@ -31,9 +31,18 @@ if(loadedMaterials.includes('rust'))m.rust.color.setHex(0xc27d51);
 if(loadedMaterials.includes('paint'))m.orange.color.setHex(0xedaa69);
 if(loadedMaterials.includes('steel'))m.steel.color.setHex(0xb4b9b8);
 for(const mat of Object.values(m))if(mat.isMeshStandardMaterial)mat.envMapIntensity=.72;
+// Rebuild the albedo for intact paint over worn steel using the photographic map
+// as a corrosion mask, rather than making every crane and container entirely rust.
+function coat(mat,hex,wear){const src=mat.map.image;const c=document.createElement('canvas');c.width=c.height=Math.min(1024,src.width);const ctx=c.getContext('2d');ctx.drawImage(src,0,0,c.width,c.height);const image=ctx.getImageData(0,0,c.width,c.height),rgb=[(hex>>16)&255,(hex>>8)&255,hex&255];
+ const W=c.width;for(let y=0;y<W;y++)for(let x=0;x<W;x++){const i=(y*W+x)*4,r=image.data[i],g=image.data[i+1],b=image.data[i+2],lum=(r+g+b)/765;
+ const oxide=T.MathUtils.clamp((r-b)/90+.18,0,1),patch=smoothCoat(x/W,y/W),exposed=Math.min(.83,wear*(.12+oxide*.68)*patch);
+ const shade=.77+.37*lum;for(let k=0;k<3;k++){const base=rgb[k]*shade,metal=[r,g,b][k]*.77;image.data[i+k]=Math.round(base*(1-exposed)+metal*exposed)}}
+ ctx.putImageData(image,0,0);const map=new T.CanvasTexture(c);map.wrapS=map.wrapT=T.RepeatWrapping;map.encoding=T.sRGBEncoding;map.anisotropy=mat.map.anisotropy;mat.map=map;mat.color.setHex(0xffffff);mat.metalness=.07;mat.roughness=.78;mat.normalScale.set(.28,.28);mat.needsUpdate=true}
+function smoothCoat(x,y){const v=.5+.25*Math.sin(x*31.416+Math.sin(y*12.566)*1.8)+.15*Math.cos(y*25.133+Math.sin(x*18.85));return T.MathUtils.clamp(v,0,1)}
+coat(m.orange,0xc96a2c,.63);coat(m.blue,0x3f6170,.45);coat(m.green,0x586d58,.39);coat(m.white,0xb9b5a5,.36);
 // World ground maps tile at approximately industrial pavement scale instead of stretching.
 for(const mat of [m.road,m.concrete]){mat.map.repeat.set(mat===m.road?12:1,mat===m.road?12:1);mat.normalMap.repeat.copy(mat.map.repeat);mat.roughnessMap.repeat.copy(mat.map.repeat);mat.normalScale.set(.2,.2)}
-const asphalt=new T.MeshStandardMaterial({color:0x333a3c,roughness:.86});const apron=new T.MeshStandardMaterial({color:0x65605a,roughness:.88});const tar=new T.MeshStandardMaterial({color:0x282b2b,roughness:.9});
+const asphalt=new T.MeshStandardMaterial({color:0x484a4a,roughness:.86});const apron=new T.MeshStandardMaterial({color:0x65605a,roughness:.88});const tar=new T.MeshStandardMaterial({color:0x282b2b,roughness:.9});
 const env=document.createElement('canvas');env.width=512;env.height=256;const e=env.getContext('2d'),grad=e.createLinearGradient(0,0,0,256);grad.addColorStop(0,'#182a49');grad.addColorStop(.45,'#af8677');grad.addColorStop(.52,'#f0ad76');grad.addColorStop(.65,'#4b4b56');grad.addColorStop(1,'#171b23');e.fillStyle=grad;e.fillRect(0,0,512,256);
 // Layered seeded cloud silhouettes in the same equirectangular sky used for reflections.
 for(let layer=0;layer<3;layer++)for(let i=0;i<85;i++){const x=rnd()*512,y=45+rnd()*65,rx=8+rnd()*32,ry=2+rnd()*8;e.fillStyle=layer===0?'rgba(28,36,57,.32)':layer===1?'rgba(72,70,91,.28)':'rgba(248,161,102,.18)';e.beginPath();e.ellipse(x,y,rx,ry,0,0,Math.PI*2);e.fill()}
@@ -190,6 +199,14 @@ for(const mat of [m.road,asphalt,apron]){
  if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
  };
 }
+// Metre-scale concrete projection for large civil slabs and retaining faces.
+// The ordinary mesh UV is retained in exported GLBs; only the live world renderer
+// chooses world-space UVs. A separate program key avoids cached shader confusion.
+m.concrete.onBeforeCompile=shader=>{
+ shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vCivil;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 civil=vec4(transformed,1.);\n#ifdef USE_INSTANCING\n civil=instanceMatrix*civil;\n#endif\n vCivil=(modelMatrix*civil).xyz;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vCivil;').replace('#include <map_fragment>','vec3 worldN=normalize(cross(dFdx(vCivil),dFdy(vCivil)));vec3 civilN=abs(worldN);vec2 civilUV=(civilN.y>=civilN.x&&civilN.y>=civilN.z?vCivil.xz:(civilN.x>=civilN.z?vCivil.zy:vCivil.xy))/8.0;\n'+T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'civilUV')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'civilUV')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'civilUV'));
+};
+m.concrete.customProgramCacheKey=()=> 'iron-tide-civil-v2';
 // Native industrial kit: batched working-port models and practical lighting.
 const fixturePositions=[];const warmGlow=new T.MeshBasicMaterial({color:0xffbc73});
 const glowCanvas=document.createElement('canvas');glowCanvas.width=glowCanvas.height=64;const gc=glowCanvas.getContext('2d'),gg=gc.createRadialGradient(32,32,0,32,32,32);gg.addColorStop(0,'rgba(255,165,73,.65)');gg.addColorStop(.35,'rgba(255,132,45,.25)');gg.addColorStop(1,'rgba(255,132,45,0)');gc.fillStyle=gg;gc.fillRect(0,0,64,64);const glowMat=new T.MeshBasicMaterial({map:new T.CanvasTexture(glowCanvas),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,blending:T.AdditiveBlending});const flatGlow=new T.PlaneGeometry(1,1);flatGlow.rotateX(-Math.PI/2);
@@ -483,12 +500,12 @@ for(const chunk of containerChunks.values()){
 }
 const lodFrustum=new T.Frustum(),lodMatrix=new T.Matrix4();let lodInitialized=false;
 function updateContainerLOD(cam){cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true}
-const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x16333c,roughness:.39,metalness:.04,envMapIntensity:.55,bumpMap:waterTex,bumpScale:.6});
+const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x142a31,roughness:.46,metalness:.02,envMapIntensity:.40,bumpMap:waterTex,bumpScale:.6});
 // World-position ripples avoid the previous giant repeated bump texture.
 waterMat.bumpMap=null;
 waterMat.onBeforeCompile=shader=>{
  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz; vec2 w1=vec2(.32,.19),w2=vec2(-.61,1.13),w3=vec2(.91,.74);vec2 warp=vec2(sin(seaP.y*.031+sin(seaP.x*.008)*2.),cos(seaP.x*.027+cos(seaP.y*.011)*2.))*3.5;float p1=dot(seaP+warp,w1),p2=dot(seaP-warp,w2),p3=dot(seaP+warp*.64,w3);float a1=1.-smoothstep(.4,2.0,fwidth(p1)),a2=1.-smoothstep(.4,2.0,fwidth(p2)),a3=1.-smoothstep(.4,2.0,fwidth(p3));vec2 rip=.065*cos(p1)*w1*a1+.033*sin(p2)*w2*a2+.026*cos(p3)*w3*a3;normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=sin(vSea.x*.022+sin(vSea.z*.013)*2.0)*cos(vSea.z*.024);diffuseColor.rgb*=.93+.07*seaRip;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz; vec2 w1=vec2(.32,.19),w2=vec2(-.61,1.13),w3=vec2(.91,.74);vec2 warp=vec2(sin(seaP.y*.031+sin(seaP.x*.008)*2.),cos(seaP.x*.027+cos(seaP.y*.011)*2.))*3.5;float p1=dot(seaP+warp,w1),p2=dot(seaP-warp,w2),p3=dot(seaP+warp*.64,w3);float a1=1.-smoothstep(.4,2.0,fwidth(p1)),a2=1.-smoothstep(.4,2.0,fwidth(p2)),a3=1.-smoothstep(.4,2.0,fwidth(p3));vec2 rip=.032*cos(p1)*w1*a1+.018*sin(p2)*w2*a2+.016*cos(p3)*w3*a3;normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=sin(vSea.x*.009+sin(vSea.z*.013)*3.0)*cos(vSea.z*.012+sin(vSea.x*.016)*2.5);diffuseColor.rgb*=.965+.035*seaRip;');
 };
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
 function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),waterMat);water.rotation.x=-Math.PI/2;water.position.set(x,-.25,z);scene.add(water)}
@@ -503,7 +520,7 @@ function assetView(name){const source=templates[name];if(!source)throw Error('un
 // Keep only a small fixed-size set of real practical point lights active near
 // the camera. Distant fixtures retain their emissive meshes and baked glow pools.
 const practical=Array.from({length:4},()=>{const p=new T.PointLight(0xffbe77,0,75,2);scene.add(p);return p});
-function updatePractical(camera){const pos=camera.position;const nearby=fixturePositions.map(p=>({p,d:(p[0]-pos.x)**2+(p[1]-pos.y)**2+(p[2]-pos.z)**2})).sort((a,b)=>a.d-b.d).slice(0,practical.length);for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){light.position.set(...f.p);light.intensity=420}else light.intensity=0}}
+function updatePractical(camera){const pos=camera.position;const nearby=fixturePositions.map(p=>({p,d:(p[0]-pos.x)**2+(p[1]-pos.y)**2+(p[2]-pos.z)**2})).sort((a,b)=>a.d-b.d).slice(0,practical.length);for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){light.position.set(...f.p);light.intensity=520}else light.intensity=0}}
 const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1600,1400,1720],[0,20,0]],north:[[1450,1300,-1720],[0,20,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1000,34,1108],[-650,42,1080]],'2-containers':[[384,25,1000],[620,32,850]],'3-crane':[[1000,35,210],[850,100,50]],'4-dive':[[850,137,-280],[850,0,-650]],'5-hull':[[925,27,-920],[600,24,-920]],'6-breakwater':[[350,30,-1250],[-600,30,-1280]],'7-foundry':[[-880,26,-558],[-880,29,-500]],'8-pipes':[[-970,65,320],[-760,32,740]]};
 function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
