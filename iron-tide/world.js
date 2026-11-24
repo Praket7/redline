@@ -2630,6 +2630,47 @@ define('stage3-repair-barge',()=>{
  // This finite sample is not continuous collision certification.
  function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<segments.length;i++){const [a,b]=segments[i];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius],[radius*.707,radius*.707],[-radius*.707,radius*.707],[radius*.707,-radius*.707],[-radius*.707,-radius*.707]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>segments.map(([a,c],j)=>intersectsSegment(b,a,c,radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
  const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,macroEvidence,quayDetails,shorelineSegments,rockCount};
+
+ // Production asset bridge: actual artist-authored CC0 PBR meshes are cached
+ // offline at build time, loaded as native scene geometry and supported by
+ // pre-existing gantry/plant assemblies. The procedural templates remain the
+ // deterministic collision fallback and fully offline scene architecture.
+ const importedPhotoreal={loaded:[],placed:{},rejected:[],errors:[]};
+ const authoredModels=window.IRON_TIDE_MODELS||{};
+ if(T.GLTFLoader&&Object.keys(authoredModels).length){
+  const loader=new T.GLTFLoader();
+  for(const [key,data] of Object.entries(authoredModels)){
+   try{
+    const gltf=await new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
+    const template=gltf.scene;
+    template.updateMatrixWorld(true);
+    const bounds=new T.Box3().setFromObject(template),size=bounds.getSize(V(0,0,0)),center=bounds.getCenter(V(0,0,0));
+    if(!Number.isFinite(size.x+size.y+size.z)||Math.max(size.x,size.y,size.z)<.01)throw Error('invalid bounds');
+    const clean=new T.Group();
+    template.position.sub(center);
+    clean.add(template);
+    const targets=key==='crane_hoist'
+      ?macroEvidence.lift.map(p=>({p,y:5.25+p.scale*97,span:14})).slice(0,2)
+      :macroEvidence.plant.map(p=>({p,y:5.25+p.scale*22,span:8})).slice(0,3);
+    let placed=0;
+    for(const {p,y,span} of targets){
+     const root=clean.clone(true);
+     root.scale.setScalar(span/Math.max(size.x,size.y,size.z));
+     root.rotation.y=p.angle||0;
+     root.position.set(p.x,y,p.z);
+     root.updateMatrixWorld(true);
+     const box=new T.Box3().setFromObject(root);
+     if(!routeClear(box)){importedPhotoreal.rejected.push({key,x:p.x,z:p.z,reason:'route-clearance'});continue}
+     root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=true;}});
+     scene.add(root);referenceSolids.push(box);
+     placed++;
+    }
+    importedPhotoreal.loaded.push(key);
+    importedPhotoreal.placed[key]=placed;
+   }catch(error){importedPhotoreal.errors.push({key,message:String(error)})}
+  }
+ }
+
   // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.
@@ -2810,5 +2851,5 @@ window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudi
   views[id]=[[site.x+distance*forward+distance*.22*side,rise+15,site.z-distance*side+distance*.22*forward],
               [site.x,rise*.53+(type==='barge'?0:5),site.z]];
  }
- if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,freightStamps,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,shadowUpdates,shadowSpan,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+ if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,freightStamps,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,shadowUpdates,shadowSpan,importedPhotoreal,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
