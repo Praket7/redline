@@ -1470,7 +1470,22 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
    beam(m.steel,[-180,H-10,z],[180,H-10,z],1.8,2.1);
    for(let x=-180;x<180;x+=18){beam(m.steel,[x,H-10,z],[x+18,H,z],.8);beam(m.orange,[x,H,z],[x+18,H-10,z],.6)}
   }
-  box(roofMetal,0,H+.4,0,W,.8,19);rail(0,H+1.7,-9,W);rail(0,H+1.7,9,W);
+  box(roofMetal,0,H+.4,0,W,.8,39);rail(0,H+1.7,-19,W);rail(0,H+1.7,19,W);
+  // Open rectangular flight passage above the service deck, with actual
+  // transfer-frame connections. 40 m clear width, 43 m clear height.
+  for(const z of [-22,22]){
+   for(const x of [-168,-112,-56,0,56,112,168]){
+    beam(m.steel,[x,H,z],[x,H+44,z],1.3,1.6);
+    beam(m.steel,[x,H,z],[x,H-7,z*.41],.75);
+   }
+   beam(m.orange,[-180,H+44,z],[180,H+44,z],1.9,2.1);
+   beam(m.steel,[-180,H+30,z],[180,H+30,z],.75);
+   for(let x=-168;x<168;x+=28)beam(m.orange,[x,H+30,z],[x+28,H+44,z],.55);
+  }
+  for(const x of [-168,-112,-56,0,56,112,168]){
+   beam(m.steel,[x,H+44,-22],[x,H+44,22],1.4,1.7);
+   for(const z of [-18,18]){box(m.light,x,H+41,z,1.25,.25,.7);beam(m.steel,[x,H+41,z],[x,H+44,z],.19)}
+  }
   for(let x=-160;x<=160;x+=40){box(m.light,x,H-9,0,2.5,.6,2);box(m.steel,x,H-8.5,0,3,.4,2.4)}
  });
  hero('reference-sky-bridge',-270,5.25,-1070);referenceBridge=1;referenceDistricts.add('sky');
@@ -1679,7 +1694,7 @@ function updatePractical(camera){
   light.intensity=insideHull?290:820;light.distance=insideHull?35:95;light.color.setHex(insideHull?0xffaa64:0xffb771);
  }else light.intensity=0}
 }
-const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1700,1420,1720],[0,30,0]],north:[[1620,1320,-1700],[0,25,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1170,28,1080],[-1190,29,775]],'2-containers':[[-1030,28,420],[-950,32,100]],'3-crane':[[-1100,39,-395],[-900,85,-575]],'4-skybridge':[[-590,237,-990],[-150,210,-1070]],'5-drop':[[870,205,-790],[850,-8,-180]],'6-drydock':[[850,-2,-308],[850,-4,-50]],'7-foundry':[[1080,44,230],[1080,43,490]],'8-pipes':[[850,38,690],[1070,50,950]],'9-offshore':[[1050,45,1320],[440,26,1290]],'10-final':[[100,28,1110],[-900,35,1080]]};
+const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1700,1420,1720],[0,30,0]],north:[[1620,1320,-1700],[0,25,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1170,28,1080],[-1190,29,775]],'2-containers':[[-1030,28,420],[-950,32,100]],'3-crane':[[-1100,39,-395],[-900,85,-575]],'4-skybridge':[[-500,236,-1070],[-140,236,-1070]],'5-drop':[[850,285,-650],[850,-3,-315]],'6-drydock':[[850,-2,-308],[850,-4,-50]],'7-foundry':[[1080,44,230],[1080,43,490]],'8-pipes':[[850,38,690],[1070,50,950]],'9-offshore':[[1050,45,1320],[440,26,1290]],'10-final':[[100,28,1110],[-900,35,1080]]};
 function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);fixtureHaloMat.uniforms.uViewportHeight.value=renderer.domElement.height;camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
 function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
