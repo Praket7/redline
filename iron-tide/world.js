@@ -2845,7 +2845,13 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(id.startsWith('macro-')){
+window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(id.startsWith('authored-')){
+  const crane=id==='authored-crane',site=(crane?macroEvidence.lift:macroEvidence.plant)[0];
+  if(!site)throw Error('no supporting assembly for '+id);
+  const yy=5.25+site.scale*(crane?97:22);
+  views[id]=[[site.x+(crane?19:14),yy+(crane?9:6),site.z+(crane?20:17)],[site.x,yy,site.z]];
+ }
+ if(id.startsWith('macro-')){
   const type=id.slice(6),site=macroEvidence[type]&&macroEvidence[type][0];
   if(!site)throw Error('no placed site for '+id);
   const rise={hall:32,lift:62,plant:30,barge:20}[type];
