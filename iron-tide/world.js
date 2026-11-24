@@ -666,6 +666,32 @@ define('heavy-gantry-detail',()=>{
  for(const x of [-55,55]){box(m.dark,x,111,0,6.5,4,12);box(m.orange,x,114,0,7,.5,13);rail(x,115,6.4,7)}
  box(m.orange,-45,118,0,7,3,5);beam(m.orange,[-45,120,0],[-32,129,0],.7);beam(m.dark,[-32,129,0],[-32,115,0],.065,.065,true);
  for(const x of [-61,61])for(const z of [-12,12]){box(m.steel,x,4.8,z,6,.65,4.6);box(m.orange,x,6.5,z,3.2,2.8,2.8);box(m.dark,x,6.5,z+1.45,2.5,1.6,.15)}
+ // Switchback maintenance stairs on the outboard face of the eastern leg.
+ // Landing supports follow the tapered columns; continuous stringers carry
+ // the treads and terminate at the actual trolley service deck.
+ const stairBase=5.15,stairTop=115.2,flights=16,rise=(stairTop-stairBase)/flights,run=12.4;
+ const stairX=y=>62*(1-Math.min(y,106)/700)+4.2;
+ for(let n=0;n<=flights;n++){
+  const y=stairBase+n*rise,z=n%2?6.2:-6.2,x=stairX(y);
+  box(deck,x,y-.16,z,2.9,.32,2.7);
+  beam(rawSteel,[x-1.3,y-.18,z],[62*(1-Math.min(y,106)/700),y-1.3,z>0?9:-9],.32);
+  for(const dz of [-1.15,1.15]){beam(m.yellow,[x+1.35,y,z+dz],[x+1.35,y+1.05,z+dz],.085);beam(m.yellow,[x-1.35,y,z+dz],[x-1.35,y+1.05,z+dz],.085)}
+  beam(m.yellow,[x+1.35,y+1.05,z-1.15],[x+1.35,y+1.05,z+1.15],.075);
+  if(n===flights){box(deck,(x+55)/2,y-.16,z,Math.abs(x-55)+2,.32,2.7);break}
+  const nextY=y+rise,nextZ=-z,nextX=stairX(nextY),steps=Math.ceil(rise/.23);
+  for(const dx of [-.92,.92]){
+   beam(rawSteel,[x+dx,y-.28,z],[nextX+dx,nextY-.28,nextZ],.20,.36);
+   beam(m.yellow,[x+dx*1.25,y+1.04,z],[nextX+dx*1.25,nextY+1.04,nextZ],.075);
+   for(let k=0;k<=4;k++){const t=k/4,xx=T.MathUtils.lerp(x,nextX,t)+dx*1.25,yy=y+rise*t,zz=T.MathUtils.lerp(z,nextZ,t);beam(m.steel,[xx,yy,zz],[xx,yy+1.04,zz],.075)}
+  }
+  for(let k=1;k<steps;k++){const t=k/steps;box(deck,T.MathUtils.lerp(x,nextX,t),y+rise*t-.08,T.MathUtils.lerp(z,nextZ,t),2.0,.16,run/steps+.055)}
+ }
+ // Power supply bus and protective guard below the main girder.
+ for(const z of [-11.5,11.5])for(let x=-63;x<63;x+=7){
+  beam(m.wire,[x,104.9,z],[x+7,104.9,z],.14,.14,true);
+  beam(m.steel,[x,104.9,z],[x,106.4,z],.15);
+ }
+
 
 });
 define('lattice-boom-crane',()=>{
