@@ -66,6 +66,11 @@ if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(
  average/=pixels.length/stride;
  if(peak>Math.max(30,average*30)){
   const w=envTex.image.width,h=envTex.image.height;
+  // Align the coastal sunset to the launch quay's northwest vista.
+  const oldPhi=((peakIndex%w+.5)/w-.5)*Math.PI*2,targetPhi=-2.12;
+  const shift=((Math.round((targetPhi-oldPhi)*w/(Math.PI*2))%w)+w)%w;
+  if(shift){const row=w*stride,temp=new pixels.constructor(row);for(let y=0;y<h;y++){const off=y*row;temp.set(pixels.subarray(off,off+row));pixels.set(temp.subarray((w-shift)*stride),off);pixels.set(temp.subarray(0,(w-shift)*stride),off+shift*stride)}}
+  peakIndex=Math.floor(peakIndex/w)*w+(peakIndex%w+shift)%w;
   const phi=((peakIndex%w+.5)/w-.5)*Math.PI*2;
   const elev=Math.max(.085,(.5-(Math.floor(peakIndex/w)+.5)/h)*Math.PI);
   sun.position.set(Math.cos(phi)*Math.cos(elev),Math.sin(elev),Math.sin(phi)*Math.cos(elev)).multiplyScalar(2300);
@@ -1684,6 +1689,30 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   beam(m.rubber,[-.75,2.53,0],[.65,1.55,.15],.09,.09,true);
   beam(m.rubber,[.65,1.55,.15],[.65,1.53,.15],.12,.12,true);
  });
+ define('stage3-dock-jib',()=>{
+  box(m.concrete,0,.02,0,11,.38,11);box(m.steel,0,.78,0,8,1.4,8);
+  for(const x of [-3.1,3.1])for(const z of [-3.1,3.1]){
+   cylinder(m.steel,x,1.62,z,.32,.28);box(m.dark,x,.83,z,.72,.8,.72)
+  }
+  cylinder(m.dark,0,2.0,0,3.25,1.0);cylinder(m.steel,0,2.65,0,3.45,.35);
+  for(const x of [-2.3,2.3])for(const z of [-2.3,2.3])box(m.orange,x,15.6,z,.68,25.6,.68);
+  for(const y of [3,9,15,21,27]){
+   for(const z of [-2.3,2.3])beam(m.steel,[-2.3,y,z],[2.3,y,z],.33);
+   for(const x of [-2.3,2.3])beam(m.steel,[x,y,-2.3],[x,y,2.3],.33);
+   if(y<27){for(const z of [-2.3,2.3])beam(m.orange,[-2.3,y,z],[2.3,y+6,z],.34);for(const x of [-2.3,2.3])beam(m.steel,[x,y,2.3],[x,y+6,-2.3],.3)}
+  }
+  box(m.steel,0,28,0,7.2,.55,7.2);rail(0,29.12,3.3,6.6);rail(-3.3,29.12,0,6.6,'z');
+  box(m.dark,-1.7,30.1,0,3.1,3.6,3.6);box(m.glass,-.10,30.5,0,.10,2.2,3.2);
+  for(const z of [-1.0,1.0]){beam(m.orange,[0,29.2,z],[30,38,z*.38],.45);beam(m.steel,[0,32.8,z],[30,38,z*.38],.42);
+   for(let x=0;x<28;x+=4){const y=29.2+x*8.8/30,yy=32.8+(x+4)*5.2/30;beam(m.steel,[x,y,z*(1-x*.62/30)],[x+4,yy,z*(1-(x+4)*.62/30)],.18)}
+  }
+  beam(m.orange,[-7,30,0],[0,38,0],.6);beam(m.wire,[0,38,0],[30,38,0],.10,.10,true);box(m.dark,-7,30.1,0,3.3,2.0,3.8);
+  part(cylGeo,m.steel,29.5,37.85,0,.55,1.2,.55,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+  beam(m.wire,[29.5,37.2,0],[29.5,20,0],.075,.075,true);box(m.yellow,29.5,19.8,0,.72,.45,.65);
+  for(const z of [-.4,.4])beam(m.steel,[-2.9,3,z],[-2.9,28.3,z],.08);
+  for(let y=3.2;y<28;y+=.48)beam(m.steel,[-2.9,y,-.4],[-2.9,y,.4],.065);
+  box(m.light,1.7,28.9,3.6,.75,.25,.42);box(m.dark,1.7,29.12,3.6,.9,.18,.55);
+ });
  // REFERENCE STAGES 1–2: replace the previous rectangular placement set,
  // keeping its authored GLB templates and material library. The new civil
  // geography and ordered gates come from one canonical JSON source.
@@ -1809,6 +1838,16 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
    for(const z of [-18,18]){box(m.light,x,H+41,z,1.25,.25,.7);beam(m.steel,[x,H+41,z],[x,H+44,z],.19)}
   }
   for(let x=-160;x<=160;x+=40){box(m.light,x,H-9,0,2.5,.6,2);box(m.steel,x,H-8.5,0,3,.4,2.4)}
+  for(const z of [-17,17]){
+   for(let x=-175;x<175;x+=14){
+    beam(m.steel,[x,H+2,z],[x+14,H+2,z],.45,.55);
+    beam(m.dark,[x,H-2,z],[x+14,H-2,z],.40,.40,true);
+    beam(m.steel,[x,H-2,z],[x,H+.1,z],.19);
+   }
+   for(let x=-168;x<168;x+=28){beam(m.steel,[x,H+2,z],[x+5,H+11,z],.18);box(m.dark,x,H+1.15,z,.8,.5,.8)}
+  }
+  for(const x of [-150,150])for(let y=18;y<H-5;y+=18)for(const z of [-12,12]){box(m.steel,x,y,z,4,.3,4);beam(m.steel,[x,y,z],[x,y-3,z*.8],.25)}
+ 
  });
  hero('reference-sky-bridge',-270,5.25,-1070);referenceBridge=1;referenceDistricts.add('sky');
  // North and central production quarters follow material receiving -> plate
@@ -1909,7 +1948,10 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  // Cluster functional assets beside the lower racing segments, not in
  // random background rows. Every solid is checked against both route sets,
  // land support, cargo stacks and pre-existing hero bounds.
- const lookdevSites={workbays:0,forklifts:0,hoseSkids:0,litBays:0};
+ const lookdevSites={workbays:0,forklifts:0,hoseSkids:0,litBays:0,dockJibs:0};
+ for(const [x,z,angle] of [[-1015,1005,0],[-955,855,Math.PI],[-970,740,0],[-1150,605,Math.PI/2],[-740,-330,Math.PI/2],[-345,990,0],[1120,850,Math.PI]]){
+  if(safe('stage3-dock-jib',x,z,angle,1,'quays')){lookdevSites.dockJibs++;const lx=x+1.7*Math.cos(angle)+3.6*Math.sin(angle),lz=z-1.7*Math.sin(angle)+3.6*Math.cos(angle);fixturePositions.push([lx,34.15,lz]);pool(lx,5.37,lz,18)}
+ }
  for(const [x,z,angle] of [[-1140,1040,0],[-1040,855,Math.PI/2],[-1160,745,0],[-1010,630,0],[-980,305,0],[-1140,140,Math.PI/2],[-930,-130,0],[-1100,-460,0],[-820,-650,Math.PI/2],[-1020,-800,0],[740,-550,0],[1115,190,Math.PI/2],[1180,420,0],[830,600,0],[990,730,0],[1140,970,0],[-100,1020,0],[-420,1020,0],[-700,1030,0]]){
   if(safe('stage3-quay-workbay',x,z,angle,1,'work-zones')){
    lookdevSites.workbays++;lookdevSites.litBays++;
@@ -2043,7 +2085,7 @@ for(const tile of lodTiles.values()){
 }
 const lodFrustum=new T.Frustum(),lodMatrix=new T.Matrix4();let lodInitialized=false;
 function updateContainerLOD(cam,reflectionLowDetail=false){cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));for(const batch of worldBatches)batch.mesh.visible=!lodInitialized||lodFrustum.intersectsBox(batch.bounds);for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=!reflectionLowDetail&&lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true}
-const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x132b34,roughness:.32,metalness:.02,envMapIntensity:.72,bumpMap:waterTex,bumpScale:.6});
+const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x10282e,roughness:.30,metalness:.02,envMapIntensity:.55,bumpMap:waterTex,bumpScale:.6});
 // World-position ripples avoid the previous giant repeated bump texture.
 waterMat.bumpMap=null;
 const shoreCanvas=document.createElement('canvas');shoreCanvas.width=shoreCanvas.height=1024;const shoreCtx=shoreCanvas.getContext('2d',{alpha:false});shoreCtx.fillStyle='#000';shoreCtx.fillRect(0,0,1024,1024);
@@ -2052,7 +2094,7 @@ shoreCtx.fillStyle='#000';for(const [a,b,c,d] of land)shoreCtx.fillRect((a+1500)
 waterMat.onBeforeCompile=shader=>{
  shader.uniforms.uShore={value:shoreMap};
  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nuniform sampler2D uShore;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 a=seaP*.31,b=vec2(seaP.x+seaP.y,seaP.y-seaP.x)*.87;float af=1.-smoothstep(.5,2.2,length(fwidth(a))),bf=1.-smoothstep(.5,2.2,length(fwidth(b)));vec2 rip=vec2(seaNoise(a+vec2(.17,0.))-seaNoise(a-vec2(.17,0.)),seaNoise(a+vec2(0.,.17))-seaNoise(a-vec2(0.,.17)))*.24*af;vec2 rb=vec2(seaNoise(b+vec2(.19,0.))-seaNoise(b-vec2(.19,0.)),seaNoise(b+vec2(0.,.19))-seaNoise(b-vec2(0.,.19)));rip+=rb*.115*bf;vec2 wave=vec2(.72,.69);float phase=dot(seaP,wave)*.83+seaNoise(seaP*.055)*4.;rip+=wave*cos(phase)*.095*(1.-smoothstep(.5,2.2,length(fwidth(phase))));normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.82+.22*seaRip;vec2 shoreUV=vSea.xz/3000.+.5;float inMap=step(0.,shoreUV.x)*step(shoreUV.x,1.)*step(0.,shoreUV.y)*step(shoreUV.y,1.);float shore=texture2D(uShore,vec2(shoreUV.x,1.-shoreUV.y)).r*inMap;float froth=shore*smoothstep(.49,.84,seaNoise(vSea.xz*.49)*.65+seaNoise(vSea.xz*.12)*.35);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.32,.40,.39),froth*.65);');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nuniform sampler2D uShore;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 a=seaP*.31,b=vec2(seaP.x+seaP.y,seaP.y-seaP.x)*.87;float af=1.-smoothstep(.5,2.2,length(fwidth(a))),bf=1.-smoothstep(.5,2.2,length(fwidth(b)));vec2 rip=vec2(seaNoise(a+vec2(.17,0.))-seaNoise(a-vec2(.17,0.)),seaNoise(a+vec2(0.,.17))-seaNoise(a-vec2(0.,.17)))*.24*af;vec2 rb=vec2(seaNoise(b+vec2(.19,0.))-seaNoise(b-vec2(.19,0.)),seaNoise(b+vec2(0.,.19))-seaNoise(b-vec2(0.,.19)));rip+=rb*.115*bf;vec2 wave=vec2(.72,.69);float phase=dot(seaP,wave)*.83+seaNoise(seaP*.055)*4.;rip+=wave*cos(phase)*.095*(1.-smoothstep(.5,2.2,length(fwidth(phase))));float nearWave=1.-smoothstep(220.,1600.,distance(cameraPosition,vSea));normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y)*nearWave);').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.82+.22*seaRip;vec2 shoreUV=vSea.xz/3000.+.5;float inMap=step(0.,shoreUV.x)*step(shoreUV.x,1.)*step(0.,shoreUV.y)*step(shoreUV.y,1.);float shore=texture2D(uShore,vec2(shoreUV.x,1.-shoreUV.y)).r*inMap;float froth=shore*smoothstep(.49,.84,seaNoise(vSea.xz*.49)*.65+seaNoise(vSea.xz*.12)*.35);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.32,.40,.39),froth*.48);');
 
 };
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
