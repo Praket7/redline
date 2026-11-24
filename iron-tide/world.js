@@ -130,7 +130,7 @@ const architectureSpec={
  'stage3-outfitting-annex':{w:64,d:38,h:19,pitch:0,seed:7}
 };
 function enrichBuildingArchitecture(name){
- const a=architectureSpec[name];if(!a)return;
+ const a=architectureSpec[name];if(!a||name==='outfit-workshop'||name==='stage3-outfitting-annex'||name==='stage3-boiler-house')return;
  const {w,d,h,pitch,open,seed:style}=a,wet=m.dark,frame=m.steel,paint=m.door,roof=m.roof;
  // Two different facade languages. Loading entrances are recessed into the
  // existing shells; secondary structure projects only fractions of a metre.
@@ -644,17 +644,101 @@ function clearScenery(x,top,z){for(let i=0;i<routePoints.length;i++){const a=rou
   }
  });
  define('outfit-workshop',()=>{
-  const W=62,D=88,H=19;
-  box(cladding,0,H/2,0,W,H,D);
-  box(roofMetal,0,H+.3,0,W+1,.6,D+1);
-  box(m.concrete,0,.35,0,W+1,.7,D+1);
-  for(const side of [-1,1]){
-   for(let z=-40;z<=40;z+=4){box(m.steel,side*31.2,H/2,z,.17,H,.18);if(z%8===0)box(m.glass,side*31.36,H-5,z,.16,3.2,5.3)}
-   for(const x of [-20,0,20]){box(m.dark,x,5,side*44.25,13,10,.3);box(m.door,x,5,side*44.45,12.4,9.6,.15);for(let y=1;y<10;y+=.65)box(m.dark,x,y,side*44.57,12,.06,.09)}
+  // Working outfitting shop: closed steel wall panels and actual openings are
+  // separate meshes. No opaque box concealed behind the open door or glazing.
+  const W=62,D=88,H=19, eave=17.8, ridge=22.2;
+  box(m.concrete,0,.28,0,W+1,.56,D+1);
+  for(const z of [-43,-32,-21,-10,1,12,23,34,43]){
+   for(const side of [-1,1]){
+    const x=side*30;
+    box(m.concrete,x,.55,z,1.7,1.1,1.8);
+    box(m.steel,x,eave*.5,z,.55,eave,.68);
+    beam(m.steel,[x,eave,z],[0,ridge,z],.45,.56);
+    beam(m.steel,[x,eave-2.2,z],[x-side*5,eave+.7,z],.22);
+    // Runway beams and side service galleries attach to portal columns.
+    box(m.orange,x-side*1.05,13,z,1.25,1.1,11.05);
+    box(m.steel,x-side*2.2,10.5,z,2.5,.22,10.95);
+    rail(x-side*3.35,11.55,z,10.9,'z');
+    beam(m.steel,[x,8.5,z],[x-side*3.2,10.4,z],.23);
+   }
+   beam(m.steel,[-30,eave,z],[30,eave,z],.35,.45);
+   for(let x=-24;x<24;x+=8)beam(m.steel,[x,eave,z],[x+8,ridge-Math.abs(x+8)*4.4/30,z],.19);
   }
-  box(m.concrete,23,5,-30,15,10,25);box(m.dark,23,10.3,-30,15.8,.6,25.8);
-  for(const y of [3,7])for(const z of [-38,-30,-22])box(m.glass,30.6,y,z,.17,2,4);
-  for(let z=-32;z<=32;z+=16){box(m.steel,-15,20,z,6,2,8);box(m.dark,-15,21.2,z,6.6,.35,8.5)}
+  for(const side of [-1,1]){
+   const x=side*30.9,rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*Math.atan2(4.4,31));
+   part(boxGeo,roofMetal,side*15.5,20,0,Math.hypot(31,4.4)+.8,.35,89,rot);
+   // Continuous lower wall, independent glazed ribbon and upper spandrel.
+   box(cladding,x,6.4,0,.28,12.8,88);
+   box(cladding,x,16.65,0,.28,2.3,88);
+   for(let z=-40;z<=40;z+=8){
+    box(m.dark,x,14.2,z,.25,2.8,7.7);
+    box(m.glass,x+side*.17,14.2,z,.12,2.45,7.3);
+    for(const dz of [-3.7,0,3.7])box(m.steel,x+side*.24,14.2,z+dz,.13,2.6,.12);
+    box(m.steel,x+side*.24,12.88,z,.18,.16,7.7);
+    box(m.steel,x+side*.24,15.51,z,.18,.16,7.7);
+   }
+   for(let z=-43;z<=43;z+=4.3)box(m.steel,x+side*.16,6.4,z,.12,12.8,.12);
+   beam(m.steel,[side*31.65,eave-.2,-44.5],[side*31.65,eave-.2,44.5],.28,.28,true);
+   for(const z of [-39,0,39]){
+    beam(m.dark,[side*31.62,.55,z],[side*31.62,eave-.2,z],.21,.21,true);
+    for(const y of [3,8,13])beam(m.steel,[side*31.62,y,z],[side*30.95,y,z],.13);
+   }
+   // Saw-toothed roof lighting curbs and mounted extractors sit on the pitch.
+   for(const z of [-28,0,28]){
+    const xx=side*15,y=22.2-4.4*Math.abs(xx)/31;
+    box(m.dark,xx,y+.32,z,6,1.0,7);
+    box(m.steel,xx,y+1.35,z,5.4,1.65,6.4);
+    box(roofMetal,xx,y+2.3,z,6,.22,7);
+    for(let dz=-2.7;dz<2.8;dz+=.54)box(m.dark,xx,y+1.35,z+dz,5.5,.08,.16);
+   }
+  }
+  // Portal frontage: piers, header and two asymmetric real open loading bays.
+  for(const side of [-1,1]){
+   const z=side*43.85;
+   for(const [x,w] of [[-28,6],[-10,6],[10,6],[28,6]])box(cladding,x,8.9,z,w,17.8,.35);
+   box(cladding,0,15.2,z,62,5.2,.35);
+   for(const x of [-19,0,19]){
+    const isOpen=(side===1&&x!==19)||(side===-1&&x===0);
+    box(m.steel,x-6.5,6.2,z,.38,12.4,.65);
+    box(m.steel,x+6.5,6.2,z,.38,12.4,.65);
+    box(m.dark,x,12.2,z,13.3,.9,.9);
+    if(!isOpen){
+     box(m.door,x,6,z,12.4,12,.24);
+     for(let y=.8;y<12;y+=.65)box(m.dark,x,y,z+side*.17,12.2,.06,.10);
+    }else{
+     // Roll-up door retained at the lintel; bottom remains visibly open.
+     part(cylGeo,m.door,x,11.6,z+side*.32,.36,12.5,.36,new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2));
+     box(m.door,x,11.05,z,12.4,1,.24);
+     for(const dx of [-5.9,5.9])box(m.yellow,x+dx,.8,z+side*.65,.2,1.6,.20);
+    }
+    box(m.light,x,12.8,z+side*.38,2.2,.22,.5);
+   }
+   // Gable closure follows the actual sloping roof; no open roof seam.
+   const p=[-31,eave,z,31,eave,z,0,ridge,z],g=new T.BufferGeometry();
+   g.setAttribute('position',new T.Float32BufferAttribute(side>0?p:[...p.slice(0,3),...p.slice(6,9),...p.slice(3,6)],3));
+   g.setAttribute('uv',new T.Float32BufferAttribute([0,0,1,0,.5,1],2));g.computeVertexNormals();part(g,cladding,0,0,0,1,1,1);
+  }
+  // Interior work lines: actual supported panel jigs, tool benches and crane
+  // trolley. Central passage remains open and can be seen through the doors.
+  for(const x of [-19,19])for(const z of [-27,-9,9,27]){
+   for(const dx of [-4.8,4.8])for(const dz of [-2.6,2.6]){
+    box(m.dark,x+dx,.72,z+dz,.27,1.45,.28);box(m.steel,x+dx,.18,z+dz,.65,.12,.65);
+   }
+   box(m.steel,x,1.5,z,10.8,.22,6.2);
+   for(let j=0;j<4;j++)box(m.rust,x,1.67+j*.12,z,9.8,.09,5.4);
+   for(const dx of [-3.5,3.5])beam(m.steel,[x+dx,1.6,z-2],[x+dx,4,z+2],.18);
+   box(m.dark,x+7,1.45,z,2.3,2.3,2.5);
+  }
+  for(const z of [-29,0,29]){
+   box(m.orange,0,14,z,57,1.7,2.3);
+   box(m.dark,-8,15.3,z,4,1.1,3.4);
+   beam(m.wire,[-8,14.5,z],[-8,6.2,z],.09,.09,true);
+   box(m.yellow,-8,6,z,.7,.7,.7);
+   for(const x of [-18,18]){
+    beam(m.steel,[x,eave,z],[x,16.9,z],.13);
+    box(m.dark,x,16.8,z,3.4,.28,.9);box(m.light,x,16.6,z,3,.12,.6);
+   }
+  }
  });
  // Explicitly stagger footprints and rotate service facilities around production lanes.
  for(const [x,z,kind,angle,scale] of [
@@ -1030,12 +1114,23 @@ define('breakwater-armour',()=>{const g=new T.IcosahedronGeometry(1,1);for(let i
 // Purpose-built ship silhouettes: lofted longitudinal sections, bridge, coamings,
 // loading booms and deck machinery. No race volume is inferred from this visual mesh.
 function defineMerchant(name,unfinished=false){define(name,()=>{
- const length=208, stations=40, sections=[[-4,.28],[-1,.68],[2,.94],[8,1],[11.8,.96]];
+ const length=208, stations=72, sections=[[-4,.28],[-1,.68],[2,.94],[8,1],[11.8,.96]];
  // Meter-scale hull plating atlas: actual courses, weld lines, and downward
  // oxidation from damaged paint. No baked shadows or sunset colors.
  function shipFinish(base,wear){
   const c=document.createElement('canvas');c.width=1024;c.height=256;const ctx=c.getContext('2d');
   ctx.fillStyle=base;ctx.fillRect(0,0,c.width,c.height);
+  if(m.rust.map?.image){
+   ctx.save();ctx.globalAlpha=wear*.54;ctx.globalCompositeOperation='multiply';
+   for(let x=0;x<1024;x+=256)ctx.drawImage(m.rust.map.image,0,0,m.rust.map.image.width,m.rust.map.image.height,x,0,256,256);
+   ctx.restore();
+   ctx.save();ctx.globalAlpha=wear*.37;ctx.globalCompositeOperation='soft-light';
+   for(let x=0;x<1024;x+=256)ctx.drawImage(m.rust.map.image,x,0,256,256);
+   ctx.restore();
+  }
+  // Long-scale varying exposure to salt and local oxidation, independent of
+  // the repeated plating grid. The boot stripe receives the strongest wear.
+  const salt=ctx.createLinearGradient(0,0,0,256);salt.addColorStop(0,'rgba(40,30,26,.13)');salt.addColorStop(.34,'rgba(45,36,30,0)');salt.addColorStop(.78,'rgba(63,37,21,.12)');salt.addColorStop(1,'rgba(44,26,17,.45)');ctx.fillStyle=salt;ctx.fillRect(0,0,1024,256);
   let sd=27113;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
   for(let y=0;y<256;y+=64){
    for(let x=-40+(y%128?40:0);x<1024;x+=80){
@@ -1049,13 +1144,61 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
    }
   }
   const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-  return new T.MeshStandardMaterial({map:t,roughness:.78,metalness:.09,normalMap:m.steel.normalMap,normalScale:new T.Vector2(.12,.12),envMapIntensity:.55});
+  return new T.MeshStandardMaterial({map:t,roughness:.84,roughnessMap:weatherRoughness(1024,256,27113,.73),metalness:.07,normalMap:m.steel.normalMap,normalScale:new T.Vector2(.25,.25),envMapIntensity:.68});
  }
  const hullmat=shipFinish(unfinished?'#928477':'#344752',unfinished?.83:.55),bootmat=shipFinish(unfinished?'#85483a':'#713b33',.42);
  const topmat=shipFinish('#3d4546',.32);
  function width(x){const q=x/(length/2);return 16.3*Math.sqrt(Math.max(.0005,1-Math.abs(q)**(q>0?3.8:9)))}
- function P(i,j,side){const x=-length/2+i*length/stations;return [x,sections[j][0]+(i>stations-5?Math.pow((i-stations+5)/5,2)*2.4:0),side*width(x)*sections[j][1]]}
- for(let j=0;j<sections.length-1;j++){const p=[],uv=[];for(let i=0;i<stations;i++)for(const side of [-1,1]){const A=P(i,j,side),B=P(i+1,j,side),C=P(i+1,j+1,side),D=P(i,j+1,side);for(const v of (side>0?[A,B,C,A,C,D]:[A,C,B,A,D,C])){p.push(...v);uv.push((v[0]+104)/104,(v[1]+4)/16)}}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.computeVertexNormals();g.userData.keepUV=true;part(g,j===0?bootmat:j===1?m.dark:hullmat,0,0,0,1,1,1)}
+ function P(i,j,side){return loftPoint(-length/2+i*length/stations,sections[j][0],side).toArray()}
+ // Interpolate each band with a monotonic Hermite curve. Normals are
+ // evaluated across station and section boundaries, so plate material seams
+ // no longer produce large artificial faceted lighting discontinuities.
+ function loftWidth(y){
+  let j=0;while(j<sections.length-2&&y>sections[j+1][0])j++;
+  const [a,wa]=sections[j],[b,wb]=sections[j+1],t=T.MathUtils.clamp((y-a)/(b-a),0,1);
+  const slope=(i)=>{const l=Math.max(0,i-1),r=Math.min(sections.length-1,i+1);return (sections[r][1]-sections[l][1])/(sections[r][0]-sections[l][0])};
+  const m0=slope(j)*(b-a),m1=slope(j+1)*(b-a),t2=t*t,t3=t2*t;
+  return T.MathUtils.clamp((2*t3-3*t2+1)*wa+(t3-2*t2+t)*m0+(-2*t3+3*t2)*wb+(t3-t2)*m1,.26,1.03);
+ }
+ function loftPoint(x,y,side){
+  const bow=Math.max(0,(x-78)/26);
+  return V(x,y+bow*bow*2.4,side*width(x)*loftWidth(y));
+ }
+ function loftNormal(x,y,side){
+  const dx=loftPoint(Math.min(104,x+.08),y,side).sub(loftPoint(Math.max(-104,x-.08),y,side));
+  const dy=loftPoint(x,Math.min(11.8,y+.08),side).sub(loftPoint(x,Math.max(-4,y-.08),side));
+  return dx.cross(dy).multiplyScalar(side).normalize();
+ }
+ for(let j=0;j<sections.length-1;j++){
+  const p=[],uv=[],normals=[],indices=[],rows=5;
+  for(const side of [-1,1]){
+   const base=p.length/3;
+   for(let k=0;k<=rows;k++)for(let i=0;i<=stations;i++){
+    const x=-104+i*208/stations,y=T.MathUtils.lerp(sections[j][0],sections[j+1][0],k/rows);
+    const v=loftPoint(x,y,side),n=loftNormal(x,y,side);
+    p.push(v.x,v.y,v.z);normals.push(n.x,n.y,n.z);uv.push((x+104)/104,(y+4)/16);
+   }
+   for(let k=0;k<rows;k++)for(let i=0;i<stations;i++){
+    const a=base+k*(stations+1)+i,b=a+1,c=b+stations+1,d=a+stations+1;
+    indices.push(...(side>0?[a,b,c,a,c,d]:[a,c,b,a,d,c]));
+   }
+  }
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));
+  g.setAttribute('normal',new T.Float32BufferAttribute(normals,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);
+  g.userData.keepUV=true;part(g,j===0?bootmat:j===1?m.dark:hullmat,0,0,0,1,1,1);
+ }
+ // Close the keel and end faces; the hull is not an open two-sided shell.
+ const capP=[],capUV=[];
+ function hullCap(a,b,c){for(const v of [a,b,c]){capP.push(v.x,v.y,v.z);capUV.push((v.x+104)/104,(v.z+17)/34);}}
+ for(let i=0;i<stations;i++){
+  const a=-104+i*208/stations,b=-104+(i+1)*208/stations,A=loftPoint(a,-4,-1),B=loftPoint(a,-4,1),C=loftPoint(b,-4,1),D=loftPoint(b,-4,-1);
+  hullCap(A,C,B);hullCap(A,D,C);
+ }
+ for(const x of [-104,104])for(let j=0;j<sections.length-1;j++){
+  const a=loftPoint(x,sections[j][0],-1),b=loftPoint(x,sections[j][0],1),c=loftPoint(x,sections[j+1][0],1),d=loftPoint(x,sections[j+1][0],-1);
+  if(x>0){hullCap(a,b,c);hullCap(a,c,d)}else{hullCap(a,c,b);hullCap(a,d,c)}
+ }
+ const cap=new T.BufferGeometry();cap.setAttribute('position',new T.Float32BufferAttribute(capP,3));cap.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cap.computeVertexNormals();cap.userData.keepUV=true;part(cap,bootmat,0,0,0,1,1,1);
  const deckP=[],deckUv=[];for(let i=0;i<stations;i++){const A=P(i,4,-1),B=P(i,4,1),C=P(i+1,4,1),D=P(i+1,4,-1);for(const v of [A,B,C,A,C,D]){deckP.push(...v);deckUv.push((v[0]+104)/104,(v[2]+17)/17)}}
  const dg=new T.BufferGeometry();dg.setAttribute('position',new T.Float32BufferAttribute(deckP,3));dg.setAttribute('uv',new T.Float32BufferAttribute(deckUv,2));dg.computeVertexNormals();dg.userData.keepUV=true;part(dg,topmat,0,0,0,1,1,1);
  for(let i=0;i<stations;i++)for(const side of [-1,1]){const a=P(i,4,side),b=P(i+1,4,side);beam(m.steel,[a[0],a[1]+1,a[2]],[b[0],b[1]+1,b[2]],.12,.12,true);beam(m.steel,a,[a[0],a[1]+1,a[2]],.12)}
@@ -2738,7 +2881,7 @@ const filmVertex='varying vec3 vFilm;void main(){vFilm=(modelMatrix*vec4(positio
 const filmNoise='float fh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}';
 function filmMaterial(sea){
  const frag='varying vec3 vFilm;\n'+reflectionCommon+filmNoise+'\nvoid main(){vec3 v=normalize(cameraPosition-vFilm);float f=.025+.975*pow(1.-clamp(v.y,0.,1.),5.);vec2 p=vFilm.xz;float m=fn(p*.044)*.72+fn(p*.20)*.28;vec2 noise=vec2(fn(p*.33),fn(p.yx*.37))-.5;'+
- (sea?'float alpha=clamp(.09+f*.76,0.,.80);vec2 swell=vec2(sin(p.x*.63+p.y*.27),sin(p.x*.19-p.y*.81));vec4 reflected=portSample(vFilm,noise*.021+swell*.0025);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb*vec3(.88,.94,.96);':'float fine=fn(p*.57);float wet=smoothstep(.47,.76,m*.84+fine*.16);float alpha=wet*clamp(.06+f*.82,0.,.74);vec4 reflected=portSample(vec3(vFilm.x,5.14,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.94,.95,.94);')+
+ (sea?'float alpha=clamp(.09+f*.76,0.,.80);vec2 swell=vec2(sin(p.x*.63+p.y*.27),sin(p.x*.19-p.y*.81));vec4 reflected=portSample(vFilm,noise*.015+swell*.007);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb*vec3(.88,.94,.96);':'float fine=fn(p*.57);float wet=smoothstep(.39,.68,m*.78+fine*.22);float alpha=wet*clamp(.15+f*.86,0.,.86);vec4 reflected=portSample(vec3(vFilm.x,5.14,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.94,.95,.94);')+
  '\ngl_FragColor=vec4(col,alpha);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}';
  return new T.ShaderMaterial({uniforms:{uPortReflection:reflectionPlanes[sea?'sea':'road'].map,uPortProjection:reflectionPlanes[sea?'sea':'road'].projection},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
 }
