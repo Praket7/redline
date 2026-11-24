@@ -257,7 +257,7 @@ define('cargo-shed',()=>{
  for(const zz of [-27,27]){box(m.steel,4,H+roofRise+.85,zz,2,2.5,2);box(m.dark,4,H+roofRise+2.2,zz,2.8,.3,2.8)}
 });
 /* Civil layout: separate slabs leave actual excavated dock unobstructed. */
-function slab(x,z,w,d){box(m.concrete,x,1.8,z,w,6.4,d);box(m.road,x,5.04,z,w-8,.08,d-8)}
+const pavedSlabs=[];function slab(x,z,w,d){pavedSlabs.push([x,z,w,d]);box(m.concrete,x,1.8,z,w,6.4,d);box(m.road,x,5.04,z,w-8,.08,d-8)}
 slab(0,650,2360,1100);slab(-425,-550,1510,1300);slab(1000,-985,360,410);slab(850,-125,660,450);slab(1140,-550,100,500);
 box(m.concrete,850,-10,-550,400,4,400);for(const x of [655,1045]){box(m.concrete,x,-1,-550,10,12,400);rail(x,6,-550,400,'z')}box(m.concrete,850,-1,-747,390,12,9);box(m.dark,850,-3,-350,390,8,6);for(let z=-735;z<-365;z+=22)for(const x of [680,1020])box(m.light,x,0,z,2,.5,2);
 for(const x of [660,1040])for(let z=-725;z<=-375;z+=35){box(m.dark,x,0,z,.3,12,.18);box(m.steel,x,5.2,z,1.2,.3,3);for(let i=0;i<20;i++)beam(m.orange,[x+(x<850?1:-1),-7+i*.65,z-1],[x+(x<850?1:-1),-7+i*.65,z+1],.09)}
@@ -377,7 +377,8 @@ for(const z of [-1050,-840,-600,-400])place('tugboat',1210,.5,z,Math.PI/2);
 const reflectionRT=new T.WebGLRenderTarget(768,480,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true});
 const reflectionFallback=new T.DataTexture(new Uint8Array([0,0,0,255]),1,1);reflectionFallback.needsUpdate=true;
 const reflUniforms={uPortReflection:{value:reflectionRT.texture},uPortProjection:{value:new T.Matrix4()},uRoadReflect:{value:0},uSeaReflect:{value:0}};
-const reflectionCamera=new T.PerspectiveCamera(),reflectionClip=new T.Plane(V(0,1,0),0),waterSurfaces=[];
+const reflectionCamera=new T.PerspectiveCamera(),reflectionClip=new T.Plane(V(0,1,0),0),waterSurfaces=[],roadFilm=new T.Group(),seaFilm=new T.Group();
+roadFilm.visible=seaFilm.visible=false;scene.add(roadFilm,seaFilm);
 const reflectionCommon='uniform sampler2D uPortReflection;\nuniform mat4 uPortProjection;\nvec3 portSample(vec3 p,vec2 ripple){vec4 clip=uPortProjection*vec4(p,1.);vec2 uv=clip.xy/clip.w*.5+.5;uv+=ripple;return texture2D(uPortReflection,clamp(uv,vec2(.002),vec2(.998))).rgb;}\n';
 let reflectionsEnabled=true,reflectionPasses=0,reflectionCalls=0,reflectionTriangles=0,lastReflectionTime=-Infinity,lastReflectionMode='',lastReflectionPlane=NaN;
 function renderPortReflection(cam,plane){
@@ -387,7 +388,7 @@ function renderPortReflection(cam,plane){
  reflectionCamera.up.copy(worldUp);reflectionCamera.lookAt(reflectionCamera.position.clone().add(direction));
  reflectionCamera.projectionMatrix.copy(cam.projectionMatrix);reflectionCamera.projectionMatrixInverse.copy(cam.projectionMatrixInverse);reflectionCamera.updateMatrixWorld();
  reflUniforms.uPortProjection.value.multiplyMatrices(reflectionCamera.projectionMatrix,reflectionCamera.matrixWorldInverse);
- const oldTarget=renderer.getRenderTarget(),oldClips=renderer.clippingPlanes,oldGuide=guide.visible;
+ const oldTarget=renderer.getRenderTarget(),oldClips=renderer.clippingPlanes,oldGuide=guide.visible;roadFilm.visible=seaFilm.visible=false;
  const oldRoad=reflUniforms.uRoadReflect.value,oldSea=reflUniforms.uSeaReflect.value;
  reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;reflUniforms.uPortReflection.value=reflectionFallback;
  for(const water of waterSurfaces)water.visible=false;
@@ -396,7 +397,7 @@ function renderPortReflection(cam,plane){
  finally{renderer.setRenderTarget(oldTarget);renderer.clippingPlanes=oldClips;guide.visible=oldGuide;for(const water of waterSurfaces)water.visible=true;reflUniforms.uRoadReflect.value=oldRoad;reflUniforms.uSeaReflect.value=oldSea;reflUniforms.uPortReflection.value=reflectionRT.texture;updateContainerLOD(cam)}
 }
 function updatePortReflection(cam){
- reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;
+ reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;roadFilm.visible=seaFilm.visible=false;
  if(!reflectionsEnabled||!cam.isPerspectiveCamera||cam.position.y<6||cam.position.y>190)return;
  const p=cam.position,sea=p.z<-1190||p.z>1200||p.x>1190||p.x<-1190||(p.x>350&&p.x<640&&p.z<100);
  const plane=sea?-.25:5.24,now=performance.now();
@@ -405,16 +406,15 @@ function updatePortReflection(cam){
  if(!moving||now-lastReflectionTime>100||lastReflectionMode!==mode||lastReflectionPlane!==plane){
   renderPortReflection(cam,plane);lastReflectionTime=now;lastReflectionMode=mode;lastReflectionPlane=plane;
  }
- if(lastReflectionPlane===plane){reflUniforms[sea?'uSeaReflect':'uRoadReflect'].value=1}
+ if(lastReflectionPlane===plane){reflUniforms[sea?'uSeaReflect':'uRoadReflect'].value=1;roadFilm.visible=!sea;seaFilm.visible=sea}
 }
 // Ground macro variation is evaluated in world space so large slabs and tiny props
 // no longer share the same apparent UV scale. Preserve the original texture for GLB.
 for(const mat of [m.road,asphalt,apron]){
  mat.onBeforeCompile=shader=>{
-  Object.assign(shader.uniforms,reflUniforms);
   shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 pavementP=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n pavementP=instanceMatrix*pavementP;\n#endif\n vPavement=(modelMatrix*pavementP).xyz;');
   shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.045)*.7+wetNoise(vPavement.xz*.19)*.3;float puddle=smoothstep(.50,.78,wet);roughnessFactor=mix(roughnessFactor,.16,puddle*.84);diffuseColor.rgb*=mix(1.0,.58,puddle);');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\n'+reflectionCommon+'uniform float uRoadReflect;').replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );','vec3 vn=normalize(cameraPosition-vPavement);float fres=.04+.96*pow(1.-clamp(vn.y,0.,1.),5.);float topFace=step(.5,abs(normalize(cross(dFdx(vPavement),dFdy(vPavement))).y);vec2 roughRipple=vec2(wetNoise(vPavement.xz*.18),wetNoise(vPavement.zx*.21))-.5;float reflectWeight=uRoadReflect*topFace*puddle*clamp(fres*.95+.16,0.,.8);outgoingLight=mix(outgoingLight,portSample(vec3(vPavement.x,5.24,vPavement.z),roughRipple*.005),reflectWeight);\ngl_FragColor = vec4( outgoingLight, diffuseColor.a );');
+
  if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
  };
 }
@@ -1001,14 +1001,28 @@ const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const water
 // World-position ripples avoid the previous giant repeated bump texture.
 waterMat.bumpMap=null;
 waterMat.onBeforeCompile=shader=>{
- Object.assign(shader.uniforms,reflUniforms);
  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 a=seaP*.31,b=vec2(seaP.x+seaP.y,seaP.y-seaP.x)*.87;float af=1.-smoothstep(.5,2.2,length(fwidth(a))),bf=1.-smoothstep(.5,2.2,length(fwidth(b)));vec2 rip=vec2(seaNoise(a+vec2(.17,0.))-seaNoise(a-vec2(.17,0.)),seaNoise(a+vec2(0.,.17))-seaNoise(a-vec2(0.,.17)))*.15*af;vec2 rb=vec2(seaNoise(b+vec2(.19,0.))-seaNoise(b-vec2(.19,0.)),seaNoise(b+vec2(0.,.19))-seaNoise(b-vec2(0.,.19)));rip+=rb*.075*bf;normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.92+.08*seaRip;');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\n'+reflectionCommon+'uniform float uSeaReflect;').replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );','vec3 seaView=normalize(cameraPosition-vSea);float fresnel=.02+.98*pow(1.-clamp(seaView.y,0.,1.),5.);outgoingLight=mix(outgoingLight,portSample(vSea,rip*.055),uSeaReflect*clamp(.12+fresnel*.82,0.,.9));\ngl_FragColor = vec4( outgoingLight, diffuseColor.a );');
+
 };
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
 function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),waterMat);water.rotation.x=-Math.PI/2;water.position.set(x,-.25,z);waterSurfaces.push(water);scene.add(water)}
 waterTile(-9675,0,20650,40000);waterTile(10525,0,18950,40000);waterTile(850,-10375,400,19250);waterTile(850,9825,400,20350);
+// Thin dielectric films above the existing PBR substrate, not a fake
+// sky-only highlight. The world-projected capture contains the actual scene.
+// Explicit separate mesh visibility also makes reflection A/B tests reliable.
+const filmVertex='varying vec3 vFilm;void main(){vFilm=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vFilm,1.);}';
+const filmNoise='float fh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}';
+function filmMaterial(sea){
+ const frag='varying vec3 vFilm;\n'+reflectionCommon+filmNoise+'\nvoid main(){vec3 v=normalize(cameraPosition-vFilm);float f=.025+.975*pow(1.-clamp(v.y,0.,1.),5.);vec2 p=vFilm.xz;float m=fn(p*.044)*.72+fn(p*.20)*.28;vec2 noise=vec2(fn(p*.33),fn(p.yx*.37))-.5;'+
+ (sea?'float alpha=clamp(.19+f*.78,0.,.9);vec3 col=portSample(vFilm,noise*.019);':'float wet=smoothstep(.46,.72,m);float alpha=wet*clamp(.21+f*.7,0.,.78);if(alpha<.008)discard;vec3 col=portSample(vec3(vFilm.x,5.24,vFilm.z),noise*.004);')+
+ '\ngl_FragColor=vec4(col,alpha);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}';
+ return new T.ShaderMaterial({uniforms:{uPortReflection:reflUniforms.uPortReflection,uPortProjection:reflUniforms.uPortProjection},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
+}
+const pavementFilmMaterial=filmMaterial(false),waterFilmMaterial=filmMaterial(true);
+function addFilm(group,mat,x,y,z,w,d){const mesh=new T.Mesh(new T.PlaneGeometry(w,d),mat);mesh.rotation.x=-Math.PI/2;mesh.position.set(x,y,z);mesh.renderOrder=4;group.add(mesh)}
+for(const [x,z,w,d] of pavedSlabs)addFilm(roadFilm,pavementFilmMaterial,x,5.365,z,w-1,d-1);
+for(const water of waterSurfaces){const w=water.geometry.parameters.width,d=water.geometry.parameters.height;addFilm(seaFilm,waterFilmMaterial,water.position.x,-.22,water.position.z,w,d)}
 // Aircraft gates are free-standing in the air, not arches with ground legs.
 const gates=layout.sectors.flatMap((s,i)=>s.gates.map((p,j)=>({p:V(...p),sector:i,index:i*4+j+1})));
 const guide=new T.Group();guide.name='aerial-route';scene.add(guide);
