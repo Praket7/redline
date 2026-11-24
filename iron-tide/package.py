@@ -5,10 +5,13 @@ folder=root/"iron-tide"
 html=(folder/"index.html").read_text()
 def script(contents):
     return "<script>"+contents.replace("</script","<\\/script")+"</script>"
-for path in ("node_modules/three/build/three.min.js","node_modules/three/examples/js/utils/BufferGeometryUtils.js","node_modules/three/examples/js/exporters/GLTFExporter.js","node_modules/three/examples/js/loaders/RGBELoader.js"):
+for path in ("node_modules/three/build/three.min.js","node_modules/three/examples/js/utils/BufferGeometryUtils.js","node_modules/three/examples/js/exporters/GLTFExporter.js","node_modules/three/examples/js/loaders/RGBELoader.js","node_modules/three/examples/js/loaders/GLTFLoader.js"):
     marker='<script src="../'+path+'"></script>'
     assert marker in html,marker
     html=html.replace(marker,script((root/path).read_text()))
+model_marker='<script src="model-pack.js"></script>'
+assert model_marker in html
+html=html.replace(model_marker,script((folder/"model-pack.js").read_text()))
 texture_marker='<script src="texture-pack.js"></script>'
 assert texture_marker in html
 html=html.replace(texture_marker,script((folder/"texture-pack.js").read_text()))
