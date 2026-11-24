@@ -136,6 +136,27 @@ if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(
 const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(envTex).texture;scene.background=envTex;pmrem.dispose();
 const boxGeo=new T.BoxGeometry(1,1,1),cylGeo=new T.CylinderGeometry(1,1,1,12),sphereGeo=new T.SphereGeometry(1,12,8);const q=new T.Quaternion(),up=V(0,1,0);
 const templates={},placementBounds=new Map(),placedSites=[];let target=null;const batches=new Map();
+const shellAudits={};
+function auditShells(name,parts){
+ const groups=new Map(),v=V(0,0,0);
+ for(const mesh of parts){
+  const tag=mesh.geometry.userData.structuralShell;if(!tag)continue;
+  if(!groups.has(tag))groups.set(tag,{edges:new Map(),faces:0,degenerate:0});
+  const g=groups.get(tag),p=mesh.geometry.attributes.position,index=mesh.geometry.index;
+  const ids=[];for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).applyMatrix4(mesh.matrix);ids.push([v.x,v.y,v.z].map(x=>Math.round(x*1e5)).join(','))}
+  for(let i=0;i<(index?index.count:p.count);i+=3){
+   const a=ids[index?index.getX(i):i],b=ids[index?index.getX(i+1):i+1],c=ids[index?index.getX(i+2):i+2];
+   g.faces++;if(a===b||b===c||a===c){g.degenerate++;continue}
+   for(const [x,y] of [[a,b],[b,c],[c,a]]){
+    const forward=x<y,key=forward?x+'|'+y:y+'|'+x,e=g.edges.get(key)||[0,0];e[0]++;e[1]+=forward?1:-1;g.edges.set(key,e);
+   }
+  }
+ }
+ if(groups.size){
+  shellAudits[name]={};for(const [tag,g] of groups){const es=[...g.edges.values()];shellAudits[name][tag]={faces:g.faces,degenerate:g.degenerate,boundaryEdges:es.filter(e=>e[0]===1).length,nonmanifoldEdges:es.filter(e=>e[0]>2).length,windingConflicts:es.filter(e=>e[0]===2&&e[1]!==0).length}}
+ }
+}
+
 function part(g,mat,x,y,z,sx,sy,sz,rot){const mesh=new T.Mesh(g,mat);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);if(rot)mesh.quaternion.copy(rot);mesh.updateMatrix();if(target){target.push(mesh)}else{const key=g.uuid+mat.uuid;if(!batches.has(key))batches.set(key,{g,mat,matrices:[]});batches.get(key).matrices.push(mesh.matrix.clone())}return mesh}
 const box=(mat,x,y,z,w,h,d)=>part(boxGeo,mat,x,y,z,w,h,d);
 const cylinder=(mat,x,y,z,r,h)=>part(cylGeo,mat,x,y,z,r,h,r);
@@ -241,7 +262,7 @@ function enrichBuildingArchitecture(name){
  }
 }
 
-function define(name,fn){target=[];fn();enrichBuildingArchitecture(name);const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map&&!mesh.geometry.userData.keepUV){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;placementBounds.set(name,new T.Box3().setFromObject(group));target=null;}
+function define(name,fn){target=[];fn();enrichBuildingArchitecture(name);auditShells(name,target);const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map&&!mesh.geometry.userData.keepUV){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;placementBounds.set(name,new T.Box3().setFromObject(group));target=null;}
 // Container stack support footprints: all tiers must be aligned and consecutive.
 const containerSlots=[],stackIndex=new Map(),containerChunks=new Map(),containerLOD=[];
 function reserveContainer(x,y,z,angle,scale){
@@ -435,7 +456,7 @@ define('ship-hull',()=>{
  for(const side of [-1,1])for(const isInner of [false,true]){
   const verts=[],uv=[],indices=[];for(let j=0;j<Y.length;j++)for(let i=0;i<=N;i++){const x=-L/2+i*L/N,y=Y[j],p=P(x,y,side,isInner?.38:0);verts.push(...p);uv.push(x/12,y/8)}
   for(let j=0;j<Y.length-1;j++)for(let i=0;i<N;i++){const a=j*(N+1)+i,b=a+1,c=b+N+1,d=a+N+1;if((side>0)!==isInner)indices.push(a,b,c,a,c,d);else indices.push(a,c,b,a,d,c)}
-  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();g.userData.keepUV=true;part(g,isInner?inner:outer,0,0,0,1,1,1);
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();g.userData.keepUV=true;g.userData.structuralShell='drydock-walls';part(g,isInner?inner:outer,0,0,0,1,1,1);
  }
  // Close the thickness of both cut shell walls without blocking the
  // intentional race-through aperture. Each strip shares side-loft vertices.
@@ -453,7 +474,7 @@ define('ship-hull',()=>{
    shellQuad(P(x,Y[j],side),P(x,Y[j+1],side),P(x,Y[j+1],side,.38),P(x,Y[j],side,.38),(x>0)===(side>0));
   }
  }
- const cutEdge=new T.BufferGeometry();cutEdge.setAttribute('position',new T.Float32BufferAttribute(capP,3));cutEdge.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cutEdge.computeVertexNormals();cutEdge.userData.keepUV=true;part(cutEdge,primer,0,0,0,1,1,1);
+ const cutEdge=new T.BufferGeometry();cutEdge.setAttribute('position',new T.Float32BufferAttribute(capP,3));cutEdge.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cutEdge.computeVertexNormals();cutEdge.userData.keepUV=true;cutEdge.userData.structuralShell='drydock-walls';part(cutEdge,primer,0,0,0,1,1,1);
  for(const side of [-1,1]){
   // Continuous longitudinal stiffeners, top edge and shell plate seams.
   for(const y of [7,12,17,22,27,31.6])for(let x=-174;x<174;x+=8){
@@ -1299,7 +1320,7 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
   }
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));
   g.setAttribute('normal',new T.Float32BufferAttribute(normals,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);
-  g.userData.keepUV=true;part(g,j===0?bootmat:j===1?m.dark:hullmat,0,0,0,1,1,1);
+  g.userData.keepUV=true;g.userData.structuralShell='merchant-hull';part(g,j===0?bootmat:j===1?m.dark:hullmat,0,0,0,1,1,1);
  }
  // Close the keel and end faces; the hull is not an open two-sided shell.
  const capP=[],capUV=[];
@@ -1313,9 +1334,9 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
   const a=loftPoint(x,y0,-1),b=loftPoint(x,y0,1),c=loftPoint(x,y1,1),d=loftPoint(x,y1,-1);
   if(x>0){hullCap(a,c,b);hullCap(a,d,c)}else{hullCap(a,b,c);hullCap(a,c,d)}
  }
- const cap=new T.BufferGeometry();cap.setAttribute('position',new T.Float32BufferAttribute(capP,3));cap.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cap.computeVertexNormals();cap.userData.keepUV=true;part(cap,bootmat,0,0,0,1,1,1);
+ const cap=new T.BufferGeometry();cap.setAttribute('position',new T.Float32BufferAttribute(capP,3));cap.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cap.computeVertexNormals();cap.userData.keepUV=true;cap.userData.structuralShell='merchant-hull';part(cap,bootmat,0,0,0,1,1,1);
  const deckP=[],deckUv=[];for(let i=0;i<stations;i++){const A=P(i,4,-1),B=P(i,4,1),C=P(i+1,4,1),D=P(i+1,4,-1);for(const v of [A,B,C,A,C,D]){deckP.push(...v);deckUv.push((v[0]+104)/104,(v[2]+17)/17)}}
- const dg=new T.BufferGeometry();dg.setAttribute('position',new T.Float32BufferAttribute(deckP,3));dg.setAttribute('uv',new T.Float32BufferAttribute(deckUv,2));dg.computeVertexNormals();dg.userData.keepUV=true;part(dg,topmat,0,0,0,1,1,1);
+ const dg=new T.BufferGeometry();dg.setAttribute('position',new T.Float32BufferAttribute(deckP,3));dg.setAttribute('uv',new T.Float32BufferAttribute(deckUv,2));dg.computeVertexNormals();dg.userData.keepUV=true;dg.userData.structuralShell='merchant-hull';part(dg,topmat,0,0,0,1,1,1);
  for(let i=0;i<stations;i++)for(const side of [-1,1]){const a=P(i,4,side),b=P(i+1,4,side);beam(m.steel,[a[0],a[1]+1,a[2]],[b[0],b[1]+1,b[2]],.12,.12,true);beam(m.steel,a,[a[0],a[1]+1,a[2]],.12)}
  for(const x of [-42,-10,22,54]){box(m.rust,x,13.2,0,26,2.6,23);box(m.dark,x,14.6,0,25,.3,22);for(let dx=-10;dx<=10;dx+=5)box(m.steel,x+dx,14.85,0,.18,.18,21)}
  for(let y=15;y<=27;y+=4){box(m.white,-73,y,0,28-(y-15)*.5,3.8,24);
@@ -2454,7 +2475,7 @@ define('stage3-repair-barge',()=>{
  for(let j=0;j<levels.length-1;j++)for(let i=0;i<n;i++){
   const a=j*(n+1)+i,b=a+n+1;idx.push(a,b,a+1,a+1,b,b+1);
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.userData.keepUV=true;
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.userData.keepUV=true;g.userData.structuralShell='repair-barge';
  part(g,m.rust,0,0,0,1,1,1);
  for(const j of [0,levels.length-1]){
   const p=[],uv=[];
@@ -2462,7 +2483,7 @@ define('stage3-repair-barge',()=>{
    const a=contour(i,j),b=contour(i+1,j),center=[0,levels[j][0],0],v=j===0?[center,a,b]:[center,b,a];
    for(const q of v){p.push(...q);uv.push(q[0]/4,q[2]/4)}
   }
-  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.computeVertexNormals();geo.userData.keepUV=true;part(geo,j===0?m.rust:m.dark,0,0,0,1,1,1);
+  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.computeVertexNormals();geo.userData.keepUV=true;geo.userData.structuralShell='repair-barge';part(geo,j===0?m.rust:m.dark,0,0,0,1,1,1);
  }
  // Deck edge railing follows the actual deck contour, with a continuous
  // toe plate and stanchions anchored inside the welded rim.
@@ -3243,7 +3264,7 @@ function portableGLB(buffer){
  v.setUint32(0,0x46546c67,true);v.setUint32(4,2,true);v.setUint32(8,out.length,true);v.setUint32(12,padded,true);v.setUint32(16,0x4e4f534a,true);
  out.fill(32,20,20+padded);out.set(enc,20);out.set(tail,20+padded);return out;
 }
-window.IRON_TIDE={assetView,assetAudit,architectureAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(id.startsWith('authored-')){
+window.IRON_TIDE={assetView,assetAudit,architectureAudit,shellAudit:()=>JSON.parse(JSON.stringify(shellAudits)),referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(id.startsWith('authored-')){
   const crane=id==='authored-crane',site=(crane?macroEvidence.lift:macroEvidence.plant)[0];
   if(!site)throw Error('no supporting assembly for '+id);
   const yy=5.25+site.scale*(crane?97:22);
@@ -3258,5 +3279,5 @@ window.IRON_TIDE={assetView,assetAudit,architectureAudit,referenceAudit(){return
   views[id]=[[site.x+distance*forward+distance*.22*side,rise+15,site.z-distance*side+distance*.22*forward],
               [site.x,rise*.53+(type==='barge'?0:5),site.z]];
  }
- if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,freightStamps,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,shadowUpdates,shadowSpan,importedPhotoreal,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=portableGLB(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+ if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,freightStamps,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,shadowUpdates,shadowSpan,importedPhotoreal,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=portableGLB(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:['merchant-vessel','stage3-outfitting-vessel'].includes(name)?2048:['ship-hull','stage3-ship-lift-portal','heavy-gantry-detail','outfit-workshop','stage3-repair-barge'].includes(name)?1024:name.startsWith('container-')?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});

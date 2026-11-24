@@ -50,6 +50,13 @@ try:
         architecture = page.evaluate("IRON_TIDE.architectureAudit()")
         (OUT / "architecture-ray-audit.json").write_text(json.dumps(architecture,indent=2))
         assert all(architecture.values()), architecture
+        shells = page.evaluate("IRON_TIDE.shellAudit()")
+        (OUT / "structural-shell-audit.json").write_text(json.dumps(shells, indent=2))
+        assert {"merchant-vessel", "stage3-outfitting-vessel", "ship-hull", "stage3-repair-barge"}.issubset(shells), shells
+        for name, groups in shells.items():
+            for group, info in groups.items():
+                assert info["faces"] > 0 and not any(info[k] for k in ("degenerate", "boundaryEdges", "nonmanifoldEdges", "windingConflicts")), (name, group, info)
+
         (OUT / "mesh-audit.json").write_text(json.dumps(audit,indent=2))
         views = page.evaluate("IRON_TIDE.views")
         assert len(views) == 13
