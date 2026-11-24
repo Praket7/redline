@@ -42,6 +42,7 @@ try:
         audit = page.evaluate("IRON_TIDE.assetAudit()")
         required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
         required.update({"reference-sky-bridge","reference-offshore-platform","plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank","steel-transfer-station","curved-panel-jig","block-transport-cradle","gantry-service-hall","winch-service-skid"})
+        required.update({"stage3-boiler-house","stage3-outfitting-annex","stage3-electrical-substation","pipe-rack"})
         assert required.issubset(audit), required-set(audit)
         for name, info in audit.items():
             assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)
@@ -70,6 +71,7 @@ try:
             assert ref["offshorePlatforms"] == 2 and ref["skyBridges"] == 1 and ref["ships"] >= 8, ref
             assert ref["solidRouteConflicts"] == 0 and ref["solidPlacements"] > 100 and ref["containerStacks"] > 100, ref
             assert ref["additionalHalls"] > 25 and ref["additionalTanks"] > 0 and ref["additionalRacks"] > 0, ref
+            assert sum(ref["stage3Sites"].values()) >= 3, ref
             assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100, stats
             assert stats["sharedRailBatches"] > 0, stats
             assert stats["photoMaterials"] == expected_photos, stats
