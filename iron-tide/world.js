@@ -379,7 +379,7 @@ const reflectionFallback=new T.DataTexture(new Uint8Array([0,0,0,255]),1,1);refl
 const reflUniforms={uPortReflection:{value:reflectionRT.texture},uPortProjection:{value:new T.Matrix4()},uRoadReflect:{value:0},uSeaReflect:{value:0}};
 const reflectionCamera=new T.PerspectiveCamera(),reflectionClip=new T.Plane(V(0,1,0),0),waterSurfaces=[],roadFilm=new T.Group(),seaFilm=new T.Group();
 roadFilm.visible=seaFilm.visible=false;scene.add(roadFilm,seaFilm);
-const reflectionCommon='uniform sampler2D uPortReflection;\nuniform mat4 uPortProjection;\nvec3 portSample(vec3 p,vec2 ripple){vec4 clip=uPortProjection*vec4(p,1.);vec2 uv=clip.xy/clip.w*.5+.5;uv+=ripple;return texture2D(uPortReflection,clamp(uv,vec2(.002),vec2(.998))).rgb;}\n';
+const reflectionCommon='uniform sampler2D uPortReflection;\nuniform mat4 uPortProjection;\nvec4 portSample(vec3 p,vec2 ripple){vec4 clip=uPortProjection*vec4(p,1.);vec2 uv=clip.xy/max(clip.w,.001)*.5+.5+ripple;vec2 edge=min(uv,1.-uv);float coverage=smoothstep(.006,.055,min(edge.x,edge.y))*step(.001,clip.w);return vec4(texture2D(uPortReflection,clamp(uv,vec2(.002),vec2(.998))).rgb,coverage);}\n';
 let reflectionsEnabled=true,reflectionPasses=0,reflectionCalls=0,reflectionTriangles=0,lastReflectionTime=-Infinity,lastReflectionMode='',lastReflectionPlane=NaN;
 function renderPortReflection(cam,plane){
  // Reflect the eye, view direction and up across the horizontal water layer.
@@ -401,9 +401,9 @@ function updatePortReflection(cam){
  if(!reflectionsEnabled||!cam.isPerspectiveCamera||cam.position.y<6||cam.position.y>190)return;
  const p=cam.position,sea=p.z<-1190||p.z>1200||p.x>1190||p.x<-1190||(p.x>350&&p.x<640&&p.z<100);
  const plane=sea?-.25:5.24,now=performance.now();
- // Static camera captures are exact; continuous flight refreshes at most 10 Hz.
+ // Static camera captures are exact; continuous flight refreshes at most 8 Hz.
  const moving=tour||keys.size>0||drag;
- if(!moving||now-lastReflectionTime>100||lastReflectionMode!==mode||lastReflectionPlane!==plane){
+ if(!moving||now-lastReflectionTime>125||lastReflectionMode!==mode||lastReflectionPlane!==plane){
   renderPortReflection(cam,plane);lastReflectionTime=now;lastReflectionMode=mode;lastReflectionPlane=plane;
  }
  if(lastReflectionPlane===plane){reflUniforms[sea?'uSeaReflect':'uRoadReflect'].value=1;roadFilm.visible=!sea;seaFilm.visible=sea}
@@ -1045,7 +1045,7 @@ const filmVertex='varying vec3 vFilm;void main(){vFilm=(modelMatrix*vec4(positio
 const filmNoise='float fh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}';
 function filmMaterial(sea){
  const frag='varying vec3 vFilm;\n'+reflectionCommon+filmNoise+'\nvoid main(){vec3 v=normalize(cameraPosition-vFilm);float f=.025+.975*pow(1.-clamp(v.y,0.,1.),5.);vec2 p=vFilm.xz;float m=fn(p*.044)*.72+fn(p*.20)*.28;vec2 noise=vec2(fn(p*.33),fn(p.yx*.37))-.5;'+
- (sea?'float alpha=clamp(.19+f*.78,0.,.9);vec3 col=portSample(vFilm,noise*.019);':'float wet=smoothstep(.46,.72,m);float alpha=wet*clamp(.21+f*.7,0.,.78);if(alpha<.008)discard;vec3 col=portSample(vec3(vFilm.x,5.24,vFilm.z),noise*.004);')+
+ (sea?'float alpha=clamp(.13+f*.64,0.,.75);vec4 reflected=portSample(vFilm,noise*.013);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb;':'float wet=smoothstep(.46,.72,m);float alpha=wet*clamp(.21+f*.7,0.,.78);vec4 reflected=portSample(vec3(vFilm.x,5.24,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb;')+
  '\ngl_FragColor=vec4(col,alpha);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}';
  return new T.ShaderMaterial({uniforms:{uPortReflection:reflUniforms.uPortReflection,uPortProjection:reflUniforms.uPortProjection},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
 }
