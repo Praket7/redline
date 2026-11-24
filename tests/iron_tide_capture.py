@@ -42,7 +42,7 @@ try:
         audit = page.evaluate("IRON_TIDE.assetAudit()")
         required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
         required.update({"reference-sky-bridge","reference-offshore-platform","plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank","steel-transfer-station","curved-panel-jig","block-transport-cradle","gantry-service-hall","winch-service-skid"})
-        required.update({"stage3-boiler-house","stage3-outfitting-annex","stage3-electrical-substation","pipe-rack","stage3-quay-workbay","stage3-forklift","stage3-hose-skid"})
+        required.update({"stage3-boiler-house","stage3-outfitting-annex","stage3-electrical-substation","pipe-rack","stage3-quay-workbay","stage3-forklift","stage3-hose-skid","stage3-outfitting-vessel"})
         assert required.issubset(audit), required-set(audit)
         for name, info in audit.items():
             assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)

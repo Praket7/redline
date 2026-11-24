@@ -859,7 +859,7 @@ define('maintenance-bay',()=>{for(const x of [-9,9])for(const z of [-7,7]){box(m
 define('breakwater-armour',()=>{const g=new T.IcosahedronGeometry(1,1);for(let i=0;i<7;i++){const a=i*2.399,r=3+(i%3)*1.8;part(g,m.concrete,Math.cos(a)*r,1.2+(i%3)*.6,Math.sin(a)*r,2.5+(i%2),2.1,2.9,new T.Quaternion().setFromAxisAngle(up,a))}});
 // Purpose-built ship silhouettes: lofted longitudinal sections, bridge, coamings,
 // loading booms and deck machinery. No race volume is inferred from this visual mesh.
-define('merchant-vessel',()=>{
+function defineMerchant(name,unfinished=false){define(name,()=>{
  const length=208, stations=40, sections=[[-4,.28],[-1,.68],[2,.94],[8,1],[11.8,.96]];
  // Meter-scale hull plating atlas: actual courses, weld lines, and downward
  // oxidation from damaged paint. No baked shadows or sunset colors.
@@ -881,7 +881,7 @@ define('merchant-vessel',()=>{
   const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   return new T.MeshStandardMaterial({map:t,roughness:.78,metalness:.09,normalMap:m.steel.normalMap,normalScale:new T.Vector2(.12,.12),envMapIntensity:.55});
  }
- const hullmat=shipFinish('#344752',.55),bootmat=shipFinish('#713b33',.38);
+ const hullmat=shipFinish(unfinished?'#777e7d':'#344752',unfinished?.80:.55),bootmat=shipFinish(unfinished?'#85483a':'#713b33',.42);
  const topmat=shipFinish('#3d4546',.32);
  function width(x){const q=x/(length/2);return 16.3*Math.sqrt(Math.max(.0005,1-Math.abs(q)**(q>0?3.8:9)))}
  function P(i,j,side){const x=-length/2+i*length/stations;return [x,sections[j][0]+(i>stations-5?Math.pow((i-stations+5)/5,2)*2.4:0),side*width(x)*sections[j][1]]}
@@ -890,14 +890,44 @@ define('merchant-vessel',()=>{
  const dg=new T.BufferGeometry();dg.setAttribute('position',new T.Float32BufferAttribute(deckP,3));dg.setAttribute('uv',new T.Float32BufferAttribute(deckUv,2));dg.computeVertexNormals();dg.userData.keepUV=true;part(dg,topmat,0,0,0,1,1,1);
  for(let i=0;i<stations;i++)for(const side of [-1,1]){const a=P(i,4,side),b=P(i+1,4,side);beam(m.steel,[a[0],a[1]+1,a[2]],[b[0],b[1]+1,b[2]],.12,.12,true);beam(m.steel,a,[a[0],a[1]+1,a[2]],.12)}
  for(const x of [-42,-10,22,54]){box(m.rust,x,13.2,0,26,2.6,23);box(m.dark,x,14.6,0,25,.3,22);for(let dx=-10;dx<=10;dx+=5)box(m.steel,x+dx,14.85,0,.18,.18,21)}
- for(let y=15;y<=27;y+=4){box(m.white,-73,y,0,28-(y-15)*.5,3.8,24);for(const z of [-12.1,12.1])for(let x=-83;x<=-63;x+=4)box(m.glass,x,y+.55,z,2.4,1.2,.18)}
+ for(let y=15;y<=27;y+=4){box(m.white,-73,y,0,28-(y-15)*.5,3.8,24);
+  const bridgeW=28-(y-15)*.5;
+  for(const z of [-12.1,12.1]){box(m.dark,-73,y+.55,z,bridgeW-.6,1.58,.18);
+   for(let x=-73-bridgeW/2+1.9;x<-73+bridgeW/2-1;x+=3.6){box(m.glass,x,y+.55,z*1.015,2.8,1.14,.12);box(m.steel,x-1.48,y+.55,z*1.022,.12,1.48,.12)}
+   box(m.steel,-73,y-.27,z*1.012,bridgeW,.12,.36);
+  }
+ }
  // Recessed dark bridge windows, deck overhang and external access stairs.
  for(const z of [-12.2,12.2])for(const x of [-83,-75,-67]){box(m.steel,x,16,z,5.3,.28,1.4);rail(x,17.1,z*1.055,5.2);beam(m.dark,[x,15.8,z],[x,14.6,z*.93],.18)}
  box(m.white,-73,29,0,31,3,25);box(m.glass,-73,29.2,12.6,28,1.6,.18);box(m.glass,-57.4,29.2,0,.18,1.6,24);
  box(m.dark,-87,34,0,7,7,8);box(m.rust,-87,37.8,0,8,.7,9);beam(m.steel,[-73,31,0],[-73,48,0],.22);beam(m.steel,[-78,43,0],[-68,43,0],.16);box(m.light,-73,47.9,0,.6,.45,.6);
  for(const x of [-27,6,38]){cylinder(m.steel,x,17,0,1.35,7);beam(m.orange,[x,20,0],[x+16,33,0],1.1);beam(m.dark,[x+16,33,0],[x+16,16,0],.1,.1,true);box(m.yellow,x+16,15.5,0,1.4,1.2,1.4)}
  for(const x of [-95,90])for(const z of [-5,5]){cylinder(m.dark,x,13,z,.85,1.3);cylinder(m.steel,x,13.8,z,1.1,.35)}
-});
+ if(unfinished){
+  for(const x of [10,22,34,46,58,70]){
+   const w=Math.min(width(x)-1.8,11.0);
+   for(const side of [-1,1]){const z=side*w;box(m.steel,x,12.02,z,1.35,.42,1.35);box(m.rust,x,17.5,z,.46,11,.46);
+    beam(m.steel,[x,13,z],[x,20.8,z-side*2],.24);box(m.steel,x,21.9,z,.75,.42,.75)}
+   beam(m.rust,[x,22,-w],[x,22,w],.50,.68);
+   if(x<70)for(const side of [-1,1]){const w2=Math.min(width(x+12)-1.8,11);beam(m.steel,[x,22,side*w],[x+12,22,side*w2],.42);beam(m.steel,[x,14,side*w],[x+12,21.8,side*w2],.24)}
+  }
+  for(const side of [-1,1])for(const x of [8,24,40,56]){
+   const z=side*(Math.min(width(x+8),width(x-8))-.95);
+   box(m.steel,x,16.2,z,14,.20,1.65);rail(x,17.3,z+side*.72,14);
+   for(const dx of [-6,6]){beam(m.steel,[x+dx,12.0,z],[x+dx,16.2,z],.14);beam(m.steel,[x+dx,16,z],[x+dx,14,side*10.5],.16);beam(m.steel,[x+dx,16,z],[x-dx,12.2,z],.12)}
+   box(m.light,x,20.5,side*11.0,.72,.25,.4);beam(m.steel,[x,20.75,side*11],[x,22,side*11],.12);
+  }
+  for(const side of [-1,1]){
+   const x=84,z=side*5.8;
+   box(m.steel,x,12.4,z,5.2,.65,2.3);
+   part(cylGeo,m.dark,x,13.9,z,.85,1.7,.85,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+   for(const dz of [-.94,.94])part(cylGeo,m.steel,x,13.9,z+dz,1.0,.18,1.0,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+   beam(m.wire,[x+1.2,13.9,z],[x+7,12.5,z],.16,.16,true);
+  }
+ }
+});}
+defineMerchant('merchant-vessel');
+defineMerchant('stage3-outfitting-vessel',true);
 place('merchant-vessel',480,0,-550,Math.PI/2);
 place('merchant-vessel',390,0,-1030,Math.PI/2,.72);
  // Full-size vessels occupy true water berths, not concrete aprons.
@@ -1722,9 +1752,10 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  for(let z=-277;z<=37;z+=13)for(const x of [840,860])place('drydock-keel-block',x,-20,z,0,.7);
  for(let z=-260;z<=20;z+=24)for(const side of [-1,1]){fixturePositions.push([850+side*20,1.2,z]);pool(850+side*20,-2.5,z,4)}
  // The center pier is a ship assembly/outfitting spine, with two long berths.
- for(const [x,z,a,scale] of [[245,-150,Math.PI/2,1.55],[-250,-260,Math.PI/2,1.25],[275,230,Math.PI/2,.92],[-380,600,0,.86],[-1252,870,Math.PI/2,1.25],[-1305,160,Math.PI/2,.95]]){
+ for(const [x,z,a,scale] of [[245,-150,Math.PI/2,1.55],[-250,-260,Math.PI/2,1.25],[275,230,Math.PI/2,.92],[-380,600,0,.86],[-1305,160,Math.PI/2,.95]]){
   place('merchant-vessel',x,0,z,a,scale);referenceShips++;
  }
+ hero('stage3-outfitting-vessel',-1233,0,870,-Math.PI/2,1.4);referenceShips++;
  for(const [x,z] of [[-500,440],[400,-420],[455,555],[370,720]]){place('workboat',x,0,z,Math.PI/2,.65);referenceShips++}
  // Start waterfront: quay road with tightly clustered logistics equipment.
  for(const x of [-1130,-975,-820,-580,-390,-180])for(const z of [780,980]){
@@ -1947,7 +1978,7 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   for(let z=a;z<b;z+=12){
    const z2=Math.min(b,z+10.6),mid=(z+z2)/2;
    if(!onLand(x-sign*3,mid))continue;
-   rail(x-sign*.5,6.32,mid,z2-z,'z');
+   if(!(x===-1197&&z<845&&z2>825))rail(x-sign*.5,6.32,mid,z2-z,'z');
    box(m.dark,x-sign*3.4,5.103,mid,.52,.038,z2-z);
    for(let zz=z+.5;zz<z2;zz+=1.25)box(m.steel,x-sign*3.4,5.139,zz,.49,.035,.11);
    if(quayDetails%3===0){box(m.steel,x,2.75,mid,.32,3.5,2.2);box(m.rubber,x+sign*.58,2.75,mid,.86,3.1,1.85)}
@@ -1956,9 +1987,14 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  }
  // Launch ship mooring ropes connect existing deck bitts to the quay.
  for(const lx of [-95,90]){
-  const a=[-1252+5*1.25,13.8*1.25,870-lx*1.25],b=[-1195,7.0,870-lx*1.25+(lx<0?18:-18)],mid=[(a[0]+b[0])/2,Math.min(a[1],b[1])-2,(a[2]+b[2])/2];
+  const a=[-1233+5*1.4,13.8*1.4,870+lx*1.4],b=[-1195,7.0,870+lx*1.4+(lx<0?18:-18)],mid=[(a[0]+b[0])/2,Math.min(a[1],b[1])-2,(a[2]+b[2])/2];
   if(onLand(b[0],b[2])){place('bollard',b[0],5.08,b[2]);beam(m.wire,a,mid,.10,.10,true);beam(m.wire,mid,b,.10,.10,true)}
  }
+ // Stepped shore gangway terminates on the actual ship deck and quay.
+ const ga=[-1194,5.20,836],gb=[-1210.7,16.52,849];
+ const dx=gb[0]-ga[0],dz=gb[2]-ga[2],dy=gb[1]-ga[1],run=Math.hypot(dx,dz),rot=new T.Quaternion().setFromAxisAngle(up,Math.atan2(-dz,dx));
+ for(let i=0;i<=45;i++){const t=i/45,x=ga[0]+dx*t,y=ga[1]+dy*t,z=ga[2]+dz*t;part(boxGeo,m.steel,x,y,z,run/45+.06,.15,1.45,rot)}
+ for(const side of [-1,1]){const ox=side*dz/run*.69,oz=-side*dx/run*.69;beam(m.steel,[ga[0]+ox,ga[1]-.2,ga[2]+oz],[gb[0]+ox,gb[1]-.2,gb[2]+oz],.24,.35);beam(m.yellow,[ga[0]+ox,ga[1]+1.1,ga[2]+oz],[gb[0]+ox,gb[1]+1.1,gb[2]+oz],.08);for(let i=0;i<=10;i++){const t=i/10,x=ga[0]+dx*t+ox,y=ga[1]+dy*t,z=ga[2]+dz*t+oz;beam(m.steel,[x,y,z],[x,y+1.1,z],.07)}}
  // Riprap and irregular sea-facing headlands add a non-rectangular silhouette.
  for(const [cx,cz,axis] of [[-1265,440,'z'],[-1285,-425,'z'],[-420,-1240,'x'],[485,-1225,'x'],[1245,-565,'z'],[1265,720,'z'],[1000,1125,'x']])for(let i=-5;i<=5;i++){const x=cx+(axis==='x'?i*11:0),z=cz+(axis==='z'?i*11:0);if(!onLand(x,z)){const a=(i*2.399+cx*.01);part(sphereGeo,m.concrete,x,.5,z,5.5+Math.abs(Math.sin(a))*3,2.4+Math.abs(Math.cos(a))*2,5.0+Math.abs(Math.sin(a+1))*3,new T.Quaternion().setFromAxisAngle(up,a))}}
  // Inspect actual hero meshes using a center ray and four radial offsets.
