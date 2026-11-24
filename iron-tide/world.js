@@ -695,7 +695,7 @@ function clearScenery(x,top,z){for(let i=0;i<routePoints.length;i++){const a=rou
   // Portal frontage: piers, header and two asymmetric real open loading bays.
   for(const side of [-1,1]){
    const z=side*43.85;
-   for(const [x,w] of [[-28,6],[-10,6],[10,6],[28,6]])box(cladding,x,8.9,z,w,17.8,.35);
+   for(const [x,w] of [[-28,6],[-10,7],[10,7],[28,6]])box(cladding,x,8.9,z,w,17.8,.35);
    box(cladding,0,15.2,z,62,5.2,.35);
    for(const x of [-19,0,19]){
     const isOpen=(side===1&&x!==19)||(side===-1&&x===0);
@@ -1196,7 +1196,7 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
  }
  for(const x of [-104,104])for(let j=0;j<sections.length-1;j++){
   const a=loftPoint(x,sections[j][0],-1),b=loftPoint(x,sections[j][0],1),c=loftPoint(x,sections[j+1][0],1),d=loftPoint(x,sections[j+1][0],-1);
-  if(x>0){hullCap(a,b,c);hullCap(a,c,d)}else{hullCap(a,c,b);hullCap(a,d,c)}
+  if(x>0){hullCap(a,c,b);hullCap(a,d,c)}else{hullCap(a,b,c);hullCap(a,c,d)}
  }
  const cap=new T.BufferGeometry();cap.setAttribute('position',new T.Float32BufferAttribute(capP,3));cap.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cap.computeVertexNormals();cap.userData.keepUV=true;part(cap,bootmat,0,0,0,1,1,1);
  const deckP=[],deckUv=[];for(let i=0;i<stations;i++){const A=P(i,4,-1),B=P(i,4,1),C=P(i+1,4,1),D=P(i+1,4,-1);for(const v of [A,B,C,A,C,D]){deckP.push(...v);deckUv.push((v[0]+104)/104,(v[2]+17)/17)}}
@@ -1939,11 +1939,7 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
    box(m.steel,x,24.6,10,5.5,1.2,5.5);
    for(const z of [7.5,12.5])beam(m.steel,[x-3,24.6,z],[x+3,28,z],.38);
   }
-  for(const x of [-15,0,15]){
-   box(m.dark,x,25.3,-13,8,2.6,5.5);
-   box(m.steel,x,26.8,-13,8.4,.4,5.9);
-   for(let z=-15;z<=-11;z+=.6)box(m.steel,x,25.4,z,8.1,.14,.1);
-  }
+  // Replaced overlapping earlier vent housings with the single seated equipment family below.
   for(const x of [-17,17]){box(m.light,x,10,-27.7,1.8,.55,.75);beam(m.steel,[x,10.4,-27.5],[x,11,-26.9],.18)}
   // Roof service deck sits on the structural roof, with braced handrails,
   // gridded ventilator housings and pipes that enter the actual wall.
@@ -1963,9 +1959,10 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   // External steam and condensate headers are held by wall brackets.
   // They turn into the roof riser rather than ending in free space.
   for(const x of [-19,-17]){
-   beam(m.steel,[x,5,-26.65],[x,22,-26.65],.22,.22,true);
-   for(const y of [8,14,20]){beam(m.dark,[x, y,-26.8],[x,y,-25.7],.33);box(m.steel,x,y,-25.6,.75,.28,.8)}
-   beam(m.steel,[x,22,-26.65],[x,24.6,-25.2],.20,.20,true);
+   beam(m.steel,[x,5,-28.0],[x,22,-28.0],.22,.22,true);
+   for(const y of [8,14,20]){beam(m.dark,[x,y,-28],[x,y,-26.95],.28);box(m.steel,x,y,-27.05,.75,.28,.25)}
+   beam(m.steel,[x,22,-28],[x,24.6,-28],.22,.22,true);
+   beam(m.steel,[x,24.6,-28],[x,24.6,-25.2],.22,.22,true);
   }
   for(const x of [-12,12]){
    // Stack ladders have brackets at each landing and no floating rungs.
@@ -2015,22 +2012,24 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   }
   for(let k=0;k<=16;k++){
    const t=k/16,x=13+6.5*t,y=19.9-6.9*t;
-   box(m.steel,x,y-.16,9,2.45,.16,.28);
+   box(m.steel,x,y-.16,9,.48,.16,2.65);
   }
   // Rainwater downpipes are connected to two roof drains, not decorative poles.
-  for(const [x,z,y] of [[-28,16,19.6],[30,-15,12.7]]){
+  for(const [x,z,y] of [[-28,18.56,19.6],[30,-18.56,12.7]]){
+   const side=Math.sign(z);
    beam(m.dark,[x,y,z],[x,.95,z],.26,.26,true);
+   beam(m.dark,[x,y,z],[x,y,side*17.7],.26,.26,true);
    box(m.steel,x,y,z,.72,.24,.72);
-   for(const yy of [3,7,11])if(yy<y-.5)beam(m.steel,[x,yy,z],[x-(x>0?.6:-.6),yy,z],.13);
+   for(const yy of [3,7,11])if(yy<y-.5)beam(m.steel,[x,yy,z],[x,yy,side*17.95],.13);
   }
   // Asymmetric wall-mounted ventilation and secondary lighting.
   for(const z of [-12,0,12]){
-   const x=30.25;
+   const x=31.22;
    box(m.dark,x,7.7,z,.6,4.2,4.8);
    box(m.steel,x+.34,7.7,z,.18,3.9,4.5);
    for(let zz=z-2;zz<=z+2;zz+=.44)box(m.dark,x+.45,7.7,zz,.10,3.7,.12);
-   box(m.light,25,10.7,z,.85,.22,.4);
-   beam(m.steel,[25,10.9,z],[25,12.6,z],.12);
+   box(m.light,31.78,10.7,z,.85,.22,.4);
+   beam(m.steel,[31.78,10.82,z],[30.95,11.15,z],.12);
   }
  });
  define('stage3-electrical-substation',()=>{
@@ -2046,6 +2045,7 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
     for(let y=4.7;y<5.8;y+=.22)cylinder(m.white,x+dx,y,0,.44,.12);
     cylinder(m.steel,x+dx,5.98,0,.19,.18);
     beam(m.wire,[x+dx,6.05,0],[x+dx,7.3,3.6],.12,.12,true);
+    beam(m.wire,[x+dx,7.3,3.6],[x+dx,8.28,5.4],.12,.12,true);
    }
   }
   for(const x of [-10,0,10])for(const z of [4,7])beam(m.steel,[x,.6,z],[x,7.8,z],.23);
@@ -2054,7 +2054,8 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   // Copper bus work remains insulated from the steel support frames.
   // The cable runs are anchored on the transformer terminals and cabinets.
   for(const x of [-8,-4,0,4,8]){
-   cylinder(m.white,x,7.8,5.4,.23,.72);
+   beam(m.steel,[x,7.55,4],[x,7.55,7],.27);
+   cylinder(m.white,x,7.94,5.4,.23,.72);
    for(const y of [7.66,7.95,8.18])cylinder(m.dark,x,y,5.4,.34,.10);
    beam(m.orange,[x,8.28,5.4],[x,8.28,6.8],.09,.09,true);
   }
@@ -2988,7 +2989,35 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(id.startsWith('authored-')){
+// Sample functional geometry, not just aggregate complexity. These probes
+// test real triangles in local model coordinates; they are not a full CAD
+// certification. Single-sided probes also detect incorrect hull winding.
+function architectureAudit(){
+ const shop=templates['outfit-workshop'],hull=templates['merchant-vessel'],annex=templates['stage3-outfitting-annex'],boiler=templates['stage3-boiler-house'],sub=templates['stage3-electrical-substation'],ray=new T.Raycaster();
+ const hit=(root,origin,dir,len,twoSided=true)=>{
+  root.updateMatrixWorld(true);const sides=new Map();
+  if(twoSided)for(const o of root.children){if(!sides.has(o.material))sides.set(o.material,o.material.side);o.material.side=T.DoubleSide;}
+  try{ray.set(V(...origin),V(...dir).normalize());ray.near=.005;ray.far=len;return ray.intersectObject(root,true).length>0}
+  finally{for(const [mat,side] of sides)mat.side=side;}
+ };
+ return {
+  openFront:!hit(shop,[0,4,46],[0,0,-1],8),
+  openRear:!hit(shop,[0,4,-46],[0,0,1],8),
+  closedFront:hit(shop,[19,4,46],[0,0,-1],8),
+  closedSide:hit(shop,[34,5,0],[-1,0,0],6),
+  roofCovered:hit(shop,[7,26,5],[0,-1,0],9),
+  floorSupported:hit(shop,[4,2,4],[0,-1,0],3),
+  hullKeelClosed:hit(hull,[0,-6,0],[0,1,0],3,false),
+  hullBowClosed:hit(hull,[106,9.3,0],[-1,0,0],4,false),
+  hullSternClosed:hit(hull,[-106,4,0],[1,0,0],4,false),
+  stairFullWidth:hit(annex,[16.25,17.2,8.1],[0,-1,0],1.3)&&hit(annex,[16.25,17.2,9.9],[0,-1,0],1.3),
+  exteriorDrain:hit(annex,[-28,9,19.3],[0,0,-1],.95),
+  mountedVent:hit(annex,[32.3,7.7,0],[-1,0,0],1.9),
+  boilerPipe:hit(boiler,[-19,14,-29],[0,0,1],1.3),
+  busSupport:hit(sub,[-4,7.75,6.1],[0,-1,0],.5)
+ };
+}
+window.IRON_TIDE={assetView,assetAudit,architectureAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(id.startsWith('authored-')){
   const crane=id==='authored-crane',site=(crane?macroEvidence.lift:macroEvidence.plant)[0];
   if(!site)throw Error('no supporting assembly for '+id);
   const yy=5.25+site.scale*(crane?97:22);

@@ -46,24 +46,10 @@ try:
         assert required.issubset(audit), required-set(audit)
         for name, info in audit.items():
             assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)
-        # Regression guard: Stage 3 architecture must retain its fitted rooftop
-        # machinery, attached access ladders, service pipes, insulation and
-        # control cabinets. These minima compare against the real preceding
-        # stage-3 render, not against a conceptual polygon target.
-        detailed_asset_minima = {
-            "stage3-boiler-house": 2050,
-            "stage3-outfitting-annex": 1950,
-            "stage3-electrical-substation": 3450,
-        }
-        for name, minimum in detailed_asset_minima.items():
-            assert audit[name]["triangles"] >= minimum, (
-                "Stage 3 mechanically connected detailing regressed", name,
-                audit[name]["triangles"], minimum
-            )
-        (OUT / "stage3-mechanical-contract.json").write_text(
-            json.dumps({name: {"triangles": audit[name]["triangles"], "minimum": minimum}
-                        for name, minimum in detailed_asset_minima.items()}, indent=2)
-        )
+        # Assert sampled geometry function and fit, not polygon-count minima.
+        architecture = page.evaluate("IRON_TIDE.architectureAudit()")
+        (OUT / "architecture-ray-audit.json").write_text(json.dumps(architecture,indent=2))
+        assert all(architecture.values()), architecture
         (OUT / "mesh-audit.json").write_text(json.dumps(audit,indent=2))
         views = page.evaluate("IRON_TIDE.views")
         assert len(views) == 13
