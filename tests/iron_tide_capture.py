@@ -40,7 +40,7 @@ try:
         assert page.evaluate("Boolean(window.IRON_TIDE)"), page.locator("#error").inner_text()
         audit = page.evaluate("IRON_TIDE.assetAudit()")
         required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
-        required.update({"plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank"})
+        required.update({"plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank","steel-transfer-station"})
         assert required.issubset(audit), required-set(audit)
         for name, info in audit.items():
             assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)
@@ -63,6 +63,8 @@ try:
                 assert max(ImageStat.Stat(im.convert("RGB")).stddev) > 8, "blank/flat screenshot: " + view
             stats = page.evaluate("IRON_TIDE.stats()")
             assert stats["gates"] == 32 and stats["revision"] == "128"
+            assert stats["districtBuildings"] == 24 and stats["transferStations"] > 0, stats
+            assert stats["newWorkCells"] > 0 and stats["newProcessTowers"] > 0, stats
             assert stats["photoMaterials"] == expected_photos, stats
             assert stats["skySource"] == expected_sky, stats
             assert 0 < stats["drawCalls"] < 400, stats
