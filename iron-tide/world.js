@@ -161,6 +161,10 @@ define('warehouse',()=>{const w=112,d=160,h=49;for(const x of [-w/2,w/2]){box(m.
 define('pipe-rack',()=>{for(const z of [-9,9]){for(const x of [-35,0,35]){box(m.steel,x,17,z,1.8,34,1.8);beam(m.dark,[x,8,z],[x,28,-z],.6)}for(const y of [14,29])beam(m.steel,[-38,y,z],[38,y,z],1.5)}for(let i=0;i<4;i++){const y=30+i*2.7;beam(i%2?m.rust:m.steel,[-40,y,-5+i*3.3],[40,y,-5+i*3.3],1.05,1.05,true);for(let x=-35;x<=35;x+=10)beam(m.dark,[x-.45,y,-5+i*3.3],[x+.45,y,-5+i*3.3],1.18,1.18,true)}box(m.steel,0,39,8,76,.5,3);rail(0,40,9.5,76);
  // Stage 3: supported lower process headers, reducer collars, branch valves
  // and connected vertical takeoffs. Preserve the original overall rack width.
+ for(const y of [11.9,19.9]){
+  for(const z of [-9,9])beam(m.steel,[-35,y,z],[35,y,z],.65);
+  for(const x of [-30,-10,10,30])beam(m.steel,[x,y,-9],[x,y,9],.40);
+ }
  for(const z of [-5,5]){
   for(const y of [14,22]){
    beam(m.steel,[-35,y,z],[35,y,z],.68,.68,true);
@@ -1655,10 +1659,10 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   for(const x of [-24,24])for(const z of [-19,19]){
    cylinder(m.steel,x,5,z,2.3,22);
    for(const y of [1,9,15])cylinder(m.rust,x,y,z,2.48,.65);
-   for(const zz of [-19,19])beam(m.orange,[x,-3,z],[x,15,zz],.75);
-   for(const xx of [-24,24])beam(m.steel,[x,-3,z],[xx,15,z],.75);
-   for(const y of [5,14]){beam(m.steel,[x,y,-19],[x,y,19],.62);beam(m.steel,[-24,y,z],[24,y,z],.62)}
+   beam(m.orange,[x,-3,z],[x,15,-z],.75);
+   beam(m.steel,[x,-3,z],[-x,15,z],.75);
   }
+  for(const y of [5,14]){for(const x of [-24,24])beam(m.steel,[x,y,-19],[x,y,19],.62);for(const z of [-19,19])beam(m.steel,[-24,y,z],[24,y,z],.62)}
   box(m.steel,0,16,0,58,2.0,48);box(m.dark,0,17.2,0,56,.45,46);
   for(const z of [-22,22]){rail(0,18.5,z,56);box(m.rust,0,15.8,z,58,1.2,.55)}
   for(const x of [-28,28]){rail(x,18.5,0,44,'z');box(m.rust,x,15.8,0,.55,1.2,46)}
@@ -1699,8 +1703,11 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   box(m.dark,10,33.2,14,3,1.0,2);
   beam(m.wire,[10,32.7,14],[10,26.8,14],.12,.12,true);box(m.yellow,10,26.5,14,2,.65,2);
   // Access ladder cage, hose reels and attached floodlights.
-  for(const z of [-.65,.65])beam(m.yellow,[-27.2,17.45,z],[-27.2,25.7,z],.10);
-  for(let y=17.7;y<25.7;y+=.42)beam(m.steel,[-27.2,y,-.65],[-27.2,y,.65],.065);
+  for(const z of [-.65,.65])beam(m.yellow,[-27.2,17.45,z],[-27.2,26,z],.10);
+  for(let y=17.7;y<25;y+=.42)beam(m.steel,[-27.2,y,-.65],[-27.2,y,.65],.065);
+  box(m.steel,-24,24.8,0,8,.4,2.5);box(m.steel,-20.1,24.8,3.5,2.3,.4,7);
+  beam(m.steel,[-26,24.6,0],[-24,17.45,0],.35);
+  rail(-24,26,-1.15,8);rail(-19.1,26,3.5,7,'z');
   for(const x of [-22,22])for(const z of [-18,18]){
    beam(m.steel,[x,17.45,z],[x,20,z],.18);box(m.light,x,20,z,1.2,.4,1.1);box(m.dark,x,20.3,z,1.4,.23,1.2)
   }
