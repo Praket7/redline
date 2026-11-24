@@ -42,6 +42,9 @@ try:
         assert len(views) == 11
         page.evaluate("IRON_TIDE.clean(true)")
         results = {}
+        provenance = json.loads((OUT / "texture-provenance.json").read_text()) if (OUT / "texture-provenance.json").exists() else {}
+        expected_photos = [k for k in ["concrete","asphalt","rust","paint","steel"] if provenance.get(k,{}).get("status") == "downloaded"]
+        expected_sky = "industrial_sunset_02_puresky" if provenance.get("sky",{}).get("status") == "downloaded" else "procedural"
         for view in views:
             page.evaluate("(id) => IRON_TIDE.setView(id)", view)
             # A real rendered canvas screenshot, not an illustration.
@@ -53,9 +56,14 @@ try:
                 assert max(ImageStat.Stat(im.convert("RGB")).stddev) > 8, "blank/flat screenshot: " + view
             stats = page.evaluate("IRON_TIDE.stats()")
             assert stats["gates"] == 32 and stats["revision"] == "128"
-            assert stats["photoMaterials"] == sorted(stats["photoMaterials"], key=["concrete","asphalt","rust","paint","steel"].index)
+            assert stats["photoMaterials"] == expected_photos, stats
+            assert stats["skySource"] == expected_sky, stats
             assert 0 < stats["drawCalls"] < 400, stats
             assert 0 < stats["triangles"] < 5000000, stats
+            with Image.open(path) as im:
+                lum=ImageStat.Stat(im.convert("L"))
+                stats["imageLuminanceMean"]=round(lum.mean[0],3)
+                stats["imageLuminanceStddev"]=round(lum.stddev[0],3)
             results[view] = stats
         page.evaluate("IRON_TIDE.setView('top')")
         projected = page.evaluate("IRON_TIDE.projectGates()")

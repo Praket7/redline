@@ -33,6 +33,20 @@ for role, asset in ASSETS.items():
     except Exception as exc:
         PROVENANCE[role]={"asset":asset,"status":"procedural fallback","reason":str(exc)}
         print("Texture fallback:",role,exc)
+try:
+    asset="industrial_sunset_02_puresky"
+    manifest=json.loads(fetch("https://api.polyhaven.com/files/"+asset))
+    entry=manifest["hdri"]["1k"]["hdr"]
+    data=fetch(entry["url"])
+    if entry.get("md5") and hashlib.md5(data).hexdigest()!=entry["md5"]:
+        raise ValueError("source HDR hash mismatch")
+    if not data.startswith((b"#?RADIANCE",b"#?RGBE")):
+        raise ValueError("invalid HDR header")
+    PACK["sky"]={"hdr":"data:application/octet-stream;base64,"+base64.b64encode(data).decode()}
+    PROVENANCE["sky"]={"asset":asset,"status":"downloaded","license":"CC0","source":"https://polyhaven.com/a/"+asset,"url":entry["url"],"sha256":hashlib.sha256(data).hexdigest()}
+except Exception as exc:
+    PROVENANCE["sky"]={"asset":"industrial_sunset_02_puresky","status":"procedural fallback","reason":str(exc)}
+    print("Sky fallback:",exc)
 (ROOT/"iron-tide/texture-pack.js").write_text("window.IRON_TIDE_TEXTURES="+json.dumps(PACK,separators=(",",":"))+";\n")
 out=ROOT/"iron-tide-output"
 out.mkdir(exist_ok=True)

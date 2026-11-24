@@ -35,7 +35,9 @@ function smoothNoise(x,y){let i=Math.floor(x),j=Math.floor(y),u=x-i,v=y-j;u=u*u*
 const skyPixels=e.getImageData(0,0,512,256);
 for(let y=12;y<128;y++)for(let x=0;x<512;x++){let u=x/512*7,v=y/256*10,n=0,a=.5;for(let o=0;o<5;o++){n+=a*smoothNoise(u,v);u*=2;v*=2;a*=.5}const opacity=T.MathUtils.clamp((n-.36)*1.8,0,.65)*Math.sin(y/128*Math.PI),i=(y*512+x)*4;const edge=T.MathUtils.clamp((y-65)/55,0,1),cloud=[38+edge*100,47+edge*39,65+edge*20];for(let k=0;k<3;k++)skyPixels.data[i+k]=skyPixels.data[i+k]*(1-opacity)+cloud[k]*opacity}
 e.putImageData(skyPixels,0,0);seed=skySeed;
-const envTex=new T.CanvasTexture(env);envTex.mapping=T.EquirectangularReflectionMapping;envTex.encoding=T.sRGBEncoding;const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(envTex).texture;scene.background=envTex;pmrem.dispose();
+let envTex=new T.CanvasTexture(env),skySource='procedural';envTex.mapping=T.EquirectangularReflectionMapping;envTex.encoding=T.sRGBEncoding;
+if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(T.FloatType);envTex=await sky.loadAsync(texturePack.sky.hdr);envTex.mapping=T.EquirectangularReflectionMapping;skySource='industrial_sunset_02_puresky';}
+const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(envTex).texture;scene.background=envTex;pmrem.dispose();
 const boxGeo=new T.BoxGeometry(1,1,1),cylGeo=new T.CylinderGeometry(1,1,1,12),sphereGeo=new T.SphereGeometry(1,12,8);const q=new T.Quaternion(),up=V(0,1,0);
 const templates={};let target=null;const batches=new Map();
 function part(g,mat,x,y,z,sx,sy,sz,rot){const mesh=new T.Mesh(g,mat);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);if(rot)mesh.quaternion.copy(rot);mesh.updateMatrix();if(target){target.push(mesh)}else{const key=g.uuid+mat.uuid;if(!batches.has(key))batches.set(key,{g,mat,matrices:[]});batches.get(key).matrices.push(mesh.matrix.clone())}return mesh}
@@ -117,7 +119,8 @@ for(const z of [-1050,-840,-600,-400])place('tugboat',1210,.5,z,Math.PI/2);
 for(const mat of [m.road,asphalt,apron]){
  mat.onBeforeCompile=shader=>{
   shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 pavementP=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n pavementP=instanceMatrix*pavementP;\n#endif\n vPavement=(modelMatrix*pavementP).xyz;');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=sin(vPavement.x*.035+sin(vPavement.z*.08)*2.0)*cos(vPavement.z*.05);float puddle=smoothstep(.20,.82,wet);roughnessFactor=mix(roughnessFactor,.19,puddle*.72);diffuseColor.rgb*=mix(1.0,.62,puddle);');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.045)*.7+wetNoise(vPavement.xz*.19)*.3;float puddle=smoothstep(.50,.78,wet);roughnessFactor=mix(roughnessFactor,.19,puddle*.72);diffuseColor.rgb*=mix(1.0,.62,puddle);');
+ if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
  };
 }
 // Native industrial kit: batched working-port models and practical lighting.
@@ -183,122 +186,12 @@ for(const z of [410,570,730])for(const x of [-920,-580]){
 }
 // Distant coastline outside the playable footprint gives the port a geographical context.
 const coastMat=new T.MeshStandardMaterial({color:0x353b43,roughness:1,metalness:0});
-const coastGeo=new T.BufferGeometry(),coastPos=[];
-for(let i=0;i<72;i++){const x=-4800+i*140,x2=x+140,z=-2500-140*Math.sin(i*.43),z2=-2500-140*Math.sin((i+1)*.43),h=50+170*Math.abs(Math.sin(i*.29)+.4*Math.sin(i*.83)),h2=50+170*Math.abs(Math.sin((i+1)*.29)+.4*Math.sin((i+1)*.83));coastPos.push(x,-3,z,x2,-3,z2,x2,h2,z2-480,x,-3,z,x2,h2,z2-480,x,h,z-480,x,h,z-480,x2,h2,z2-480,x2,-3,z2-1050,x,h,z-480,x2,-3,z2-1050,x,-3,z-1050)}
-coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coastGeo.computeVertexNormals();coastMat.side=T.DoubleSide;part(coastGeo,coastMat,0,0,0,1,1,1);
-// Richer native industrial architecture: each kit has an inspectable/exportable model.
-// Reserve the original gate centerline; reject whole footprint candidates, not just their centers.
-function clearFootprint(x,z,w,d,top){for(const dx of [-w/2,0,w/2])for(const dz of [-d/2,0,d/2])if(!clearScenery(x+dx,top,z+dz))return false;return true}
-const rawSteel=material('#8b9196',.68,.46,'steel'),primer=material('#b27250',.18,.75,'steel'),deck=material('#5a615d',.3,.66,'steel');
-define('heavy-gantry-detail',()=>{
- // Paired portal legs with substantial box sections, base bogies and a real trolley walkway.
- for(const x of [-62,62]){for(const z of [-13,13]){
-  beam(m.orange,[x,3,z],[x*.85,106,z*.65],5.6,6.2);
-  box(m.dark,x,1.5,z,15,3,10);
-  for(const dx of [-5,-1.7,1.7,5])for(const dz of [-3.8,3.8])part(cylGeo,m.rubber,x+dx,1.35,z+dz,1.3,.75,1.3,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
-  for(let y=13;y<=100;y+=15){const px=x*(1-y/700);box(rawSteel,px,y,z*.8,7,.65,7);for(const off of [-2.4,2.4])box(m.dark,px+off,y+.45,z*.8,.35,.3,6)}
- }
- for(let y=8;y<100;y+=14){const px=x*(1-y/700),px2=x*(1-(y+14)/700);beam(m.orange,[px,y,-12],[px2,y+14,12],1.5);beam(rawSteel,[px,y,12],[px2,y+14,-12],.65);}
- for(const off of [-.35,.35])beam(m.steel,[x-4,4,off],[x*.85-4,106,off],.12,.12,true);
- for(let y=4;y<105;y+=.75)beam(m.steel,[x*(1-y/700)-4,y,-.35],[x*(1-y/700)-4,y,.35],.065,.065,true);
- }
- for(const z of [-9,9]){
-  box(m.orange,0,110,z,142,8,4.5);box(rawSteel,0,114.5,z,142,.7,5.8);box(m.dark,0,105.5,z,141,.55,4.8);
-  for(let x=-68;x<70;x+=7){beam(rawSteel,[x,106,z-2.3],[x+6,114,z-2.3],.45);box(m.dark,x,110,z+2.35,.25,7.2,.35)}
-  box(deck,0,115.2,z,144,.45,3);rail(0,116.4,z+1.5,142);
- }
- for(let x=-64;x<=64;x+=8)box(m.steel,x,112,0,1.25,1.4,19);
- box(m.orange,8,118,0,17,5.8,21);box(m.dark,8,121.2,0,18,.6,22);
- box(m.glass,19,114,12,6,4.5,4);box(m.steel,19,111.4,12,7,.4,5);
- for(const x of [2,14])for(const z of [-3,3])beam(m.dark,[x,113,z],[x,64,z],.12,.12,true);
- box(m.yellow,8,63,0,15,2.8,7);box(m.dark,8,61.1,0,11,.6,4);
- for(const x of [-54,54])for(const z of [-10,10])box(m.light,x,104,z,2,.5,2);
-});
-define('lattice-boom-crane',()=>{
- box(m.dark,0,1.8,0,13,3.6,13);cylinder(m.steel,0,4,0,5,1.2);box(m.orange,-2,7,0,11,5,7);
- for(const x of [-3.2,3.2])for(const z of [-3.2,3.2])beam(m.orange,[x,10,z],[x*.52,51,z*.52],.72);
- for(let y=10;y<49;y+=5.5)for(const z of [-2.5,2.5]){beam(m.orange,[-3,y,z],[3,y+5.5,z],.42);beam(m.steel,[3,y,z],[-3,y+5.5,z],.25)}
- box(m.glass,4.5,48,0,4.7,3.5,4.6);box(m.orange,4.5,50,0,5.4,.6,5.2);
- const A=[0,51,0],B=[55,80,0];for(const z of [-1.65,1.65]){beam(m.orange,[A[0],A[1]-2,z],[B[0],B[1],z*.25],.64);beam(m.orange,[A[0],A[1]+2,z],[B[0],B[1],z*.25],.54);for(let i=0;i<11;i++){let a=i/11,b=(i+1)/11;beam(m.orange,[55*a,49+31*a,z*(1-a*.75)],[55*b,53+27*b,z*(1-b*.75)],.33)}}
- beam(m.steel,[-18,58,0],[0,63,0],1.2);box(m.dark,-17,57,0,8,5,6);
- beam(m.dark,[-17,61,0],[55,80,0],.12,.12,true);for(const z of [-.65,.65])beam(m.dark,[55,79,z],[55,30,z],.09,.09,true);box(m.yellow,55,29,0,2.5,2,2.5);
-});
-define('pipe-bundle',()=>{for(const x of [-5,0,5])box(deck,x,.3,0,.65,.6,5.2);for(let r=0;r<3;r++)for(let i=0;i<5-r;i++){let z=(i-(4-r)/2)*1.05;beam(rawSteel,[-6,.95+r*.88,z],[6,.95+r*.88,z],.48,.48,true);for(const x of [-5.8,5.8])beam(m.dark,[x-.12,.95+r*.88,z],[x+.12,.95+r*.88,z],.53,.53,true)}});
-define('pallet-load',()=>{for(const x of [-1.5,0,1.5])box(deck,x,.14,0,.22,.28,2.4);for(let x=-1.7;x<=1.7;x+=.36)box(m.steel,x,.36,0,.28,.15,2.4);for(const z of [-.55,.55]){box(primer,0,1.15,z,2.8,1.4,1);for(const x of [-.85,.85])box(m.dark,x,1.16,z, .08,1.43,1.03)}});
-define('utility-cart',()=>{box(m.dark,0,.5,0,3.6,.4,2);box(m.orange,-.65,1.3,0,2.1,1.1,1.8);box(m.glass,-.9,2.1,0,1.5,.8,1.65);for(const x of [-1.2,1.2])for(const z of [-.95,.95])part(cylGeo,m.rubber,x,.45,z,.48,.27,.48,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));box(m.steel,1.5,.9,0,.55,.4,1.9)});
-define('industrial-barrier',()=>{box(m.concrete,0,.25,0,3.5,.5,1.15);for(const x of [-1.4,1.4])box(m.yellow,x,1,0,.19,1.5,.18);box(m.yellow,0,1.42,0,3.1,.16,.16);for(let x=-1.4;x<1.5;x+=.5)beam(m.dark,[x,.7,0],[x+.3,1.4,0],.12)});
-define('maintenance-bay',()=>{for(const x of [-9,9])for(const z of [-7,7]){box(m.steel,x,4,z,.45,8,.45);box(m.concrete,x,.2,z,1.5,.4,1.5)}for(const z of [-7,7]){box(m.steel,0,8,z,19,.7,.6);for(let x=-9;x<=9;x+=3)beam(rawSteel,[x,7,z],[x+2,8.3,z],.18)}
- box(m.blue,0,8.5,0,20,.3,15);for(let x=-8;x<=8;x+=4)box(m.light,x,8.1,0,1.3,.2,.45);box(m.dark,0,1,-5,10,2,1.5);for(let x=-4;x<=4;x+=2)box(m.orange,x,1.2,-4,1.5,1.8,1.2);
-});
-define('breakwater-armour',()=>{const g=new T.IcosahedronGeometry(1,1);for(let i=0;i<7;i++){const a=i*2.399,r=3+(i%3)*1.8;part(g,m.concrete,Math.cos(a)*r,1.2+(i%3)*.6,Math.sin(a)*r,2.5+(i%2),2.1,2.9,new T.Quaternion().setFromAxisAngle(up,a))}});
-// Purpose-built ship silhouettes: lofted longitudinal sections, bridge, coamings,
-// loading booms and deck machinery. No race volume is inferred from this visual mesh.
-define('merchant-vessel',()=>{
- const length=208, stations=40, sections=[[-4,.28],[-1,.68],[2,.94],[8,1],[11.8,.96]];
- const hullmat=new T.MeshStandardMaterial({color:0x334d5b,metalness:.26,roughness:.66});
- const bootmat=new T.MeshStandardMaterial({color:0x722c27,metalness:.2,roughness:.73});
- const topmat=new T.MeshStandardMaterial({color:0x384144,metalness:.38,roughness:.58});
- function width(x){const q=x/(length/2);return 16.3*Math.sqrt(Math.max(.0005,1-Math.abs(q)**(q>0?3.8:9)))}
- function P(i,j,side){const x=-length/2+i*length/stations;return [x,sections[j][0]+(i>stations-5?Math.pow((i-stations+5)/5,2)*2.4:0),side*width(x)*sections[j][1]]}
- for(let j=0;j<sections.length-1;j++){const p=[],uv=[];for(let i=0;i<stations;i++)for(const side of [-1,1]){const A=P(i,j,side),B=P(i+1,j,side),C=P(i+1,j+1,side),D=P(i,j+1,side);for(const v of (side>0?[A,B,C,A,C,D]:[A,C,B,A,D,C])){p.push(...v);uv.push(v[0]/6,v[1]/6)}}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.computeVertexNormals();part(g,j===0?bootmat:j===1?m.dark:hullmat,0,0,0,1,1,1)}
- const deckP=[],deckUv=[];for(let i=0;i<stations;i++){const A=P(i,4,-1),B=P(i,4,1),C=P(i+1,4,1),D=P(i+1,4,-1);for(const v of [A,B,C,A,C,D]){deckP.push(...v);deckUv.push(v[0]/6,v[2]/6)}}
- const dg=new T.BufferGeometry();dg.setAttribute('position',new T.Float32BufferAttribute(deckP,3));dg.setAttribute('uv',new T.Float32BufferAttribute(deckUv,2));dg.computeVertexNormals();part(dg,topmat,0,0,0,1,1,1);
- for(let i=0;i<stations;i++)for(const side of [-1,1]){const a=P(i,4,side),b=P(i+1,4,side);beam(m.steel,[a[0],a[1]+1,a[2]],[b[0],b[1]+1,b[2]],.12,.12,true);beam(m.steel,a,[a[0],a[1]+1,a[2]],.12)}
- for(const x of [-42,-10,22,54]){box(m.rust,x,13.2,0,26,2.6,23);box(m.dark,x,14.6,0,25,.3,22);for(let dx=-10;dx<=10;dx+=5)box(m.steel,x+dx,14.85,0,.18,.18,21)}
- for(let y=15;y<=27;y+=4){box(m.white,-73,y,0,28-(y-15)*.5,3.8,24);for(const z of [-12.1,12.1])for(let x=-83;x<=-63;x+=4)box(m.glass,x,y+.55,z,2.4,1.2,.18)}
- box(m.white,-73,29,0,31,3,25);box(m.glass,-73,29.2,12.6,28,1.6,.18);box(m.glass,-57.4,29.2,0,.18,1.6,24);
- box(m.dark,-87,34,0,7,7,8);box(m.rust,-87,37.8,0,8,.7,9);beam(m.steel,[-73,31,0],[-73,48,0],.22);beam(m.steel,[-78,43,0],[-68,43,0],.16);box(m.light,-73,47.9,0,.6,.45,.6);
- for(const x of [-27,6,38]){cylinder(m.steel,x,17,0,1.35,7);beam(m.orange,[x,20,0],[x+16,33,0],1.1);beam(m.dark,[x+16,33,0],[x+16,16,0],.1,.1,true);box(m.yellow,x+16,15.5,0,1.4,1.2,1.4)}
- for(const x of [-95,90])for(const z of [-5,5]){cylinder(m.dark,x,13,z,.85,1.3);cylinder(m.steel,x,13.8,z,1.1,.35)}
-});
-place('merchant-vessel',480,0,-550,Math.PI/2);
-place('merchant-vessel',390,0,-1030,Math.PI/2,.72);
-place('heavy-gantry-detail',850,5,50);
-for(const [x,z,a] of [[-1030,1160,.45],[-410,1180,1.1],[340,1175,1.3],[1060,-290,2.8],[1130,-900,3.0],[250,-1050,1.1]])if(clearFootprint(x,z,18,18,75))place('lattice-boom-crane',x,5,z,a);
-for(const [cx,cz] of [[-990,1015],[-760,1015],[-470,1015],[-150,1015],[350,920],[650,735],[1010,870],[960,-255],[685,-620],[1020,-605],[-950,-540],[-820,20],[-960,530],[-615,685]]){
- for(let i=0;i<13;i++){const x=cx+(i%4-1.5)*13,z=cz+(Math.floor(i/4)-1)*12;if(!clearFootprint(x,z,12,6,10))continue;const kind=['pipe-bundle','pallet-load','utility-cart','welding-skid','industrial-barrier'][i%5];place(kind,x,cz<-350&&cz>-750&&cx>650&&cx<1050?-7.8:5.29,z,(i%4)*Math.PI/2)}
- if(clearFootprint(cx,cz+24,20,16,15)&&!(cz<-350&&cz>-750&&cx>650))place('maintenance-bay',cx,5.26,cz+24);
-}
-// Container walls in offset groups: close silhouettes without a constant-height grid.
-for(const [cx,cz] of [[430,1020],[540,920],[720,860],[780,710],[950,690],[1050,570]]){
- for(let i=0;i<7;i++){const x=cx+(i-3)*14,z=cz+((i%2)?14:-14);for(let h=0;h<8;h++){if(!clearFootprint(x,z,13,3,5+(h+1)*2.94))break;place('container-'+['rust','blue','green','white'][(i+h)%4],x,5+h*2.94,z,0)}}
-}
-// Flight-facing industrial street walls: elevated maintenance decks and varied sheds.
-define('dock-transfer-hall',()=>{
- const W=70,D=37,H=24;for(const x of [-W/2,W/2])for(const z of [-D/2,D/2]){box(m.steel,x,H/2,z,1.35,H,1.35);box(m.concrete,x,.55,z,3,1.1,3)}
- for(const z of [-D/2,D/2]){box(m.blue,0,H-3,z,W,6,.55);for(let x=-W/2+2;x<W/2;x+=4)box(rawSteel,x,H-3,z,.23,5.8,.75);box(m.orange,0,H-6.3,z,W,.55,.7);for(let x=-W/2+3;x<W/2;x+=10)box(m.glass,x,H-2,z,5,1.6,.6)}
- for(let x=-W/2;x<=W/2;x+=7){for(const z of [-D/2,D/2])beam(rawSteel,[x,H,z],[x,H+6,0],.65);beam(m.steel,[x,H,-D/2],[x,H,D/2],.6);beam(m.steel,[x,H,-D/2],[x,H+6,0],.35)}
- for(const side of [-1,1]){const a=side*Math.atan2(6,D/2);part(boxGeo,m.blue,0,H+3,side*D/4,W+2,.48,Math.hypot(D/2,6)+1,new T.Quaternion().setFromAxisAngle(V(1,0,0),a))}
- for(const x of [-27,0,27]){box(m.orange,x,13,0,2,1.5,D-3);box(m.dark,x,12,0,3,1.3,4);beam(m.dark,[x,11.5,0],[x,5.5,0],.1,.1,true);box(m.yellow,x,5,0,1.2,.75,1.2)}
- for(let x=-27;x<=27;x+=9){box(m.light,x,H-7,-D/2+.6,2,.3,.5);box(m.dark,x,1.1,-D/2+3,6,2,2)}
-});
-for(const [x,z] of [[-1060,1005],[-820,995],[-580,995],[-340,995],[-100,995],[130,1000],[200,1155],[490,1155],[715,1155],[1030,1155]]){
- if(clearFootprint(x,z,74,41,36)){place('dock-transfer-hall',x,5.25,z);for(let j=-2;j<=2;j++){if(clearFootprint(x+j*12,z+24,12,8,11))place('pipe-bundle',x+j*12,5.28,z+24);pool(x+j*12,5.31,z+20,8)}}
-}
-// Service passage on the central dock sides; retain the wet channel in between.
-for(const x of [340,620])for(let z=-755;z<-360;z+=28){box(m.concrete,x,1.3,z,10,5.4,28);box(deck,x,4.2,z,10,.4,28);if(z%56<-20)place('bollard',x,4.4,z);if(clearFootprint(x,z,10,12,10))place('pallet-load',x,4.42,z+5)}
-for(let x=585;x<910;x+=14)for(const z of [-942,-898]){
- box(m.steel,x,10.5,z,1.1,3.8,1.2);box(m.rust,x,12.6,z,1.5,.45,2.3);
- if(x%28===25)box(m.yellow,x,17.1,z,.35,.4,.45);
-}
-// Dry dock mechanical service galleries: platforms, stair flights, pipe penetrations,
- // fender posts and railings outside the central dive corridor.
-for(const x of [752,948]){const side=x<850?-1:1;for(let z=-715;z<-365;z+=36){
- box(m.concrete,x,-7.35,z,13,1.3,30);box(m.steel,x,-6.58,z,12,.25,29);
- for(const dx of [-4.5,4.5]){box(m.dark,x+dx,-2,z,.65,8,.65);beam(m.steel,[x+dx,-5.8,z-12],[x+dx,1.8,z+12],.35)}
- box(m.steel,x,1.9,z,11.8,.45,29);rail(x-side*5.6,3,z,29,'z');
- box(m.rust,x+side*4,-3,z,2.8,4.5,6);for(let dz=-8;dz<=8;dz+=4){beam(m.dark,[x-4,-4,z+dz],[x+4,-4,z+dz],.32,.32,true);beam(m.steel,[x+3.5,-4,z+dz],[x+4.2,-4,z+dz],.44,.44,true)}
- box(m.light,x,3.35,z,1.2,.25,.65);pool(x,-6.39,z,8);
- if(z%72<-30){for(let j=0;j<14;j++)box(m.steel,x+side*3,-6.4+j*.58,z-12+j*1.3,3.2,.22,1.4);beam(m.yellow,[x+side*4.6,-5.35,z-12],[x+side*4.6,2.2,z+5],.10)}
-}}
- // Connected utility conduits alongside outer dock faces.
-for(const x of [767,933]){for(let z=-730;z<-375;z+=28){beam(m.steel,[x,-.6,z],[x,-.6,z+28],.6,.6,true);beam(m.rust,[x,1.3,z],[x,1.3,z+28],.36,.36,true);box(m.dark,x,-.6,z,.65,1.5,.5)}}
- // Quay coping, mooring ropes, tidal staining, drain channels and riprap.
-const stain=new T.MeshStandardMaterial({color:0x353b35,roughness:.95,metalness:0}),foam=new T.MeshBasicMaterial({color:0xc3d5d8,transparent:true,opacity:.22,depthWrite:false});
-for(let x=-1160;x<=1160;x+=25){box(stain,x,1.2,1200.05,24.8,1.5,.16);box(rawSteel,x,5.25,1195,24.5,.14,.25);if(x%100===-60)place('bollard',x,5.15,1194);place('breakwater-armour',x,0,-1342);box(foam,x,-.12,-1354,11,.04,1.1)}
-for(const x of [-1178,1178])for(let z=125;z<1200;z+=25){box(stain,x,1.5,z,.15,1.8,24.8);box(rawSteel,x,5.25,z,.25,.12,24.5)}
-for(const x of [655,1045])for(let z=-734;z<-365;z+=15){box(stain,x+(x<850?5.1:-5.1),-4.5,z,.12,4,14.8);box(rawSteel,x+(x<850?6:-6),-2,z,.55,.5,14.8);box(m.dark,x+(x<850?5.2:-5.2),-2.2,z,.25,1.1,1.1)}
-for(const [x,z] of [[-900,1270],[-420,1270],[60,1270],[650,1270],[1020,1270]]){beam(m.dark,[x-12,3,z-4],[x-18,5.5,1195],.12,.12,true);beam(m.dark,[x+12,3,z-4],[x+18,5.5,1195],.12,.12,true)}
+const coastGeo=new T.BufferGeometry(),coastPos=[],coastColors=[],coastIndices=[],coastN=160,coastM=32;
+for(let iz=0;iz<=coastM;iz++)for(let ix=0;ix<=coastN;ix++){const x=-6400+ix*80,t=iz/coastM,shore=-2500-170*Math.sin(x*.0007)-90*Math.cos(x*.0025),z=shore-t*2200;
+ const ridge=Math.sin(Math.PI*t)**1.6,large=.48+.24*Math.sin(x*.0008)+.13*Math.sin(x*.0019+1),small=.65+.35*smoothNoise(x*.002,z*.002);
+ const height=-3+ridge*(70+large*460)*small;coastPos.push(x,height,z);const v=.25+.15*small+.09*ridge;coastColors.push(v*.79,v*.88,v);}
+for(let iz=0;iz<coastM;iz++)for(let ix=0;ix<coastN;ix++){const a=iz*(coastN+1)+ix,b=a+1,c=a+coastN+1,d=c+1;coastIndices.push(a,b,c,b,d,c)}
+coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coastGeo.setAttribute('color',new T.Float32BufferAttribute(coastColors,3));coastGeo.setIndex(coastIndices);coastGeo.computeVertexNormals();coastMat.side=T.DoubleSide;coastMat.color.setHex(0xffffff);coastMat.vertexColors=true;part(coastGeo,coastMat,0,0,0,1,1,1);
 for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh)}
 const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x203b49,roughness:.36,metalness:.28,bumpMap:waterTex,bumpScale:.6});
 // World-position ripples avoid the previous giant repeated bump texture.
@@ -334,5 +227,5 @@ addEventListener('resize',()=>{resize();assetCamera.aspect=innerWidth/innerHeigh
 for(const id of Object.keys(presets)){const b=document.createElement('button');b.dataset.view=id;b.textContent=id; b.onclick=()=>setView(id);document.getElementById('views').append(b)}
 document.getElementById('tour').onclick=()=>{tour=!tour;if(tour){dist=0;sampleCourse(0)}};document.getElementById('route').onclick=()=>{guide.visible=!guide.visible;render()};document.getElementById('capture').onclick=()=>{render();const a=document.createElement('a');a.download='iron-tide-'+mode+'.png';a.href=renderer.domElement.toDataURL('image/png');a.click()};
 renderer.shadowMap.needsUpdate=true;resize();setView('overview');requestAnimationFrame(tick);
-window.IRON_TIDE={assetView,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),photoMaterials:loadedMaterials.slice(),view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});

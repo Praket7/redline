@@ -5,7 +5,7 @@ folder=root/"iron-tide"
 html=(folder/"index.html").read_text()
 def script(contents):
     return "<script>"+contents.replace("</script","<\\/script")+"</script>"
-for path in ("node_modules/three/build/three.min.js","node_modules/three/examples/js/utils/BufferGeometryUtils.js","node_modules/three/examples/js/exporters/GLTFExporter.js"):
+for path in ("node_modules/three/build/three.min.js","node_modules/three/examples/js/utils/BufferGeometryUtils.js","node_modules/three/examples/js/exporters/GLTFExporter.js","node_modules/three/examples/js/loaders/RGBELoader.js"):
     marker='<script src="../'+path+'"></script>'
     assert marker in html,marker
     html=html.replace(marker,script((root/path).read_text()))
