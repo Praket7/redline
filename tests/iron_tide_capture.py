@@ -204,6 +204,12 @@ try:
             assert kind == 0x4e4f534a
             doc = json.loads(data[20:20+n])
             assert doc["meshes"] and doc["materials"]
+            for mat in doc["materials"]:
+                assert all(0 <= v <= 1 for v in mat.get("emissiveFactor", [])), (name, mat)
+                if "KHR_materials_emissive_strength" in mat.get("extensions", {}):
+                    assert "KHR_materials_emissive_strength" in doc.get("extensionsUsed", [])
+                    assert mat["extensions"]["KHR_materials_emissive_strength"]["emissiveStrength"] >= 0
+
             (OUT / "glb" / (name+".glb")).write_bytes(data)
             exported[name] = {"bytes":len(data),"meshes":len(doc["meshes"]),"materials":len(doc["materials"])}
         assert not errors, errors
