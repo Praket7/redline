@@ -66,7 +66,19 @@ function reserveContainer(x,y,z,angle,scale){
  const q={x,z,hx,hz,next:y+2.94*scale};containerSlots.push(q);stackIndex.set(key,q);return true
 }
 function place(name,x,y,z,angle=0,scale=1){if(name.startsWith('container-')&&!reserveContainer(x,y,z,angle,scale))return false;const group=templates[name];const root=new T.Object3D();root.position.set(x,y,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();if(name.startsWith('container-')){const col=name.split('-').pop(),key=[Math.floor(x/600),Math.floor(z/600),col].join(':');if(!containerChunks.has(key))containerChunks.set(key,{col,matrices:[],bounds:new T.Box3()});const chunk=containerChunks.get(key);chunk.matrices.push(root.matrix.clone());chunk.bounds.expandByPoint(V(x-7,y,z-7));chunk.bounds.expandByPoint(V(x+7,y+3,z+7));return true}for(const mesh of group.children){let key=mesh.geometry.uuid+mesh.material.uuid;if(!batches.has(key))batches.set(key,{g:mesh.geometry,mat:mesh.material,matrices:[]});batches.get(key).matrices.push(root.matrix.clone())}}
-for(const col of ['rust','blue','green','white'])define('container-'+col,()=>{box(m[col],0,1.45,0,12.2,2.9,2.44);for(const side of [-1,1]){for(let x=-5.9;x<6;x+=.42)box(m[col],x,1.45,side*1.25,.12,2.62,.10);for(const y of [.1,2.8])box(m.steel,0,y,side*1.24,12.3,.15,.14);for(const x of [-6,6])box(m.steel,x,1.45,side*1.24,.19,2.9,.20)}for(const z of [-.64,.64]){box(m.dark,6.14,1.45,z,.08,2.65,1.12);for(const dz of [-.35,.35])beam(m.steel,[6.23,.18,z+dz],[6.23,2.75,z+dz],.04,.04,true);box(m.steel,6.25,1.22,z,.18,.12,.28)}});
+for(const col of ['rust','blue','green','white'])define('container-'+col,()=>{
+ const skin=m[col];box(skin,0,1.45,0,12.1,2.9,2.36);
+ for(const side of [-1,1]){
+  const p=[],uv=[],idx=[];let k=0;
+  for(let i=0;i<=28;i++){const base=-5.88+i*.42;for(const [dx,dz] of [[0,0],[.095,.075],[.24,.075],[.335,0]]){if(base+dx>5.95)continue;const x=base+dx,z=side*(1.19+dz);p.push(x,.17,z,x,2.72,z);uv.push(x/4,.17/4,x/4,2.72/4);if(k>0){const j=2*k;idx.push(...(side>0?[j-2,j,j+1,j-2,j+1,j-1]:[j-2,j+1,j,j-2,j-1,j+1]))}k++}}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();part(g,skin,0,0,0,1,1,1);
+  for(const y of [.10,2.8])box(skin,0,y,side*1.23,12.2,.16,.14);
+  for(const x of [-6,6]){box(skin,x,1.45,side*1.23,.22,2.9,.20);for(const y of [.12,2.78])box(m.dark,x,y,side*1.32,.13,.10,.04)}
+ }
+ for(const z of [-.62,.62]){box(skin,6.10,1.45,z,.11,2.55,1.16);for(const dz of [-.36,.36]){beam(m.steel,[6.22,.2,z+dz],[6.22,2.72,z+dz],.038,.038,true);for(const y of [.32,1.42,2.55])box(m.dark,6.23,y,z+dz,.09,.15,.12)}for(const y of [.4,2.5])box(m.steel,6.2,y,z,.16,.12,.26);box(m.yellow,6.22,1.22,z,.04,.17,.17)}
+ for(let x=-5.75;x<5.9;x+=.42)box(skin,x,2.93,0,.14,.045,2.22);
+ for(const z of [-.8,.8])for(const x of [-3.2,3.2])box(m.dark,x,.05,z,1.15,.11,.3);
+});
 for(const col of ['rust','blue','green','white'])define('container-far-'+col,()=>{box(m[col],0,1.45,0,12.2,2.9,2.44);for(const s of [-1,1]){for(const y of [.13,2.77])box(m.steel,0,y,s*1.23,12.2,.12,.13);for(const x of [-6,6])box(m.steel,x,1.45,s*1.23,.18,2.9,.2)}});
 define('goliath',()=>{for(const x of [-65,65]){for(const z of [-12,12]){beam(m.orange,[x,4,z],[x*.83,108,z*.68],4.4,5.2);box(m.dark,x,2,z,12,4,8);for(const dx of [-3,3])for(const dz of [-2,2])cylinder(m.rubber,x+dx,1,z+dz,1.2,1.6)}for(let y=12;y<100;y+=17){beam(m.steel,[x*(1-y/650),y,-12+y*.035],[x*(1-(y+17)/650),y+17,12-(y+17)*.035],.65);box(m.steel,x*(1-y/650),y,0,10,.65,25);rail(x*(1-y/650),y+1,12,10)}}for(const z of [-8,8]){box(m.orange,0,109,z,130,6,4);for(let x=-62;x<62;x+=10)beam(m.orange,[x,106,z],[x+10,116,z],.55)}box(m.steel,0,115,0,137,1.3,17);rail(0,116,8,137);rail(0,116,-8,137);box(m.orange,10,119,0,15,5,19);box(m.glass,19,114,9,7,4,5);for(const x of [5,15])beam(m.dark,[x,106,0],[x,65,0],.13,.13,true);box(m.yellow,10,64,0,14,2,5);});
 define('luffing-crane',()=>{box(m.dark,0,2,0,14,4,16);for(const x of [-5,5])for(const z of [-5,5])beam(m.orange,[x,4,z],[x*.45,58,z*.45],1.1);for(let y=10;y<58;y+=8)for(const z of [-3,3])beam(m.orange,[-4,y,z],[4,y+8,z],.48);box(m.orange,0,59,0,9,3,11);box(m.glass,5,60,0,4,4,5);beam(m.orange,[0,59,0],[45,83,0],2);beam(m.orange,[0,59,0],[-18,68,0],2);beam(m.dark,[-18,68,0],[45,83,0],.12,.12,true);beam(m.dark,[45,83,0],[45,32,0],.12,.12,true);box(m.yellow,45,31,0,2,2,2);});
@@ -74,13 +86,36 @@ define('warehouse',()=>{const w=112,d=160,h=49;for(const x of [-w/2,w/2]){box(m.
 define('pipe-rack',()=>{for(const z of [-9,9]){for(const x of [-35,0,35]){box(m.steel,x,17,z,1.8,34,1.8);beam(m.dark,[x,8,z],[x,28,-z],.6)}for(const y of [14,29])beam(m.steel,[-38,y,z],[38,y,z],1.5)}for(let i=0;i<4;i++){const y=30+i*2.7;beam(i%2?m.rust:m.steel,[-40,y,-5+i*3.3],[40,y,-5+i*3.3],1.05,1.05,true);for(let x=-35;x<=35;x+=10)beam(m.dark,[x-.45,y,-5+i*3.3],[x+.45,y,-5+i*3.3],1.18,1.18,true)}box(m.steel,0,39,8,76,.5,3);rail(0,40,9.5,76);});
 define('tank',()=>{cylinder(m.white,0,17,0,15,34);part(sphereGeo,m.steel,0,34,0,15,3,15);for(let y=2;y<34;y+=5){const ring=new T.TorusGeometry(15.1,.14,5,48);part(ring,m.steel,0,y,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2))}for(const z of [-.4,.4])beam(m.orange,[15.4,0,z],[15.4,34,z],.1);for(let y=1;y<34;y+=.6)beam(m.orange,[15.4,y,-.4],[15.4,y,.4],.065);});
 define('ship-rib',()=>{for(const s of [-1,1]){const pts=[[0,1,s*5],[0,3,s*14],[0,9,s*25],[0,18,s*31],[0,34,s*32]];for(let i=0;i<pts.length-1;i++)beam(m.rust,pts[i],pts[i+1],1.5,1.1);box(m.steel,0,34,s*32,1.6,.8,3);beam(m.dark,[0,8,s*24],[0,18,s*31],.8)}box(m.steel,0,1,0,1.8,1.2,12)});
-define('ship-hull',()=>{const L=350;for(const s of [-1,1]){
-// Lofted side shell: continuous tapered panels, rising chines, open construction ends.
-const p=[],uv=[],levels=[[4,.38],[8,.67],[16,.9],[25,1],[32,1]];
-function pt(x,k){const [y,w]=levels[k],taper=Math.min(1,(L/2-Math.abs(x))/43+.23);return [x,y,s*32*w*taper]}
-function tri(a,b,c){for(const v of [a,b,c]){p.push(...v);uv.push(v[0]/5,v[1]/5)}}
-for(let i=0;i<35;i++){const a=-175+i*10,b=a+10;for(let k=0;k<levels.length-1;k++){const A=pt(a,k),B=pt(b,k),C=pt(b,k+1),D=pt(a,k+1);if(s>0){tri(A,B,C);tri(A,C,D);tri(A,C,B);tri(A,D,C)}else{tri(A,C,B);tri(A,D,C);tri(A,B,C);tri(A,C,D)}}const A=pt(a,4),B=pt(b,4);beam(m.steel,A,B,.8,1.4)}
-const shell=new T.BufferGeometry();shell.setAttribute('position',new T.Float32BufferAttribute(p,3));shell.setAttribute('uv',new T.Float32BufferAttribute(uv,2));shell.computeVertexNormals();part(shell,m.rust,0,0,0,1,1,1);for(let x=-140;x<145;x+=14){const z=s*31;box(m.steel,x,19,z,1.2,26,2.2);beam(m.rust,[x,5,s*14],[x,18,s*29],1.6);beam(m.rust,[x,18,s*29],[x,32,s*31],1.4)}rail(0,34,s*32,280)}box(m.dark,0,3,0,340,2,46);for(let x=-145;x<146;x+=14){box(m.steel,x,5,0,1.8,2,45);for(const s of [-1,1])box(m.orange,x,12,s*22,1.4,14,2)}});
+define('ship-hull',()=>{
+ // Open-ended unfinished midbody, not a complete ship with an implausible hole in its bow.
+ // Shell plating, double bottom, longitudinals and web frames use the same loft.
+ const L=350,N=70,levels=[[3.8,.36],[6,.58],[10,.78],[15,.91],[21,.98],[27,1],[32,1]];
+ const shellPaint=m.rust.clone();shellPaint.color.multiplyScalar(.84);shellPaint.roughness=.88;
+ const inside=m.steel.clone();inside.color.setHex(0x8f7770);inside.roughness=.91;
+ function section(x,k,side,inset=0){const [y,w]=levels[k],u=Math.min(1,(175-Math.abs(x))/62),t=.76+.24*u*u*(3-2*u);return [x,y,side*(32*w*t-inset)]}
+ function panel(j,side,inset,reverse,mat){
+  const p=[],uv=[],idx=[];
+  for(let i=0;i<=N;i++)for(let k=j;k<=j+1;k++){const v=section(-175+i*L/N,k,side,inset);p.push(...v);uv.push(v[0]/6,v[1]/6)}
+  for(let i=0;i<N;i++){const k=2*i;if((side>0)!==reverse)idx.push(k,k+2,k+3,k,k+3,k+1);else idx.push(k,k+3,k+2,k,k+1,k+3)}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();part(g,mat,0,0,0,1,1,1)
+ }
+ for(const side of [-1,1]){
+  for(let j=0;j<levels.length-1;j++){panel(j,side,0,false,j===0?m.dark:shellPaint);panel(j,side,.34,true,inside)}
+  for(let i=0;i<N;i++){const x=-175+i*L/N,b=x+L/N;beam(m.steel,section(x,6,side,.16),section(b,6,side,.16),.38,.75)}
+  // Web frames and intermediate light stiffeners are connected to shell skin.
+  for(let x=-168;x<=168;x+=8){const web=(Math.round((x+168)/8)%3===0),th=web?.9:.3;
+   for(let j=0;j<levels.length-1;j++){const A=section(x,j,side,.55),B=section(x,j+1,side,.55);beam(web?m.rust:m.steel,A,B,th,web?.85:.38);
+    if(web){const ai=section(x,j,side,2.25),bi=section(x,j+1,side,2.25);beam(m.dark,ai,bi,.2,.6);beam(m.steel,A,ai,.28);beam(m.steel,B,bi,.28)}}
+  }
+  for(let j=1;j<6;j++)for(let i=0;i<N;i+=2)beam(m.steel,section(-175+i*L/N,j,side,.55),section(-175+Math.min(N,i+2)*L/N,j,side,.55),.24,.38);
+  for(let x=-150;x<=150;x+=12){const z=section(x,6,side,1)[2];box(m.steel,x,32.6,z,3,.4,2.1);box(m.yellow,x,33,z,.17,.6,.65)}
+ }
+ // Low floor and longitudinals below the 19 m local racing centerline.
+ box(m.dark,0,3.0,0,348,.8,40);
+ for(let x=-172;x<174;x+=8){box(m.steel,x,4,0,.7,1.35,43);if(Math.round((x+172)/8)%3===0)box(m.rust,x,4.7,0,1.1,.28,44)}
+ for(const z of [-18,-12,-6,0,6,12,18])box(m.steel,0,4.8,z,346,.7,.42);
+ for(const side of [-1,1])for(let x=-153;x<154;x+=24){const z=side*25;box(m.orange,x,13,z,.7,17,1.6);box(m.steel,x,21.4,z,3.5,.3,3.2)}
+});
 define('bollard',()=>{cylinder(m.dark,0,.55,0,1.2,1.1);cylinder(m.steel,0,1.3,0,.65,1.5);cylinder(m.dark,0,2.1,0,1,.32)});
 define('caisson',()=>{box(m.concrete,0,5,0,18,12,17);box(m.dark,0,11.2,0,20,1.4,19);for(const x of [-5,5])beam(m.steel,[x,11.8,-5],[x,14,-5],.5)});
 define('light-tower',()=>{beam(m.dark,[0,0,0],[0,28,0],.65,.65,true);box(m.steel,0,28,0,8,.7,1.2);for(let x=-3;x<=3;x+=2)box(m.light,x,27.7,0,1.2,.7,1)});
@@ -220,7 +255,7 @@ define('heavy-gantry-detail',()=>{
  for(const x of [-62,62]){for(const z of [-13,13]){
   beam(m.orange,[x,3,z],[x*.85,106,z*.65],5.6,6.2);
   box(m.dark,x,1.5,z,15,3,10);
-  for(const dx of [-5,-1.7,1.7,5])for(const dz of [-3.8,3.8])part(cylGeo,m.rubber,x+dx,1.35,z+dz,1.3,.75,1.3,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+  for(const dx of [-5,-1.7,1.7,5])for(const dz of [-3.8,3.8]){const q=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);part(cylGeo,m.steel,x+dx,1.2,z+dz,1.18,.82,1.18,q);part(cylGeo,m.dark,x+dx+.43,1.2,z+dz,1.28,.15,1.28,q);part(cylGeo,m.dark,x+dx-.43,1.2,z+dz,1.28,.15,1.28,q)}
   for(let y=13;y<=100;y+=15){const px=x*(1-y/700);box(rawSteel,px,y,z*.8,7,.65,7);for(const off of [-2.4,2.4])box(m.dark,px+off,y+.45,z*.8,.35,.3,6)}
  }
  for(let y=8;y<100;y+=14){const px=x*(1-y/700),px2=x*(1-(y+14)/700);beam(m.orange,[px,y,-12],[px2,y+14,12],1.5);beam(rawSteel,[px,y,12],[px2,y+14,-12],.65);}
@@ -238,6 +273,13 @@ define('heavy-gantry-detail',()=>{
  for(const x of [2,14])for(const z of [-3,3])beam(m.dark,[x,113,z],[x,64,z],.12,.12,true);
  box(m.yellow,8,63,0,15,2.8,7);box(m.dark,8,61.1,0,11,.6,4);
  for(const x of [-54,54])for(const z of [-10,10])box(m.light,x,104,z,2,.5,2);
+ // Upper trolley motors, drum shafts, cable reeving, access platforms and service hoist.
+ for(const z of [-7,7]){box(m.steel,8,121.4,z,13,.6,3);beam(m.dark,[2,122.8,z],[14,122.8,z],1.1,1.1,true);for(const x of [2.6,13.4])beam(m.steel,[x-.24,122.8,z],[x+.24,122.8,z],1.35,1.35,true);for(const x of [0,16])box(m.dark,x,122.2,z,3.5,2.6,3.5)}
+ for(const x of [3,13])for(const z of [-2.8,2.8]){beam(m.steel,[x,112,z],[x,64,z],.085,.085,true);beam(m.dark,[x+.5,112,z],[x+.5,64,z],.07,.07,true)}
+ for(const x of [-55,55]){box(m.dark,x,111,0,6.5,4,12);box(m.orange,x,114,0,7,.5,13);rail(x,115,6.4,7)}
+ box(m.orange,-45,118,0,7,3,5);beam(m.orange,[-45,120,0],[-32,129,0],.7);beam(m.dark,[-32,129,0],[-32,115,0],.065,.065,true);
+ for(const x of [-61,61])for(const z of [-12,12]){box(m.steel,x,4.8,z,6,.65,4.6);box(m.orange,x,6.5,z,3.2,2.8,2.8);box(m.dark,x,6.5,z+1.45,2.5,1.6,.15)}
+
 });
 define('lattice-boom-crane',()=>{
  box(m.dark,0,1.8,0,13,3.6,13);cylinder(m.steel,0,4,0,5,1.2);box(m.orange,-2,7,0,11,5,7);
