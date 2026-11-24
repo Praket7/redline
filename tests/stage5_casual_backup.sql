@@ -1,0 +1,30 @@
+begin;
+do $$
+declare a jsonb;b jsonb;v_code text;v_a uuid;v_b uuid;v_p uuid;v_s text;v_failed boolean;v_data jsonb;v_name text;
+begin
+ a:=public.redline_create_room_v37('QA CASUAL A',0);v_code:=a->'room'->>'code';v_a:=(a->>'id')::uuid;
+ if exists(select 1 from jsonb_array_elements(public.redline_public_rooms_v125()) p where p->>'code'=v_code) then raise exception 'private room exposed';end if;
+ b:=public.redline_join_room_v37(v_code,'QA CASUAL B',1);v_b:=(b->>'id')::uuid;
+ v_failed:=false;begin perform public.redline_publish_room_v125(v_code,v_b,b->>'secret',true);exception when others then v_failed:=true;end;if not v_failed then raise exception 'non-host published';end if;
+ perform public.redline_publish_room_v125(v_code,v_a,a->>'secret',true);
+ if not exists(select 1 from jsonb_array_elements(public.redline_public_rooms_v125()) p where p->>'code'=v_code) then raise exception 'public room absent';end if;
+ perform public.redline_publish_room_v125(v_code,v_a,a->>'secret',false);
+ if exists(select 1 from jsonb_array_elements(public.redline_public_rooms_v125()) p where p->>'code'=v_code) then raise exception 'room not hidden';end if;
+ perform public.redline_set_ready(v_code,v_b,b->>'secret',true);perform public.redline_start_room(v_code,v_a,a->>'secret');
+ update public.redline_rooms set stage='finished' where code=v_code;
+ update public.redline_players set finished_ms=100000 where room_code=v_code;
+ v_failed:=false;begin perform public.redline_rematch_v125(v_code,v_b,b->>'secret');exception when others then v_failed:=true;end;if not v_failed then raise exception 'non-host rematch';end if;
+ v_data:=public.redline_rematch_v125(v_code,v_a,a->>'secret');
+ if v_data->>'stage'<>'lobby' or exists(select 1 from public.redline_players where room_code=v_code and (ready or finished_ms is not null)) then raise exception 'rematch reset failed';end if;
+ v_s:=repeat('e',32)||replace(gen_random_uuid()::text,'-','');v_p:=(public.redline_rank_profile_v125(null,v_s,'QA BACKUP')->>'id')::uuid;
+ v_data:=public.redline_rank_backup_v125(v_p,v_s,0,'{"redline_stage4_v1":"{}"}'::jsonb);
+ if (v_data->>'revision')::int<>1 then raise exception 'save revision';end if;
+ v_data:=public.redline_rank_backup_v125(v_p,v_s,0,null);
+ if v_data->'data'->>'redline_stage4_v1'<>'{}' then raise exception 'restore failed';end if;
+ v_failed:=false;begin perform public.redline_rank_backup_v125(v_p,v_s,0,'{"redline_stage4_v1":"{}"}'::jsonb);exception when others then v_failed:=true;end;if not v_failed then raise exception 'stale write accepted';end if;
+ v_failed:=false;begin perform public.redline_rank_backup_v125(v_p,v_s,1,'{"unapproved_key":"{}"}'::jsonb);exception when others then v_failed:=true;end;if not v_failed then raise exception 'unexpected field accepted';end if;
+ v_failed:=false;begin perform public.redline_rank_backup_v125(v_p,repeat('f',64),0,null);exception when others then v_failed:=true;end;if not v_failed then raise exception 'wrong backup key accepted';end if;
+ if has_table_privilege('anon','redline_rank.backups','SELECT') then raise exception 'backup direct read';end if;
+end $$;
+select 'PASS: private by default, host-only opt-in public rooms, withdrawal, casual rematch reset and unauthorized denial, private backup save/read, stale revision, field and credential rejection' qa;
+rollback;
