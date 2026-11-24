@@ -1,0 +1,31 @@
+begin;
+do $$
+declare a jsonb;b jsonb;ra jsonb;rb jsonb;v_code text;v_a uuid;v_b uuid;pa uuid;pb uuid;sa text;sb text;v_failed boolean;rr jsonb;
+begin
+ sa:=repeat('a',32)||replace(gen_random_uuid()::text,'-','');sb:=repeat('b',32)||replace(gen_random_uuid()::text,'-','');
+ a:=public.redline_rank_profile_v125(null,sa,'QA PILOT A');b:=public.redline_rank_profile_v125(null,sb,'QA PILOT B');
+ pa:=(a->>'id')::uuid;pb:=(b->>'id')::uuid;
+ if (public.redline_rank_profile_v125(null,sa,'QA PILOT A')->>'id')::uuid<>pa then raise exception 'identity not idempotent';end if;
+ v_failed:=false;begin perform public.redline_rank_profile_v125(pa,sb,'QA PILOT A');exception when others then v_failed:=true;end;if not v_failed then raise exception 'wrong secret accepted';end if;
+ ra:=public.redline_rank_queue_v125(pa,sa,0,'kestrel');rb:=public.redline_rank_queue_v125(pb,sb,1,'spirit');v_code:=ra->'room'->>'code';v_a:=(ra->>'id')::uuid;v_b:=(rb->>'id')::uuid;
+ if v_code<>rb->'room'->>'code' then raise exception 'did not match';end if;
+ v_failed:=false;begin perform public.redline_rank_queue_v125(pa,sa,0,'kestrel');exception when others then v_failed:=true;end;if not v_failed then raise exception 'duplicate queue accepted';end if;
+ v_failed:=false;begin perform public.redline_start_room(v_code,v_b,rb->>'secret');exception when others then v_failed:=true;end;if not v_failed then raise exception 'non-host start accepted';end if;
+ perform public.redline_set_ready(v_code,v_b,rb->>'secret',true);
+ perform public.redline_start_room(v_code,v_a,ra->>'secret');
+ update public.redline_rooms set stage='racing',started_at=now()-interval '100 seconds' where code=v_code;
+ v_failed:=false;begin perform public.redline_finish_room_v37(v_code,v_a,ra->>'secret');exception when others then v_failed:=true;end;if not v_failed then raise exception 'unvalidated finish accepted';end if;
+ insert into public.redline_race_trace_v37(room_code,player_id,x,y,z,validated_gates) values(v_code,v_a,0,80,0,36),(v_code,v_b,0,80,0,36);
+ perform public.redline_finish_room_v37(v_code,v_a,ra->>'secret');
+ update public.redline_players set finished_ms=95000 where id=v_a;
+ perform public.redline_finish_room_v37(v_code,v_b,rb->>'secret');
+ rr:=public.redline_rank_status_v125(v_code,v_a,ra->>'secret');
+ if (rr->'receipt'->>'delta')::int<>16 then raise exception 'incorrect winner rating %',rr;end if;
+ rr:=public.redline_rank_status_v125(v_code,v_b,rb->>'secret');
+ if (rr->'receipt'->>'delta')::int<>-16 then raise exception 'incorrect loser rating';end if;
+ perform public.redline_rank_status_v125(v_code,v_a,ra->>'secret');
+ if (select matches from redline_rank.pilots where id=pa)<>1 then raise exception 'double award';end if;
+ if has_table_privilege('anon','redline_rank.pilots','SELECT') or has_table_privilege('authenticated','redline_rank.results','INSERT') then raise exception 'direct table privilege';end if;
+end $$;
+select 'PASS: profile idempotency, secret check, queue, non-host rejection, ready/start, incomplete finish rejection, settlement and idempotency, direct table denial (synthetic completed trace fixture)' as qa;
+rollback;
