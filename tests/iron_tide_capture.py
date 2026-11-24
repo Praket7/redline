@@ -174,9 +174,9 @@ try:
             for angle, suffix in [(0,"front"),(math.pi,"rear")]:
                 page.evaluate("([n,a]) => IRON_TIDE.assetView(n,a)",[name,angle])
                 capture(page,OUT / "hero-models" / (name+"-"+suffix+".png"))
+        assert not errors, errors
+        (OUT / "preview-report.json").write_text(json.dumps({"views":results,"layout":layout},indent=2))
         if "--preview" in sys.argv:
-            assert not errors, errors
-            (OUT / "preview-report.json").write_text(json.dumps({"views":results,"layout":layout},indent=2))
             browser.close()
             raise SystemExit(0)
         page.evaluate("IRON_TIDE.route(true); IRON_TIDE.setView('1-launch')")

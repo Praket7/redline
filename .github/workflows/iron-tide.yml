@@ -28,8 +28,10 @@ jobs:
       - run: python iron-tide/prepare_textures.py
       - run: python iron-tide/prepare_models.py
       - run: python iron-tide/package.py
-      - run: python tests/iron_tide_capture.py --preview
+      # Full run includes every preview check and screenshot; do not render them twice.
+      - run: python tests/iron_tide_capture.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: iron-tide-fast-preview
           path: |
@@ -38,7 +40,6 @@ jobs:
             iron-tide-output/IRON_TIDE.html
             iron-tide-output/hero-models/
           if-no-files-found: error
-      - run: python tests/iron_tide_capture.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

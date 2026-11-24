@@ -1016,19 +1016,20 @@ for(const z of [410,570,730])for(const x of [-920,-580]){
 // Distant coastline outside the playable footprint gives the port a geographical context.
 // Layered coastal terrain: grounded silhouettes and a continuous shore,
 // with low-amplitude fractal relief rather than a smooth featureless ridge.
-const coastMat=new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide});
+const coastMat=new T.MeshStandardMaterial({vertexColors:true,side:T.DoubleSide,roughness:1,metalness:0,envMapIntensity:.45});
 function shoreline(x){return -2500-170*Math.sin(x*.0007)-90*Math.cos(x*.0025)-65*Math.sin(x*.009)}
 function coastalHeight(x,z){const t=T.MathUtils.clamp((shoreline(x)-z)/2200,0,1);const ridge=Math.sin(Math.PI*t)**1.35;
  const large=.40+.29*Math.sin(x*.0008)+.19*Math.sin(x*.0019+1);
  const ridged=1.-Math.abs(2.*smoothNoise(x*.0023,z*.0023)-1.);
  const detail=.38+.27*ridged+.21*smoothNoise(x*.006,z*.006)+.09*smoothNoise(x*.017,z*.017);
  return -3+ridge*(100+Math.max(.05,large)*890)*detail}
-const coastGeo=new T.BufferGeometry(),coastPos=[],coastColors=[],coastIndices=[],coastN=220,coastM=48;
+const coastGeo=new T.BufferGeometry(),coastPos=[],coastColors=[],coastIndices=[],coastN=330,coastM=72;
 for(let iz=0;iz<=coastM;iz++)for(let ix=0;ix<=coastN;ix++){
- const x=-6600+ix*60,t=iz/coastM,z=shoreline(x)-t*2200,height=coastalHeight(x,z);
+ const x=-6600+ix*13200/coastN,t=iz/coastM,z=shoreline(x)-t*2200,height=coastalHeight(x,z);
  coastPos.push(x,height,z);const detail=smoothNoise(x*.012,z*.012),grass=smoothNoise(x*.003,z*.003),shore=T.MathUtils.smoothstep(t,.005,.065);
- const rock=T.MathUtils.smoothstep(height,240,560),c=new T.Color().setRGB(.035+.025*detail+.012*grass,.049+.025*grass,.054+.021*detail);
- c.lerp(new T.Color().setRGB(.12+.055*detail,.13+.045*detail,.15+.045*detail),rock*.7);c.lerp(new T.Color(0x665c53),1-shore);coastColors.push(c.r,c.g,c.b)
+ const slope=Math.hypot(coastalHeight(x+20,z)-coastalHeight(x-20,z),coastalHeight(x,z+20)-coastalHeight(x,z-20))/40;
+ const rock=T.MathUtils.smoothstep(height,210,550)*T.MathUtils.smoothstep(slope,.10,.60),c=new T.Color().setRGB(.045+.033*detail+.021*grass,.061+.035*grass,.048+.030*detail);
+ c.lerp(new T.Color().setRGB(.13+.065*detail,.125+.05*detail,.12+.045*detail),rock);c.lerp(new T.Color(0x665c53),1-shore);coastColors.push(c.r,c.g,c.b)
 }
 for(let iz=0;iz<coastM;iz++)for(let ix=0;ix<coastN;ix++){const a=iz*(coastN+1)+ix,b=a+1,c=a+coastN+1,d=c+1;coastIndices.push(a,b,c,b,d,c)}
 coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coastGeo.setAttribute('color',new T.Float32BufferAttribute(coastColors,3));coastGeo.setIndex(coastIndices);coastGeo.computeVertexNormals();part(coastGeo,coastMat,0,0,0,1,1,1);
@@ -1226,7 +1227,19 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
    ctx.fillStyle=rand()>.5?'rgba(220,210,191,.07)':'rgba(26,21,18,.12)';ctx.fillRect(x,y,r,r);
   }
   const tex=(canvas,srgb=false)=>{const t=new T.CanvasTexture(canvas);if(srgb)t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return t};
-  return new T.MeshStandardMaterial({map:tex(c,true),roughness:.92,roughnessMap:tex(rough),metalness:.10,normalMap:m.steel.normalMap,normalScale:new T.Vector2(.32,.32),bumpMap:tex(bump),bumpScale:.036,envMapIntensity:.84});
+  const weld=bc.getImageData(0,0,W,H).data,normalCanvas=document.createElement('canvas');normalCanvas.width=W;normalCanvas.height=H;
+  const nctx=normalCanvas.getContext('2d'),nimg=nctx.createImageData(W,H),source=m.steel.normalMap?.image;
+  const photo=source?.getContext('2d')?.getImageData(0,0,source.width,source.height).data;
+  const height=(x,y)=>weld[((Math.max(0,Math.min(H-1,y))*W+((x+W)%W))*4)]/255;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+   // Atlas spans 104 m x 16 m. A 4 m source tile repeats 26 x 4 times.
+   const u=source?Math.floor(x/W*26*source.width)%source.width:0,v=source?Math.floor(y/H*4*source.height)%source.height:0;
+   const a=source?(v*source.width+u)*4:0,px=photo?(photo[a]/127.5-1)*.30:0,py=photo?(photo[a+1]/127.5-1)*.30:0;
+   const nx=(height(x-1,y)-height(x+1,y))*.90+px,ny=(height(x,y+1)-height(x,y-1))*.90+py,magnitude=Math.hypot(nx,ny,1),i=(y*W+x)*4;
+   nimg.data[i]=(nx/magnitude*.5+.5)*255;nimg.data[i+1]=(ny/magnitude*.5+.5)*255;nimg.data[i+2]=(1/magnitude*.5+.5)*255;nimg.data[i+3]=255;
+  }
+  nctx.putImageData(nimg,0,0);
+  return new T.MeshStandardMaterial({map:tex(c,true),roughness:.92,roughnessMap:tex(rough),metalness:.10,normalMap:tex(normalCanvas),normalScale:new T.Vector2(.80,.80),envMapIntensity:.84});
  }
  const hullmat=shipFinish(unfinished?'#a29e91':'#465761',unfinished?.83:.55),bootmat=shipFinish(unfinished?'#85483a':'#713b33',.42);
  const topmat=shipFinish('#3d4546',.32);
@@ -2488,6 +2501,11 @@ define('stage3-repair-barge',()=>{
  }
  hero('stage3-outfitting-vessel',-1233,0,870,-Math.PI/2,1.4);referenceShips++;
  for(const [x,z] of [[-500,440],[400,-420],[455,555],[370,720]]){place('workboat',x,0,z,Math.PI/2,.65);referenceShips++}
+ // Reserve a working foreground lift before generic buildings fill the apron.
+ let frontLift=null;
+ for(const [x,z,angle,scale] of [[-1010,910,Math.PI/2,.76],[-1000,945,Math.PI/2,.70],[-1000,1000,Math.PI/2,.64]]){
+  if(safe('stage3-ship-lift-portal',x,z,angle,scale,'heavy-lifting')){frontLift={x,z,angle,scale};fixturePositions.push([x,5.25+scale*102,z]);pool(x,5.3,z,23);break;}
+ }
  // Start waterfront: quay road with tightly clustered logistics equipment.
  for(const x of [-1080,-975,-820,-580,-390,-180])for(const z of [780,980]){
   if(safe('outfit-workshop',x,z,Math.PI/2,.82,'launch'))lamp(x+36,5.25,z+38);
@@ -2636,8 +2654,8 @@ define('stage3-repair-barge',()=>{
  // Stage 3 macro-composition comes BEFORE generic infill: bespoke production
  // buildings and prominent lift equipment take precedence over shed grids.
  // Every terrestrial candidate uses the same land, 3D route, and overlap tests.
- const macroSites={assemblyHalls:0,shipLifts:0,processPlants:0,repairBarges:0};
- const macroEvidence={hall:[],lift:[],plant:[],barge:[]};
+ const macroSites={assemblyHalls:0,shipLifts:frontLift?1:0,processPlants:0,repairBarges:0};
+ const macroEvidence={hall:[],lift:frontLift?[frontLift]:[],plant:[],barge:[]};
  for(const [x,z,a,scale] of [
   [-430,-1040,0,.95],[130,-1080,0,.98],[-560,-1035,Math.PI/2,.82],
   [520,-1040,0,.88],[-1090,-1010,0,.78],[-65,400,Math.PI/2,.84],
@@ -2654,7 +2672,7 @@ define('stage3-repair-barge',()=>{
   // scale landmark on the right, not another distant background crane.
   // The warehouse pair leaves an equipment alley between x=-975 and -820.
   // Position the real gantry in that gap, near the camera's visible skyline.
-  [-900,880,0,.70],[-895,870,0,.68],
+  ...(!frontLift?[[-900,880,0,.70],[-895,870,0,.68]]:[]),
   [-1000,-1030,0,.80],[-1010,-920,0,.80],[-1130,-1000,Math.PI/2,.76],
   [-1090,1010,Math.PI/2,.68],[-760,-1020,0,.77],
   [1120,-980,Math.PI/2,.77],[1000,-1060,0,.76],[-380,-1010,0,.70]
@@ -2686,9 +2704,9 @@ define('stage3-repair-barge',()=>{
  // Stage 3: distinctive utility buildings and service yards placed before infill.
  // Use the same supported-footprint and main/alternate swept-AABB rejection
  // as the canonical layout; no hardcoded route changes or remote mesh dependency.
- const stage3Sites={boiler:0,annex:0,substation:0};
+ const stage3Sites={boiler:0,annex:0,substation:0},steamOutlets=[];
  for(const [x,z,a] of [[-1160,-720,0],[-745,-820,Math.PI/2],[-470,-980,0],[285,-990,Math.PI/2],[1020,-870,0],[735,440,0],[1175,600,Math.PI/2]]){
-  if(safe('stage3-boiler-house',x,z,a,.85,'utilities')){stage3Sites.boiler++;}
+  if(safe('stage3-boiler-house',x,z,a,.85,'utilities')){stage3Sites.boiler++;for(const lx of [-12,12])steamOutlets.push([x+.85*(lx*Math.cos(a)+10*Math.sin(a)),5.25+.85*38.4,z+.85*(10*Math.cos(a)-lx*Math.sin(a))]);}
  }
  for(const [x,z,a] of [[-1170,-530,0],[-740,-470,Math.PI/2],[-1130,870,0],[-520,850,0],[75,-1150,0],[1060,-590,0],[760,260,Math.PI/2],[1150,485,0]]){
   if(safe('stage3-outfitting-annex',x,z,a,.86,'outfitting')){stage3Sites.annex++;}
@@ -3051,8 +3069,27 @@ function updatePractical(camera){
   light.intensity=f.gate?1750:insideHull?390:1050;light.distance=f.gate?78:insideHull?35:95;light.color.setHex(f.gate?0xff2719:insideHull?0xffaa64:0xffb771);
  }else light.intensity=0}
 }
+// Localized water-vapor plumes, anchored to actual boiler stack outlets.
+// One depth-tested point batch; no screen overlay and no extra light objects.
+const steamPos=[],steamAttrib=[];
+for(let i=0;i<steamOutlets.length;i++)for(let j=0;j<18;j++){
+ const t=(j+.5)/18,o=steamOutlets[i],phase=i*5.3+j*2.399;
+ steamPos.push(o[0]+t*t*25+Math.sin(phase)*t*5,o[1]+t*29,o[2]+t*t*11+Math.cos(phase)*t*5);
+ steamAttrib.push(2+t*9,Math.sin(t*Math.PI)*(.28-t*.12),phase);
+}
+const steamGeo=new T.BufferGeometry();steamGeo.setAttribute('position',new T.Float32BufferAttribute(steamPos,3));steamGeo.setAttribute('aSteam',new T.Float32BufferAttribute(steamAttrib,3));
+const steamMat=new T.ShaderMaterial({uniforms:{uSteamHeight:{value:720}},vertexShader:`
+ attribute vec3 aSteam;uniform float uSteamHeight;varying vec2 vSteam;
+ void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;
+ gl_PointSize=clamp(aSteam.x*uSteamHeight*projectionMatrix[1][1]/max(1.,-p.z),1.,100.);vSteam=vec2(aSteam.y,aSteam.z);}
+ `,fragmentShader:`
+ varying vec2 vSteam;
+ void main(){vec2 q=gl_PointCoord-.5;float r=length(q)*2.;float n=.78+.12*sin(q.x*19.+q.y*11.+vSteam.y)+.10*cos(q.x*11.-q.y*21.-vSteam.y);
+ float a=smoothstep(1.,.15,r)*n*vSteam.x;if(a<.002)discard;gl_FragColor=vec4(.68,.70,.72,a);}
+ `,transparent:true,depthWrite:false,depthTest:true});
+const steamPlumes=new T.Points(steamGeo,steamMat);steamPlumes.frustumCulled=false;steamPlumes.renderOrder=4;scene.add(steamPlumes);
 const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1700,1420,1720],[0,30,0]],north:[[1620,1320,-1700],[0,25,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1164,28,1110],[-1098,24,780]],'2-containers':[[-1030,28,420],[-950,32,100]],'3-crane':[[-1100,39,-395],[-900,85,-575]],'4-skybridge':[[-500,236,-1070],[-140,236,-1070]],'5-drop':[[850,285,-650],[850,-3,-315]],'6-drydock':[[850,-2,-308],[850,-4,-50]],'7-foundry':[[1080,44,230],[1080,43,490]],'8-pipes':[[850,38,690],[1070,50,950]],'9-offshore':[[1050,45,1320],[440,26,1290]],'10-final':[[100,28,1110],[-900,35,1080]]};
-function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);fixtureHaloMat.uniforms.uViewportHeight.value=renderer.domElement.height;camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
+function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);fixtureHaloMat.uniforms.uViewportHeight.value=renderer.domElement.height;steamMat.uniforms.uSteamHeight.value=renderer.domElement.height;camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
 function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;if(active===camera){camera.fov=id==='1-launch'?62:57;camera.updateProjectionMatrix()}scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
 
@@ -3081,7 +3118,7 @@ function updateShadowFocus(cam){
  shadowFocus.copy(focal);shadowSpan=span;shadowUpdates++;
 }
 
-function render(){if(active!==assetCamera){updateShadowFocus(active);scene.fog.density=active.isOrthographicCamera?0:T.MathUtils.lerp(.00036,.00014,T.MathUtils.clamp(active.position.y/280,0,1));fixtureHalos.visible=active.isPerspectiveCamera&&active.position.y<260;updatePractical(active);updateContainerLOD(active);updatePortReflection(active)}renderer.render(active===assetCamera?assetScene:scene,active);document.getElementById('readout').textContent=mode.toUpperCase()+' / '+active.position.toArray().map(Math.round).join(' · ')+' m'}
+function render(){if(active!==assetCamera){updateShadowFocus(active);scene.fog.density=active.isOrthographicCamera?0:T.MathUtils.lerp(.00036,.00014,T.MathUtils.clamp(active.position.y/280,0,1));fixtureHalos.visible=active.isPerspectiveCamera&&active.position.y<260;steamPlumes.visible=active.isPerspectiveCamera&&active.position.y<310;updatePractical(active);updateContainerLOD(active);updatePortReflection(active)}renderer.render(active===assetCamera?assetScene:scene,active);document.getElementById('readout').textContent=mode.toUpperCase()+' / '+active.position.toArray().map(Math.round).join(' · ')+' m'}
 const lengths=gates.map((g,i)=>g.p.distanceTo(gates[(i+1)%gates.length].p)),total=lengths.reduce((a,b)=>a+b,0);
 function coursePoint(s){s=((s%total)+total)%total;let i=0;while(s>=lengths[i]&&i<lengths.length-1){s-=lengths[i++]};return gates[i].p.clone().lerp(gates[(i+1)%gates.length].p,s/lengths[i])}
 function sampleCourse(s){active=camera;mode='course';camera.position.copy(coursePoint(s));camera.lookAt(coursePoint(s+28));angles()}
