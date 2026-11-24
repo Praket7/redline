@@ -143,6 +143,39 @@ for(const x of [-950,-720,-420,220,520,960]){if(clearScenery(x,72,1160))place('l
 for(const z of [-1100,-900,-680,-460,-240,180]){if(clearScenery(1150,85,z))place('luffing-crane',1150,5,z,Math.PI/2,.9)}
 for(let x=-1050;x<1100;x+=48){const z=1000;if(clearScenery(x,15,z))place('container-far-'+['rust','blue','green','white'][Math.floor(rnd()*4)],x,5.2,z,Math.PI/2)}
 for(let x=600;x<=900;x+=14)for(const z of [-950,-890]){box(m.dark,x,32,z,1.7,.5,1.7);box(warmGlow,x,32.4,z,.85,.25,.85);pool(x,8.2,z,8)}
+// Sector-specific work areas: deliberately leave the existing inspection route open.
+define('fabrication-canopy',()=>{
+ for(const x of [-25,25])for(const z of [-15,15]){box(m.steel,x,8,z,1.2,16,1.2);box(m.concrete,x,.4,z,3,.8,3)}
+ for(const z of [-15,15]){beam(m.steel,[-26,16,z],[26,16,z],1.1);for(let x=-25;x<25;x+=10)beam(m.dark,[x,16,z],[x+10,12,z],.5)}
+ for(let x=-25;x<=25;x+=5)for(const sign of [-1,1])beam(m.steel,[x,16,sign*16],[x,21,0],.4);
+ for(const sign of [-1,1]){const r=new T.Quaternion().setFromAxisAngle(V(1,0,0),sign*Math.atan2(5,16));part(boxGeo,m.blue,0,18.5,sign*8,54,.45,Math.hypot(16,5),r)}
+ for(let x=-20;x<=20;x+=10){box(m.light,x,15.5,0,2,.24,.5);box(m.dark,x,1.2,-9,5,2.4,3)}
+});
+for(const x of [-600,-460,-320,-180,-40])if(clearScenery(x,27,950)){place('fabrication-canopy',x,5.2,950);pool(x,5.28,950,19)}
+// Deep berth: retaining walls and maintenance staging tighten the actual drydock composition.
+for(const x of [775,925]){
+ box(m.concrete,x,-2,-550,3.2,12,330);
+ box(m.steel,x,4.2,-550,5,.35,330);rail(x,5.25,-550,330,'z');
+ for(let z=-706;z<-390;z+=16){box(m.dark,x,-1.8,z,4.1,10,.85);box(m.steel,x,3.9,z,5,.4,1.1);if(z%32===-2){box(warmGlow,x+(x<850?1.9:-1.9),2.5,z,.22,.7,1.1);pool(x+(x<850?7:-7),-7.75,z,9)}}
+}
+// Longitudinal catwalks and rib-mounted work lamps leave the ship's center unobstructed.
+for(const z of [-945,-895]){
+ box(m.steel,750,16,z,265,.45,3.4);rail(750,17,z+(z<-920?1.7:-1.7),265);
+ for(let x=620;x<885;x+=14){beam(m.dark,[x,15.6,z],[x,9,z+(z<-920?-3:3)],.5);box(warmGlow,x,17.8,z,.9,.28,.5);pool(x,5.95,z,7)}
+}
+// Interior equipment is against the walls, not in the race line.
+for(const center of [-650,-450,-170,100])for(const x of [-916,-844])for(let dz=-55;dz<=55;dz+=22){
+ const z=center+dz;if(clearScenery(x,11,z)){place('welding-skid',x,5.24,z,Math.PI/2);pool(x,5.31,z,10)}
+}
+for(const center of [-650,-450,-170,100])for(let dz=-55;dz<=55;dz+=25)for(const x of [-906,-854]){
+ const z=center+dz;box(warmGlow,x,43,z,2.6,.35,.5);pool(x,5.32,z,14)
+}
+// Pipe district: heavy valves, flanges and ground-level process equipment.
+for(const z of [410,570,730])for(const x of [-920,-580]){
+ if(!clearScenery(x,13,z))continue;
+ for(const dz of [-16,16]){box(m.concrete,x,5.8,z+dz,10,1.6,7);beam(m.steel,[x-5,9,z+dz],[x+5,9,z+dz],2,2,true);for(const dx of [-3,3])beam(m.dark,[x+dx-.3,9,z+dz],[x+dx+.3,9,z+dz],2.4,2.4,true);cylinder(m.rust,x,11,z+dz,.6,3);box(m.yellow,x,12.5,z+dz,2,.25,.35)}
+ pool(x,5.25,z,10)
+}
 // Distant coastline outside the playable footprint gives the port a geographical context.
 const coastMat=new T.MeshStandardMaterial({color:0x353b43,roughness:1,metalness:0});
 const coastGeo=new T.BufferGeometry(),coastPos=[];
