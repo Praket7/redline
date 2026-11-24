@@ -81,6 +81,9 @@ try:
                 stats["imageLuminanceStddev"]=round(lum.stddev[0],3)
             results[view] = stats
         (OUT / "reference-audit.json").write_text(json.dumps(page.evaluate("IRON_TIDE.referenceAudit()"),indent=2))
+        hero_clearance = page.evaluate("IRON_TIDE.heroClearance()")
+        (OUT / "hero-clearance.json").write_text(json.dumps(hero_clearance,indent=2))
+        assert hero_clearance["tested"] > 0 and not hero_clearance["hits"] and not hero_clearance["civilHits"], hero_clearance
         # Verify true reflected-scene contribution, not merely a flag or a glossy material.
         reflection_report = {}
         for view, expected in [("1-launch","pavement"),("9-offshore","water")]:
