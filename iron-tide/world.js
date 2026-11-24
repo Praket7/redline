@@ -437,6 +437,23 @@ define('ship-hull',()=>{
   for(let j=0;j<Y.length-1;j++)for(let i=0;i<N;i++){const a=j*(N+1)+i,b=a+1,c=b+N+1,d=a+N+1;if((side>0)!==isInner)indices.push(a,b,c,a,c,d);else indices.push(a,c,b,a,d,c)}
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();g.userData.keepUV=true;part(g,isInner?inner:outer,0,0,0,1,1,1);
  }
+ // Close the thickness of both cut shell walls without blocking the
+ // intentional race-through aperture. Each strip shares side-loft vertices.
+ const capP=[],capUV=[];
+ function shellQuad(a,b,c,d,reverse){
+  const list=reverse?[a,c,b,a,d,c]:[a,b,c,a,c,d];
+  for(const v of list){capP.push(...v);capUV.push(v[0]/12,v[1]/8)}
+ }
+ for(const side of [-1,1]){
+  for(const y of [Y[0],Y[Y.length-1]])for(let i=0;i<N;i++){
+   const x=-L/2+i*L/N,x2=-L/2+(i+1)*L/N;
+   shellQuad(P(x,y,side),P(x2,y,side),P(x2,y,side,.38),P(x,y,side,.38),(y===Y[0])===(side>0));
+  }
+  for(const x of [-L/2,L/2])for(let j=0;j<Y.length-1;j++){
+   shellQuad(P(x,Y[j],side),P(x,Y[j+1],side),P(x,Y[j+1],side,.38),P(x,Y[j],side,.38),(x>0)===(side>0));
+  }
+ }
+ const cutEdge=new T.BufferGeometry();cutEdge.setAttribute('position',new T.Float32BufferAttribute(capP,3));cutEdge.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cutEdge.computeVertexNormals();cutEdge.userData.keepUV=true;part(cutEdge,primer,0,0,0,1,1,1);
  for(const side of [-1,1]){
   // Continuous longitudinal stiffeners, top edge and shell plate seams.
   for(const y of [7,12,17,22,27,31.6])for(let x=-174;x<174;x+=8){
@@ -453,8 +470,10 @@ define('ship-hull',()=>{
    }
    if(x%20===5){
     // Real gussets are triangular plates, not rectangular floating blocks.
-    const a=P(x,16,side,2.05),b=P(x,20,side,2.05),c=P(x,16,side,5.1),p=[...a,...b,...c,...a,...c,...b];
-    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute([0,0,0,1,1,0,0,0,1,0,0,1],2));g.computeVertexNormals();part(g,primer,0,0,0,1,1,1);
+    const a=P(x,16,side,2.05),b=P(x,20,side,2.05),c=P(x,16,side,5.1);
+    const v=[a,b,c].map(q=>[q[0]-.065,q[1],q[2]]).concat([a,b,c].map(q=>[q[0]+.065,q[1],q[2]]));
+    const ids=side>0?[0,2,1,3,4,5,0,1,4,0,4,3,1,2,5,1,5,4,2,0,3,2,3,5]:[0,1,2,3,5,4,0,4,1,0,3,4,1,5,2,1,4,5,2,3,0,2,5,3];
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v.flat(),3));g.setAttribute('uv',new T.Float32BufferAttribute(v.flatMap(q=>[q[2]/4,q[1]/4]),2));g.setIndex(ids);g.computeVertexNormals();part(g,primer,0,0,0,1,1,1);
    }
   }
   // Narrow work platforms follow the side, leaving a wide, clear central route.
@@ -1289,8 +1308,9 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
   const a=-104+i*208/stations,b=-104+(i+1)*208/stations,A=loftPoint(a,-4,-1),B=loftPoint(a,-4,1),C=loftPoint(b,-4,1),D=loftPoint(b,-4,-1);
   hullCap(A,C,B);hullCap(A,D,C);
  }
- for(const x of [-104,104])for(let j=0;j<sections.length-1;j++){
-  const a=loftPoint(x,sections[j][0],-1),b=loftPoint(x,sections[j][0],1),c=loftPoint(x,sections[j+1][0],1),d=loftPoint(x,sections[j+1][0],-1);
+ for(const x of [-104,104])for(let j=0;j<sections.length-1;j++)for(let k=0;k<5;k++){
+  const y0=T.MathUtils.lerp(sections[j][0],sections[j+1][0],k/5),y1=T.MathUtils.lerp(sections[j][0],sections[j+1][0],(k+1)/5);
+  const a=loftPoint(x,y0,-1),b=loftPoint(x,y0,1),c=loftPoint(x,y1,1),d=loftPoint(x,y1,-1);
   if(x>0){hullCap(a,c,b);hullCap(a,d,c)}else{hullCap(a,b,c);hullCap(a,c,d)}
  }
  const cap=new T.BufferGeometry();cap.setAttribute('position',new T.Float32BufferAttribute(capP,3));cap.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cap.computeVertexNormals();cap.userData.keepUV=true;part(cap,bootmat,0,0,0,1,1,1);
@@ -2425,26 +2445,33 @@ define('stage3-process-plant',()=>{
 define('stage3-repair-barge',()=>{
  // Lofted rounded pontoon hull: visible flare, inset deck and curved ends,
  // rather than a rectangular crate placed in the sea.
- const n=34,L=106,W=21,verts=[],uv=[],idx=[];
- const levels=[[0,0.48,0.48],[1.2,.86,.88],[3.8,1,1],[6.0,.95,.93]];
- for(const [y,wx,wz] of levels)for(let i=0;i<=n;i++){const ang=i/n*Math.PI*2;
-  const x=Math.cos(ang)*L/2*wx,z=Math.sin(ang)*W/2*wz;
-  verts.push(x,y,z);uv.push((x+L/2)/10,y/5);
+ const n=64,L=106,W=21,verts=[],uv=[],idx=[];
+ const levels=[[0,.48,.48],[1.2,.86,.88],[3.8,1,1],[6.0,.95,.93]];
+ function contour(i,j){const [y,wx,wz]=levels[j],ang=i/n*Math.PI*2,c=Math.cos(ang),sn=Math.sin(ang);
+  return [Math.sign(c)*Math.sqrt(Math.abs(c))*L/2*wx,y,Math.sign(sn)*Math.sqrt(Math.abs(sn))*W/2*wz];
  }
+ for(let j=0;j<levels.length;j++)for(let i=0;i<=n;i++){const p=contour(i,j);verts.push(...p);uv.push((p[0]+L/2)/10,p[1]/5)}
  for(let j=0;j<levels.length-1;j++)for(let i=0;i<n;i++){
   const a=j*(n+1)+i,b=a+n+1;idx.push(a,b,a+1,a+1,b,b+1);
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));
- g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.userData.keepUV=true;
- const hullMaterial=m.rust.clone();hullMaterial.side=T.DoubleSide;part(g,hullMaterial,0,0,0,1,1,1);
- box(m.dark,0,6.05,0,L-7,.35,W-3);
- for(const side of [-1,1]){
-  for(let x=-44;x<=44;x+=7){
-   beam(m.steel,[x,6.3,side*8.8],[x,7.25,side*8.8],.14);
-   if(x<44)beam(m.steel,[x,7.25,side*8.8],[x+7,7.25,side*8.8],.11);
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.userData.keepUV=true;
+ part(g,m.rust,0,0,0,1,1,1);
+ for(const j of [0,levels.length-1]){
+  const p=[],uv=[];
+  for(let i=0;i<n;i++){
+   const a=contour(i,j),b=contour(i+1,j),center=[0,levels[j][0],0],v=j===0?[center,a,b]:[center,b,a];
+   for(const q of v){p.push(...q);uv.push(q[0]/4,q[2]/4)}
   }
-  for(const x of [-42,42])cylinder(m.dark,x,7.0,side*7,1.1,1.2);
+  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.computeVertexNormals();geo.userData.keepUV=true;part(geo,j===0?m.rust:m.dark,0,0,0,1,1,1);
  }
+ // Deck edge railing follows the actual deck contour, with a continuous
+ // toe plate and stanchions anchored inside the welded rim.
+ for(let i=0;i<n;i+=2){
+  const a=contour(i,3),b=contour(i+2,3),p=[a[0]*.97,6.12,a[2]*.95],q=[b[0]*.97,6.12,b[2]*.95];
+  beam(m.steel,p,q,.14);beam(m.steel,[p[0],7.18,p[2]],[q[0],7.18,q[2]],.11);
+  beam(m.steel,p,[p[0],7.18,p[2]],.14);
+ }
+ for(const side of [-1,1])for(const x of [-42,42])cylinder(m.dark,x,6.62,side*5.9,1.1,1.2);
  for(const x of [-26,0,26]){box(m.rust,x,7.8,0,18,2.7,11);box(m.dark,x,9.35,0,18.4,.45,11.4);
   for(const z of [-5,5])box(m.steel,x,10.1,z,16.6,1.15,.25)}
  box(m.blue,-34,12.5,0,19,11,12);box(m.dark,-34,18.4,0,19.7,.7,12.6);
