@@ -20,9 +20,10 @@ const material=(color,metalness,roughness,kind)=>{const r=relief(kind);return ne
 const m={concrete:material('#625d57',0,.71,'concrete'),road:material('#55575a',0,.58,'concrete'),rust:material('#945641',.32,.71,'steel'),orange:material('#cb7b37',.25,.59,'steel'),steel:material('#818d95',.55,.51,'steel'),dark:material('#343c3d',.45,.74,'steel'),blue:material('#365a68',.45,.65,'steel'),green:material('#566355',.4,.7,'steel'),white:material('#b5b5a9',.3,.63,'steel'),rubber:new T.MeshStandardMaterial({color:0x202527,roughness:.9}),yellow:new T.MeshStandardMaterial({color:0xdba448,roughness:.65}),glass:new T.MeshStandardMaterial({color:0x365464,metalness:.4,roughness:.22}),light:new T.MeshStandardMaterial({color:0xffc78b,emissive:0xffa34a,emissiveIntensity:2}),red:new T.MeshStandardMaterial({color:0xff5350,emissive:0xff302b,emissiveIntensity:2})};
 // Photographic CC0 maps, packed as data URIs at build time. Use CanvasTexture so
 // GLTFExporter serializes the same maps; no runtime network requests.
+m.door=material('#52616a',.18,.78,'steel');m.roof=material('#64686b',.36,.76,'steel');
 const texturePack=window.IRON_TIDE_TEXTURES||{},loadedMaterials=[];
 async function photoMap(uri,srgb){const im=new Image();await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=()=>reject(Error('packed texture could not decode'));im.src=uri});const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());if(srgb)t.encoding=T.sRGBEncoding;return t}
-for(const [key,mat] of [['concrete',m.concrete],['asphalt',m.road],['rust',m.rust],['paint',m.orange],['steel',m.steel]]){const pack=texturePack[key];if(!pack)continue;const [diff,nor,rough]=await Promise.all([photoMap(pack.diff,true),photoMap(pack.nor_gl,false),photoMap(pack.rough,false)]);mat.map.dispose();mat.normalMap.dispose();mat.roughnessMap.dispose();mat.map=diff;mat.normalMap=nor;mat.roughnessMap=rough;mat.normalScale.set(.55,.55);mat.roughness=1;mat.needsUpdate=true;loadedMaterials.push(key)}
+for(const [key,mat] of [['concrete',m.concrete],['asphalt',m.road],['rust',m.rust],['paint',m.orange],['steel',m.steel],['door',m.door],['roof',m.roof]]){const pack=texturePack[key];if(!pack)continue;const [diff,nor,rough]=await Promise.all([photoMap(pack.diff,true),photoMap(pack.nor_gl,false),photoMap(pack.rough,false)]);mat.map.dispose();mat.normalMap.dispose();mat.roughnessMap.dispose();mat.map=diff;mat.normalMap=nor;mat.roughnessMap=rough;mat.normalScale.set(.55,.55);mat.roughness=1;mat.needsUpdate=true;loadedMaterials.push(key)}
 // Preserve photographic structure while grade-matching the red oxide, painted
 // steel and rain-darkened asphalt palette. Paint/corrosion is not bare metal.
 if(loadedMaterials.includes('asphalt'))m.road.color.setHex(0x92918b);
@@ -44,6 +45,11 @@ coat(m.orange,0xc96a2c,.63);coat(m.blue,0x3f6170,.45);coat(m.green,0x586d58,.39)
  // real photographic wear while using a much lower normal amplitude.
  if(loadedMaterials.includes('steel')){m.dark.map=m.steel.map;m.dark.normalMap=m.steel.normalMap;m.dark.roughnessMap=m.steel.roughnessMap;}
  coat(m.dark,0x3d4448,.28);m.dark.metalness=.15;m.dark.roughness=.95;m.dark.normalScale.set(.16,.16);
+ // Keep painted shutters and galvanized roof panels distinct from severe rust.
+ if(loadedMaterials.includes('door')){m.door.color.setHex(0xc9d0d2);m.door.normalScale.set(.18,.18);m.door.metalness=.12;m.door.roughness=.88;}else{coat(m.door,0x586369,.12);m.door.normalScale.set(.12,.12);}
+ if(loadedMaterials.includes('roof')){m.roof.color.setHex(0x888c8b);m.roof.normalScale.set(.25,.25);m.roof.metalness=.32;m.roof.roughness=.88;}
+ coat(m.steel,0x777f80,.19);m.steel.metalness=.42;m.steel.roughness=.86;m.steel.normalScale.set(.18,.18);
+ m.glass.color.setHex(0x182a35);m.glass.metalness=.0;m.glass.roughness=.33;m.glass.envMapIntensity=.42;
  m.wire=new T.MeshStandardMaterial({color:0x535960,metalness:.72,roughness:.43,envMapIntensity:.85});
 // World ground maps tile at approximately industrial pavement scale instead of stretching.
 for(const mat of [m.road,m.concrete]){mat.map.repeat.set(mat===m.road?12:1,mat===m.road?12:1);mat.normalMap.repeat.copy(mat.map.repeat);mat.roughnessMap.repeat.copy(mat.map.repeat);mat.normalScale.set(.2,.2)}
@@ -477,7 +483,7 @@ function clearScenery(x,top,z){for(let i=0;i<routePoints.length;i++){const a=rou
   const map=new T.CanvasTexture(c);map.encoding=T.sRGBEncoding;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   return new T.MeshStandardMaterial({map,roughness:1,roughnessMap:weatherRoughness(256,256,base.charCodeAt(2)*713,roof?.66:.75),normalMap:m.steel.normalMap,normalScale:new T.Vector2(.26,.26),metalness:roof?.18:.06,envMapIntensity:.68});
  }
- const cladding=cladMaterial('#53646a'),oxideCladding=cladMaterial('#755349'),roofMetal=cladMaterial('#464a4c',true);
+ const cladding=cladMaterial('#53646a'),oxideCladding=cladMaterial('#755349'),roofMetal=loadedMaterials.includes('roof')?m.roof:cladMaterial('#464a4c',true);
  const translucentClerestory=new T.MeshStandardMaterial({color:0x57717b,roughness:.37,metalness:.18});
  define('plate-processing-hall',()=>{
   const W=76,L=116,H=28;
@@ -520,7 +526,7 @@ function clearScenery(x,top,z){for(let i=0;i<routePoints.length;i++){const a=rou
   box(m.concrete,0,.35,0,W+1,.7,D+1);
   for(const side of [-1,1]){
    for(let z=-40;z<=40;z+=4){box(m.steel,side*31.2,H/2,z,.17,H,.18);if(z%8===0)box(m.glass,side*31.36,H-5,z,.16,3.2,5.3)}
-   for(const x of [-20,0,20]){box(m.dark,x,5,side*44.25,13,10,.3);box(m.steel,x,5,side*44.45,12.4,9.6,.15);for(let y=1;y<10;y+=.65)box(m.dark,x,y,side*44.57,12,.06,.09)}
+   for(const x of [-20,0,20]){box(m.dark,x,5,side*44.25,13,10,.3);box(m.door,x,5,side*44.45,12.4,9.6,.15);for(let y=1;y<10;y+=.65)box(m.dark,x,y,side*44.57,12,.06,.09)}
   }
   box(m.concrete,23,5,-30,15,10,25);box(m.dark,23,10.3,-30,15.8,.6,25.8);
   for(const y of [3,7])for(const z of [-38,-30,-22])box(m.glass,30.6,y,z,.17,2,4);

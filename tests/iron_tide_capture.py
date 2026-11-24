@@ -52,7 +52,7 @@ try:
         page.evaluate("IRON_TIDE.clean(true)")
         results = {}
         provenance = json.loads((OUT / "texture-provenance.json").read_text()) if (OUT / "texture-provenance.json").exists() else {}
-        expected_photos = [k for k in ["concrete","asphalt","rust","paint","steel"] if provenance.get(k,{}).get("status") == "downloaded"]
+        expected_photos = [k for k in ["concrete","asphalt","rust","paint","steel","door","roof"] if provenance.get(k,{}).get("status") == "downloaded"]
         expected_sky = "industrial_sunset_02_puresky" if provenance.get("sky",{}).get("status") == "downloaded" else "procedural"
         for view in views:
             page.evaluate("(id) => IRON_TIDE.setView(id)", view)

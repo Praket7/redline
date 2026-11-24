@@ -2,7 +2,7 @@
 import base64, hashlib, io, json, pathlib, urllib.request
 from PIL import Image
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-ASSETS = {"concrete":"cracked_concrete","asphalt":"aerial_asphalt_01","rust":"rusty_metal_sheet","paint":"rusty_metal_03","steel":"rusty_metal_04"}
+ASSETS = {"concrete":"cracked_concrete","asphalt":"aerial_asphalt_01","rust":"rusty_metal_sheet","paint":"rusty_metal_03","steel":"rusty_metal_04","door":"blue_metal_plate","roof":"corrugated_iron_02"}
 PACK = {}
 PROVENANCE = {}
 def fetch(url):
