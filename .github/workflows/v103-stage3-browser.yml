@@ -1,0 +1,78 @@
+name: REDLINE v103 visual and audio acceptance
+on:
+  push:
+    branches: [stage3/v103-visual-sound-remaster]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [visual-grand, visual-raven, grand, raven, kestrel, blade, copper, spirit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45289606393
+          name: REDLINE-v86-exact-browser-audit
+          path: v86-artifact
+      - name: Reconstruct exact v93 and v103 HTML and validate hashes
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,json,gzip,base64
+          root=pathlib.Path('dist');root.mkdir(exist_ok=True)
+          src=next(pathlib.Path('v86-artifact').rglob('REDLINE_v86_AUDITED.html')).read_bytes()
+          for delta,out,expected in [('v93','REDLINE_v93_STAGE2.html','3821a89c199e56c95dd5ce989c9924859ed6074d8d9006d36a460c1934205453'),('v103','REDLINE_v103_STAGE3.html','3cf8a3df0e3faf81d8c094d418b50979fcce72c00e48563b4b0bccf8c0d96b65')]:
+              d=json.loads(gzip.decompress(base64.b64decode(pathlib.Path(f'qa/{delta}_standalone_delta.b64').read_text())))
+              assert hashlib.sha256(src).hexdigest()==d['base'],delta
+              lines=src.decode().splitlines(keepends=True)
+              for i,j,rep in reversed(d['ops']):lines[i:j]=rep.splitlines(keepends=True)
+              src=''.join(lines).encode()
+              assert hashlib.sha256(src).hexdigest()==d['target']==expected,delta
+              (root/out).write_bytes(src)
+              print('Exact',delta,len(src),expected)
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright Pillow
+      - run: python -m playwright install --with-deps chromium
+      - name: Visual and audio before-after acceptance
+        if: startsWith(matrix.case, 'visual-')
+        env:
+          CASE: ${{ matrix.case }}
+        run: COURSE="${CASE#visual-}" python tests/v103_visual_audio.py
+      - name: Stage 2 race results and ghost regression
+        if: matrix.case == 'raven' || matrix.case == 'grand'
+        env:
+          COURSE: ${{ matrix.case }}
+        run: |
+          sed -e 's/REDLINE_v93_STAGE2.html/REDLINE_v103_STAGE3.html/g' -e 's/v93-stage2-candidate/v103-stage3-remaster/g' tests/v93_stage2_browser.py > tests/v103_stage2_regression.py
+          python tests/v103_stage2_regression.py
+      - name: Stage 1 aircraft and controls regression
+        if: matrix.case == 'kestrel' || matrix.case == 'blade' || matrix.case == 'copper' || matrix.case == 'spirit'
+        env:
+          CRAFT: ${{ matrix.case }}
+        run: |
+          python - <<'PY'
+          import pathlib,os
+          p=pathlib.Path('tests/v86_live_audit.py')
+          s=p.read_text().replace('REDLINE_v86_AUDITED.html','REDLINE_v103_STAGE3.html').replace("['kestrel','blade','copper','spirit']",repr([os.environ['CRAFT']])).replace("len(report['cases'])!=4","len(report['cases'])!=1")
+          pathlib.Path('tests/v103_stage1_regression.py').write_text(s)
+          PY
+          python tests/v103_stage1_regression.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: REDLINE-v103-${{ matrix.case }}
+          path: |
+            qa/v86/
+            qa/v93/
+            qa/v103/
+          retention-days: 14
