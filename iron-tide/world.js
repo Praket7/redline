@@ -87,7 +87,11 @@ for(const [col,base,label] of [['rust','#87382c','IRON TIDE'],['blue','#28546d',
  ctx.fillStyle=col==='white'?'#333f43':'#c6c5ba';ctx.globalAlpha=.72;ctx.font='bold 43px sans-serif';ctx.fillText(label,82,133);ctx.font='13px monospace';ctx.fillText('ITCU 421087 45G1',824,52);ctx.fillText('MAX GROSS 30480 KG',824,70);ctx.globalAlpha=1;
  const map=new T.CanvasTexture(c);map.encoding=T.sRGBEncoding;map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
  cargoSide[col]=new T.MeshStandardMaterial({map,metalness:.12,roughness:.70,envMapIntensity:.7});
- cargoSkin[col]=new T.MeshStandardMaterial({color:base,metalness:.12,roughness:.73,envMapIntensity:.7});
+ const tc=document.createElement('canvas');tc.width=tc.height=256;const tctx=tc.getContext('2d');tctx.fillStyle=base;tctx.fillRect(0,0,256,256);
+ for(let i=0;i<2500;i++){const x=rand()*256,y=rand()*256;tctx.fillStyle=rand()>.52?'rgba(211,204,188,.06)':'rgba(20,18,16,.075)';tctx.fillRect(x,y,1+rand()*3,1+rand()*5)}
+ for(let i=0;i<80;i++){const x=rand()*256,y=rand()*256,g=tctx.createLinearGradient(x,y,x,y+22);g.addColorStop(0,'rgba(78,36,19,.28)');g.addColorStop(1,'rgba(78,36,19,0)');tctx.fillStyle=g;tctx.fillRect(x,y,1+rand()*4,22)}
+ const tile=new T.CanvasTexture(tc);tile.encoding=T.sRGBEncoding;tile.wrapS=tile.wrapT=T.RepeatWrapping;tile.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+ cargoSkin[col]=new T.MeshStandardMaterial({map:tile,metalness:.12,roughness:.73,envMapIntensity:.7});
 }
 for(const col of ['rust','blue','green','white'])define('container-'+col,()=>{
  const skin=cargoSkin[col];box(skin,0,1.45,0,12.1,2.9,2.36);
@@ -755,7 +759,24 @@ function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),wate
 waterTile(-9675,0,20650,40000);waterTile(10525,0,18950,40000);waterTile(850,-10375,400,19250);waterTile(850,9825,400,20350);
 // Aircraft gates are free-standing in the air, not arches with ground legs.
 const gates=layout.sectors.flatMap((s,i)=>s.gates.map((p,j)=>({p:V(...p),sector:i,index:i*4+j+1})));
-const guide=new T.Group();guide.name='aerial-route';scene.add(guide);const gateGeo=new T.TorusGeometry(10,.35,8,48);const edgeGeo=new T.TorusGeometry(10.5,.19,6,48),edgeMat=new T.MeshStandardMaterial({color:0x2b343b,metalness:.65,roughness:.42});const gateMat=new T.MeshBasicMaterial({color:0xff3d35,toneMapped:false});for(let i=0;i<gates.length;i++){const g=gates[i],next=gates[(i+1)%gates.length],prev=gates[(i+gates.length-1)%gates.length];const tangent=next.p.clone().sub(prev.p).normalize();const mesh=new T.Mesh(gateGeo,gateMat);if(g.sector===3||g.sector===4||g.sector===6)mesh.scale.setScalar(.6);mesh.position.copy(g.p);mesh.quaternion.setFromUnitVectors(V(0,0,1),tangent);mesh.name='CP'+g.index;guide.add(mesh);const edge=new T.Mesh(edgeGeo,edgeMat);edge.position.copy(mesh.position);edge.quaternion.copy(mesh.quaternion);edge.scale.copy(mesh.scale);guide.add(edge)}
+const guide=new T.Group();guide.name='aerial-route';scene.add(guide);
+// A single instanced set of industrial beacons replaces 64 individual ring
+// submissions. Inner radius remains 9.65 m (5.79 m for confined sectors).
+const edgeGeo=new T.TorusGeometry(10.5,.65,10,64);
+const edgeMat=new T.MeshStandardMaterial({color:0x27323a,metalness:.55,roughness:.48});
+const stripes=[];
+for(const z of [-.58,.58]){const g=new T.TorusGeometry(10.35,.18,8,64);g.translate(0,0,z);stripes.push(g)}
+// Solid red inner edge remains within the original opening envelope.
+stripes.push(new T.TorusGeometry(10,.35,8,64));
+const stripeGeo=T.BufferGeometryUtils.mergeBufferGeometries(stripes);
+const gateMat=new T.MeshBasicMaterial({color:0xff392e,toneMapped:false});
+const fittings=[];
+for(let k=0;k<8;k++){const theta=k*Math.PI/4;const g=new T.BoxGeometry(1.25,1.7,1.5);g.rotateZ(theta-Math.PI/2);g.translate(10.62*Math.cos(theta),10.62*Math.sin(theta),0);fittings.push(g)}
+const fittingGeo=T.BufferGeometryUtils.mergeBufferGeometries(fittings),fittingMat=new T.MeshStandardMaterial({color:0x9c6440,metalness:.45,roughness:.68});
+const gateMeshes=[[edgeGeo,edgeMat],[stripeGeo,gateMat],[fittingGeo,fittingMat]].map(([g,m])=>{const mesh=new T.InstancedMesh(g,m,gates.length);mesh.frustumCulled=false;guide.add(mesh);return mesh});
+const gateTransform=new T.Object3D();
+for(let i=0;i<gates.length;i++){const g=gates[i],next=gates[(i+1)%gates.length],prev=gates[(i+gates.length-1)%gates.length],tangent=next.p.clone().sub(prev.p).normalize();gateTransform.position.copy(g.p);gateTransform.quaternion.setFromUnitVectors(V(0,0,1),tangent);gateTransform.scale.setScalar(g.sector===3||g.sector===4||g.sector===6?.6:1);gateTransform.updateMatrix();for(const mesh of gateMeshes)mesh.setMatrixAt(i,gateTransform.matrix)}
+for(const mesh of gateMeshes)mesh.instanceMatrix.needsUpdate=true;
 const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff6456,transparent:true,opacity:.85}));guide.add(route);
 // Separate asset inspection scene shares the exact merged source models and lighting.
 const assetScene=new T.Scene();assetScene.background=new T.Color(0x303941);assetScene.environment=scene.environment;assetScene.add(new T.HemisphereLight(0xc0d8ed,0x49413c,1.35));const assetSun=new T.DirectionalLight(0xffcf99,3.1);assetSun.position.set(-160,100,80);assetScene.add(assetSun);const assetFloor=new T.Mesh(new T.PlaneGeometry(2000,2000),new T.MeshStandardMaterial({color:0x45494b,roughness:.8}));assetFloor.rotation.x=-Math.PI/2;assetFloor.position.y=-.1;assetScene.add(assetFloor);let inspected=null;const assetCamera=new T.PerspectiveCamera(42,1,.1,4000);
@@ -784,5 +805,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
