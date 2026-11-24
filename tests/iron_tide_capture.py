@@ -69,6 +69,7 @@ try:
             assert ref["sectors"] == 10 and ref["gates"] == 38 and ref["alternateCorridors"] == 4, ref
             assert ref["offshorePlatforms"] == 2 and ref["skyBridges"] == 1 and ref["ships"] >= 8, ref
             assert ref["solidRouteConflicts"] == 0 and ref["solidPlacements"] > 100 and ref["containerStacks"] > 100, ref
+            assert ref["additionalHalls"] > 25 and ref["additionalTanks"] > 0 and ref["additionalRacks"] > 0, ref
             assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100, stats
             assert stats["sharedRailBatches"] > 0, stats
             assert stats["photoMaterials"] == expected_photos, stats
@@ -123,6 +124,7 @@ try:
             draw = ImageDraw.Draw(board)
             font = ImageFont.load_default(size=16)
             tiny = ImageFont.load_default(size=12)
+            draw.line([(round(p["x"]),round(p["y"])) for p in projected+[projected[0]]], fill="#ff563f", width=3, joint="curve")
             for p in projected:
                 x,y = round(p["x"]), round(p["y"])
                 draw.ellipse((x-9,y-9,x+9,y+9), fill="#a72e2e", outline="white",width=1)

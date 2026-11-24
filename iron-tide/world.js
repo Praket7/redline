@@ -1431,10 +1431,10 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  for(let z=-277;z<=37;z+=13)for(const x of [840,860])place('drydock-keel-block',x,-20,z,0,.7);
  for(let z=-260;z<=20;z+=24)for(const side of [-1,1]){fixturePositions.push([850+side*20,1.2,z]);pool(850+side*20,-2.5,z,4)}
  // The center pier is a ship assembly/outfitting spine, with two long berths.
- for(const [x,z,a,scale] of [[245,-150,Math.PI/2,1.55],[-250,-260,Math.PI/2,1.25],[270,380,Math.PI/2,.92],[-380,600,0,.86]]){
+ for(const [x,z,a,scale] of [[245,-150,Math.PI/2,1.55],[-250,-260,Math.PI/2,1.25],[275,230,Math.PI/2,.92],[-380,600,0,.86],[-1252,870,Math.PI/2,1.25],[-1305,160,Math.PI/2,.95]]){
   place('merchant-vessel',x,0,z,a,scale);referenceShips++;
  }
- for(const [x,z] of [[-500,440],[400,-420],[450,530],[370,720]]){place('workboat',x,0,z,Math.PI/2,.65);referenceShips++}
+ for(const [x,z] of [[-500,440],[400,-420],[455,555],[370,720]]){place('workboat',x,0,z,Math.PI/2,.65);referenceShips++}
  // Start waterfront: quay road with tightly clustered logistics equipment.
  for(const x of [-1130,-975,-820,-580,-390,-180])for(const z of [780,980]){
   if(safe('outfit-workshop',x,z,Math.PI/2,.82,'launch'))lamp(x+36,5.25,z+38);
@@ -1478,11 +1478,17 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  // preparation -> coating -> outfitting, facing the central deep-water quays.
  const shopKinds=['plate-processing-hall','coating-shop','outfit-workshop','cargo-shed'];
  for(const [x,z] of [[-570,-880],[-390,-830],[-180,-830],[45,-850],[250,-850],[450,-1050],[650,-900],[1040,-1000],[1040,-780],[-90,-500],[80,-330],[-90,-100],[75,100],[-90,330],[110,420]]){
-  const kind=shopKinds[districtPlan.length%shopKinds.length];if(safe(kind,x,z,0,.82,'fabrication')){districtPlan.push({x,z,kind});lamp(x+36,5.25,z+50)}
+  const kind=shopKinds[districtPlan.length%shopKinds.length];if(safe(kind,x,z,0,1.08,'fabrication')){districtPlan.push({x,z,kind});lamp(x+36,5.25,z+50)}
  }
  for(const [x,z] of [[-550,-1150],[170,-1150],[380,-740],[740,-730],[1120,-560]])safe('lattice-boom-crane',x,z,0,.8,'fabrication');
  // East-side foundry and pipe grid, using aligned service corridors.
- for(const [x,z] of [[1140,185],[740,300],[1155,470],[730,500],[1140,665]]){if(safe('warehouse',x,z,0,.72,'foundry'))lamp(x,5.25,z+48)}
+ // Traversable open-ended foundry. Centerline passes above the overhead
+ // lifting trolley and below the roof structure; actual mesh rays verify it.
+ hero('warehouse',1080,5.25,340,0,1.10);referenceDistricts.add('foundry');
+ for(const [x,z] of [[740,300],[730,500],[1140,665]]){if(safe('warehouse',x,z,0,.84,'foundry'))lamp(x,5.25,z+48)}
+ for(const x of [1040,1120])for(let z=270;z<=410;z+=22){
+  fixturePositions.push([x,56.5,z]);pool(x,5.36,z,20);
+ }
  for(const [x,z] of [[740,640],[1160,760],[790,870],[1070,1000]])safe('pipe-rack',x,z,Math.PI/2,.85,'pipes');
  for(const [x,z] of [[725,730],[760,775],[1190,840],[1110,870],[900,930],[1130,590]])safe('tank',x,z,0,.72,'pipes');
  for(const [x,z] of [[1100,280],[1150,380],[780,570],[770,800],[1050,850]])safe('process-manifold',x,z,0,1,'pipes');
@@ -1496,23 +1502,62 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   beam(m.wire,[10,34,14],[10,21,14],.12,.12,true);box(m.yellow,10,20.4,14,2,.9,2);
   for(const x of [-22,22])for(const z of [-18,18])box(m.light,x,19,z,1.2,.4,1.1);
  });
- for(const [x,z] of [[850,1250],[440,1290]]){hero('reference-offshore-platform',x,0,z);referenceOffshore++;for(const dx of [-22,22])fixturePositions.push([x+dx,19,z+18])}
+ for(const [x,z] of [[850,1230],[440,1340]]){hero('reference-offshore-platform',x,0,z,0,1.5);referenceOffshore++;for(const dx of [-33,33])fixturePositions.push([x+dx,28.5,z+27])}
  referenceDistricts.add('offshore');
+ // Pack each production district with staggered, large-scale buildings and
+ // connected service roads. Avoid the centerline and existing model bounds.
+ let additionalHalls=0,additionalTanks=0,additionalRacks=0,additionalCranes=0;
+ const facadeKinds=['cargo-shed','plate-processing-hall','outfit-workshop','coating-shop','gantry-service-hall'];
+ for(const [a,b,c,d] of land){
+  for(let x=a+54;x<b-53;x+=106)for(let z=c+67;z<d-60;z+=134){
+   if(additionalHalls>=104)break;
+   const ix=Math.round((x+1400)/53),iz=Math.round((z+1400)/67),k=facadeKinds[(ix*3+iz*7)%facadeKinds.length],angle=(ix+iz)%3===0?Math.PI/2:0;
+   if(safe(k,x,z,angle,.80+((ix+iz)%4)*.085,'fabrication')){
+    additionalHalls++;districtPlan.push({x,z,kind:k});
+    const lx=x+40,lz=z+45;if(onLand(lx,lz)&&routeClear(new T.Box3(V(lx-2,5,lz-2),V(lx+4,18,lz+2))))lamp(lx,5.25,lz);
+   }
+  }
+ }
+ // Actual refinery blocks flank the southeastern flight corridor.
+ for(const z of [615,690,765,840,915,990,1065])for(const x of [715,770,825,885,945,1005,1065,1125,1190]){
+  if(additionalTanks>=25)break;
+  if(safe('tank',x,z,0,.82,'pipes'))additionalTanks++;
+ }
+ for(const x of [740,810,910,1010,1100,1195])for(const z of [600,735,870,1000]){
+  if(additionalRacks>=16)break;
+  if(safe('pipe-rack',x,z,Math.PI/2,1.05,'pipes'))additionalRacks++;
+ }
+ // Pair the outer and inner berth with real quayside lifting equipment.
+ for(const [x,z,angle] of [[-1190,735,Math.PI/2],[-1200,1030,Math.PI/2],[-690,-320,Math.PI/2],[-685,230,Math.PI/2],[600,-550,Math.PI/2],[680,290,Math.PI/2],[1150,-820,0],[-310,-690,0],[150,-710,0]])if(safe('quay-container-crane',x,z,angle,.75,'quays'))additionalCranes++;
+ // Land-edge access roads and rail tracks connect fabrication to dock aprons.
+ for(const [a,b,c,d] of land){
+  if(b-a<95||d-c<90)continue;
+  const x=(a+b)/2,z=(c+d)/2;
+  box(asphalt,x,5.105,z,10,.018,d-c-10);
+  for(let zz=c+10;zz<d-10;zz+=18)box(m.yellow,x,5.126,zz,.13,.014,7.8);
+  for(const zz of [c+14,d-14]){
+   box(asphalt,x,5.11,zz,b-a-10,.018,8);
+   for(let xx=a+12;xx<b-12;xx+=18)box(m.yellow,xx,5.13,zz,7.8,.014,.13);
+  }
+ }
  // Populate the narrow quays with connected equipment and practical light poles.
  for(const [a,b,c,d] of land){for(let x=a+35;x<b-25;x+=80)for(let z=c+35;z<d-25;z+=100){
-  if(referenceSolids.length>1100)break;
+  if(referenceSolids.length>1300)break;
   const kind=['fabrication-rack','hydraulic-power-unit','welding-skid','pipe-bundle','curved-panel-jig','steel-transfer-station'][Math.abs(Math.floor(x+z))%6];safe(kind,x,z,0,.85,'services');
   const lb=new T.Box3(V(x-2,5,z-2),V(x+4,18,z+2));
   if(supported(lb)&&routeClear(lb)&&!placedSites.some(p=>p.intersectsBox(lb))&&!containerSlots.some(q=>Math.abs(q.x-x)<q.hx+4&&Math.abs(q.z-z)<q.hz+3)&&!fixturePositions.some(p=>Math.hypot(p[0]-x,p[2]-z)<40)){lamp(x,5.25,z);referenceSolids.push(lb)}
  }}
  // Explicit start reference, with attached quay fixtures and visible light pools.
  for(const x of [-1140,-1020,-900,-780])lamp(x,5.25,1075);
+ // Quay furniture and cargo handling equipment adjacent to the launch vessel.
+ for(let z=735;z<=1060;z+=25){const x=-1188;place('bollard',x,5.25,z);if(z%50===35)lamp(x+8,5.25,z);if(z%75===60)safe('terminal-tractor',x+30,z,Math.PI/2,.85,'launch')}
+ for(let z=760;z<=1050;z+=35){box(m.steel,-1198,5.35,z,.45,.25,34);if(z%70===60)box(m.dark,-1199,2.1,z,1.0,3.2,4.5)}
  // Riprap and irregular sea-facing headlands add a non-rectangular silhouette.
  for(const [cx,cz,axis] of [[-1265,440,'z'],[-1285,-425,'z'],[-420,-1240,'x'],[485,-1225,'x'],[1245,-565,'z'],[1265,720,'z'],[1000,1125,'x']])for(let i=-5;i<=5;i++){const x=cx+(axis==='x'?i*11:0),z=cz+(axis==='z'?i*11:0);if(!onLand(x,z)){const a=(i*2.399+cx*.01);part(sphereGeo,m.concrete,x,.5,z,5.5+Math.abs(Math.sin(a))*3,2.4+Math.abs(Math.cos(a))*2,5.0+Math.abs(Math.sin(a+1))*3,new T.Quaternion().setFromAxisAngle(up,a))}}
  // Inspect actual hero meshes using a center ray and four radial offsets.
  // This finite sample is not continuous collision certification.
  function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<routePoints.length;i++){const a=routePoints[i],b=routePoints[(i+1)%routePoints.length];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>routePoints.map((a,j)=>intersectsSegment(b,a,routePoints[(j+1)%routePoints.length],radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
- const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo};
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes};
   // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.
@@ -1601,7 +1646,7 @@ const gateMeshes=[[edgeGeo,edgeMat],[stripeGeo,gateMat],[fittingGeo,fittingMat]]
 const gateTransform=new T.Object3D();
 for(let i=0;i<gates.length;i++){const g=gates[i],next=gates[(i+1)%gates.length],prev=gates[(i+gates.length-1)%gates.length],tangent=next.p.clone().sub(prev.p).normalize();gateTransform.position.copy(g.p);gateTransform.quaternion.setFromUnitVectors(V(0,0,1),tangent);gateTransform.scale.setScalar(g.sector===5||g.sector===6||g.sector===7?.6:1);gateTransform.updateMatrix();for(const mesh of gateMeshes)mesh.setMatrixAt(i,gateTransform.matrix)}
 for(const mesh of gateMeshes)mesh.instanceMatrix.needsUpdate=true;
-const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff6456,transparent:true,opacity:.85}));guide.add(route);for(const alt of layout.alternates){const pts=[gates[alt.from].p,...alt.via.map(p=>V(...p)),gates[alt.to].p];const line=new T.Line(new T.BufferGeometry().setFromPoints(pts),new T.LineDashedMaterial({color:0xffc05d,dashSize:12,gapSize:8,transparent:true,opacity:.8}));line.computeLineDistances();guide.add(line)}
+const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff4935,toneMapped:false,transparent:true,opacity:.96}));guide.add(route);for(const alt of layout.alternates){const pts=[gates[alt.from].p,...alt.via.map(p=>V(...p)),gates[alt.to].p];const line=new T.Line(new T.BufferGeometry().setFromPoints(pts),new T.LineDashedMaterial({color:0xffc05d,toneMapped:false,dashSize:12,gapSize:8,transparent:true,opacity:.85}));line.computeLineDistances();guide.add(line)}
 // Separate asset inspection scene shares the exact merged source models and lighting.
 const assetScene=new T.Scene();assetScene.background=new T.Color(0x303941);assetScene.environment=scene.environment;assetScene.add(new T.HemisphereLight(0xc0d8ed,0x49413c,1.35));const assetSun=new T.DirectionalLight(0xffcf99,3.1);assetSun.position.set(-160,100,80);assetScene.add(assetSun);const assetFloor=new T.Mesh(new T.PlaneGeometry(2000,2000),new T.MeshStandardMaterial({color:0x45494b,roughness:.8}));assetFloor.rotation.x=-Math.PI/2;assetFloor.position.y=-.1;assetScene.add(assetFloor);let inspected=null;const assetCamera=new T.PerspectiveCamera(42,1,.1,4000);
 function assetView(name,angle=0){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();const elongated=size.x>size.z*2.5;const delta=(elongated?V(r*.34,r*.40,r*.93):V(r*.85,r*.58,r*.95)).applyAxisAngle(up,angle);assetCamera.position.copy(center).add(delta);assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
@@ -1634,7 +1679,7 @@ function updatePractical(camera){
   light.intensity=insideHull?290:820;light.distance=insideHull?35:95;light.color.setHex(insideHull?0xffaa64:0xffb771);
  }else light.intensity=0}
 }
-const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1700,1420,1720],[0,30,0]],north:[[1620,1320,-1700],[0,25,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1070,33,1070],[-870,35,850]],'2-containers':[[-1030,28,420],[-950,32,100]],'3-crane':[[-1100,39,-395],[-900,85,-575]],'4-skybridge':[[-540,239,-1040],[90,205,-1070]],'5-drop':[[870,205,-790],[850,-8,-180]],'6-drydock':[[850,-2,-308],[850,-4,-50]],'7-foundry':[[1035,35,200],[1060,28,490]],'8-pipes':[[860,35,690],[1110,35,880]],'9-offshore':[[1050,45,1320],[440,26,1290]],'10-final':[[100,28,1110],[-900,35,1080]]};
+const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1700,1420,1720],[0,30,0]],north:[[1620,1320,-1700],[0,25,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1170,28,1080],[-1190,29,775]],'2-containers':[[-1030,28,420],[-950,32,100]],'3-crane':[[-1100,39,-395],[-900,85,-575]],'4-skybridge':[[-590,237,-990],[-150,210,-1070]],'5-drop':[[870,205,-790],[850,-8,-180]],'6-drydock':[[850,-2,-308],[850,-4,-50]],'7-foundry':[[1080,44,230],[1080,43,490]],'8-pipes':[[850,38,690],[1070,50,950]],'9-offshore':[[1050,45,1320],[440,26,1290]],'10-final':[[100,28,1110],[-900,35,1080]]};
 function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);fixtureHaloMat.uniforms.uViewportHeight.value=renderer.domElement.height;camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
 function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
