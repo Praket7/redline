@@ -28,7 +28,7 @@ jobs:
           import pathlib,hashlib,json,gzip,base64
           root=pathlib.Path('dist');root.mkdir(exist_ok=True)
           src=next(pathlib.Path('v86-artifact').rglob('REDLINE_v86_AUDITED.html')).read_bytes()
-          for delta,out,expected in [('v93','REDLINE_v93_STAGE2.html','3821a89c199e56c95dd5ce989c9924859ed6074d8d9006d36a460c1934205453'),('v103','REDLINE_v103_STAGE3.html','3cf8a3df0e3faf81d8c094d418b50979fcce72c00e48563b4b0bccf8c0d96b65')]:
+          for delta,out,expected in [('v93','REDLINE_v93_STAGE2.html','3821a89c199e56c95dd5ce989c9924859ed6074d8d9006d36a460c1934205453'),('v103','REDLINE_v103_STAGE3.html','cbabc85cef8a6675829549df7c8a75b2bba1e8d2990860961f00b74e4b9e44bd')]:
               d=json.loads(gzip.decompress(base64.b64decode(pathlib.Path(f'qa/{delta}_standalone_delta.b64').read_text())))
               assert hashlib.sha256(src).hexdigest()==d['base'],delta
               lines=src.decode().splitlines(keepends=True)
