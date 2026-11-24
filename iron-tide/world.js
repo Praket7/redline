@@ -119,7 +119,20 @@ define('ship-hull',()=>{
 define('bollard',()=>{cylinder(m.dark,0,.55,0,1.2,1.1);cylinder(m.steel,0,1.3,0,.65,1.5);cylinder(m.dark,0,2.1,0,1,.32)});
 define('caisson',()=>{box(m.concrete,0,5,0,18,12,17);box(m.dark,0,11.2,0,20,1.4,19);for(const x of [-5,5])beam(m.steel,[x,11.8,-5],[x,14,-5],.5)});
 define('light-tower',()=>{beam(m.dark,[0,0,0],[0,28,0],.65,.65,true);box(m.steel,0,28,0,8,.7,1.2);for(let x=-3;x<=3;x+=2)box(m.light,x,27.7,0,1.2,.7,1)});
-define('propeller',()=>{beam(m.steel,[-4,9,0],[4,9,0],2,2,true);for(let i=0;i<5;i++){const a=i*Math.PI*2/5;const qq=new T.Quaternion().setFromAxisAngle(V(1,0,0),a);part(sphereGeo,m.orange,0,9+Math.cos(a)*5,Math.sin(a)*5,1,5,1.9,qq)}box(m.dark,0,1,0,11,2,14)});
+define('propeller',()=>{
+ const bronze=new T.MeshStandardMaterial({color:0x97704a,metalness:.76,roughness:.43});
+ const shaft=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);
+ part(cylGeo,m.steel,0,9,0,1.3,7,1.3,shaft);part(sphereGeo,bronze,2.3,9,0,1.8,1.7,1.7);
+ const p=[],uv=[],idx=[],R=14,C=12;
+ for(let j=0;j<=R;j++){const t=j/R,r=1.35+6.1*t,chord=(.6+2.6*Math.sin(Math.PI*t))*(1-.30*t),skew=.2+t*t*.75,pitch=.92-.52*t;
+  for(let i=0;i<=C;i++){const angle=2*Math.PI*i/C,w=Math.cos(angle)*chord*.5,thickness=Math.sin(angle)*(.10+.16*Math.sin(Math.PI*t))*(1-.7*t);
+   p.push(w*Math.sin(pitch)+thickness*Math.cos(pitch),r,skew+w*Math.cos(pitch)-thickness*Math.sin(pitch));uv.push(i/C,t)}
+ }
+ for(let j=0;j<R;j++)for(let i=0;i<C;i++){const a=j*(C+1)+i,b=a+C+1;idx.push(a,b,a+1,b,b+1,a+1)}
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();bronze.side=T.DoubleSide;
+ for(let i=0;i<5;i++)part(g,bronze,0,9,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),i*Math.PI*2/5));
+ box(m.dark,0,.75,0,8,1.5,14);for(const z of [-4,4]){box(m.steel,0,1.9,z,7,1,2.8);beam(m.steel,[0,2,z],[0,6,z*.45],.7)}
+});
 define('straddle-carrier',()=>{for(const x of [-3.8,3.8])for(const z of [-4.5,4.5]){box(m.orange,x,6,z,1.15,12,1.1);box(m.dark,x,1.5,z,2.8,2.7,2.7);for(const off of [-.75,.75])part(cylGeo,m.rubber,x+off,1.25,z,1.25,.62,1.25,new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2))}for(const z of [-4.5,4.5]){box(m.orange,0,12,z,9.5,1.3,1.5);beam(m.dark,[-3.8,9,z],[0,12,z],.55);beam(m.dark,[3.8,9,z],[0,12,z],.55)}for(const x of [-3.8,3.8])box(m.orange,x,12,0,1,1,10);box(m.glass,4.2,10,3,2.5,2.8,2.4);box(m.dark,0,9,0,4,1,6);});
 define('service-gantry',()=>{for(const x of [-24,24]){for(const z of [-4,4])box(m.steel,x,13,z,1.2,26,1.2);beam(m.steel,[x,2,-4],[x,24,4],.55);box(m.concrete,x,1,0,5,2,12)}for(const z of [-4,4]){box(m.orange,0,27,z,50,2,1.5);for(let x=-24;x<24;x+=6)beam(m.steel,[x,25,z],[x+6,29,z],.4)}box(m.steel,0,29,0,50,.6,9);rail(0,30,4.5,50);rail(0,30,-4.5,50);box(m.dark,10,26,0,5,2,6);});
 define('lighthouse',()=>{cylinder(m.concrete,0,2,0,9,4);for(let i=0;i<6;i++)cylinder(i%2?m.white:m.rust,0,4+i*5+2.5,0,4.5-i*.28,5.05);cylinder(m.steel,0,34,0,4.5,1);cylinder(m.glass,0,37,0,2.8,5);cylinder(m.rust,0,40,0,3.6,1.5);for(let i=0;i<8;i++){const a=i*Math.PI/4;beam(m.dark,[Math.cos(a)*3,34,Math.sin(a)*3],[Math.cos(a)*3,40,Math.sin(a)*3],.15)}box(m.light,0,37,0,2,1,2);});
@@ -320,7 +333,7 @@ define('merchant-vessel',()=>{
 });
 place('merchant-vessel',480,0,-550,Math.PI/2);
 place('merchant-vessel',390,0,-1030,Math.PI/2,.72);
-place('heavy-gantry-detail',850,5,50);
+place('heavy-gantry-detail',850,5,50);for(const x of [788,912]){box(m.concrete,x,5.22,50,9,.42,290);for(const off of [-3.8,3.8])box(m.steel,x+off,5.56,50,.22,.32,290)}
  // Large prefabricated hull sections are intentionally outside the high-altitude
  // crane route; their cross-sections communicate genuine shipyard scale.
  define('hull-section-module',()=>{
@@ -396,7 +409,63 @@ for(const x of [767,933]){for(let z=-730;z<-375;z+=28){beam(m.steel,[x,-.6,z],[x
    for(let h=0;h<7+(k%3);h++){if(!clearFootprint(x,z,14,14,5+(h+1)*2.94))break;place('container-'+['rust','blue','green','white'][(h+k+i)%4],x,5+h*2.94,z,Math.PI/2)}
   }
  }
- // Quay coping, mooring ropes, tidal staining, drain channels and riprap.
+ // Working terminal equipment: rubber-tyred yard cranes and ship-to-shore cranes
+// based on real machinery arrangements; not simply freestanding decorative frames.
+define('rtg-crane',()=>{
+ const span=23.5,H=23;
+ for(const x of [-span/2,span/2])for(const z of [-5,5]){
+  box(m.orange,x,11.8,z,1.3,22.3,1.45);box(m.dark,x,2.25,z,3,2.1,3.2);
+  for(const dx of [-1.05,1.05]){const q=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);part(cylGeo,m.rubber,x+dx,.94,z,1.0,.64,1.0,q);part(cylGeo,m.steel,x+dx+(dx>0?.33:-.33),.94,z,.44,.12,.44,q)}
+  box(m.orange,x,4,z,2.5,2.0,3.0);beam(m.steel,[x,4,z],[x,10,z*.7],.36);
+ }
+ for(const x of [-span/2,span/2]){box(m.orange,x,22,0,1.6,2.1,12);box(m.dark,x,4,0,2.6,1.4,9);rail(x,24,0,12,'z')}
+ for(const z of [-4,4]){box(m.orange,0,H,z,26,2.2,1.55);box(m.steel,0,H+1.25,z,26,.25,1.2);rail(0,H+2.1,z+.7,25)}
+ box(m.orange,0,24.5,0,5.2,2.1,10);box(m.glass,-3.2,21,4.8,2.8,2.7,2.6);
+ box(m.dark,0,25.9,0,4,.75,6);for(const x of [-2.0,2.0])for(const z of [-3,3])for(const sign of [-1,1])beam(m.dark,[x,23,z+sign*.18],[x,17,z+sign*.18],.055,.055,true);
+ box(m.yellow,0,16.9,0,2.65,.65,7);for(const x of [-1.2,1.2])for(const z of [-3.4,3.4])box(m.dark,x,16.4,z,.38,.4,.38);
+ box(m.dark,span/2+1,5,0,2.1,3,5);box(m.light,-span/2,20,0,1.3,.4,.6);
+});
+define('quay-container-crane',()=>{
+ // STS: waterside/landside portals, outreach boom, machinery house, trolley and spreader.
+ for(const x of [-10,10])for(const z of [-12,12]){
+  box(m.dark,x,1.4,z,4.7,2.8,5.0);
+  for(const dz of [-1.6,0,1.6]){const q=new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2);part(cylGeo,m.steel,x,.85,z+dz,1,.6,1,q)}
+  beam(m.orange,[x,3,z],[x*.85,52,z*.8],2.1,2.5);
+  box(m.steel,x,4,z,3.9,.5,4.2);
+ }
+ for(const x of [-9,9]){
+  box(m.orange,x,49,0,1.9,3,29);beam(m.steel,[x,18,-11],[x,40,11],.65);
+  beam(m.orange,[x,51,-10],[x*.68,78,-4],1.6);
+  for(const z of [-25,0,25])box(m.steel,x,50,z,1.4,1.6,1);
+ }
+ for(const x of [-2.6,2.6]){
+  box(m.orange,x,52,20,2.4,3.5,96);box(m.steel,x,54,20,1.5,.25,96);box(m.dark,x,50,20,1.7,.2,96);
+  for(let z=-25;z<67;z+=7)box(m.steel,x,52,z,.23,3.5,1.8);
+  beam(m.dark,[x,78,-4],[x,54,66],.11,.11,true);beam(m.dark,[x,78,-4],[x,54,-27],.11,.11,true);
+ }
+ beam(m.orange,[-6,78,-4],[6,78,-4],1.5);box(m.dark,0,56,-18,9,5,16);box(m.blue,0,58.7,-18,9.5,.45,16.5);
+ box(m.orange,0,49,42,7.5,3.6,8);box(m.glass,4.2,48,42,2.8,3.2,4);
+ for(const x of [-1.3,1.3])for(const z of [39,45])beam(m.dark,[x,48,z],[x,27,z],.08,.08,true);
+ box(m.yellow,0,26.5,42,3.2,1.0,12);for(const x of [-1.5,1.5])for(const z of [36,48])box(m.dark,x,25.8,z,.35,.55,.35);
+ box(m.steel,7,50,16,1.8,.42,85);rail(7.9,51,16,85,'z');for(const z of [-12,12,45])box(m.light,0,48,z,1.5,.45,1.1);
+});
+function openGround(x,z,w,d){return !containerSlots.some(q=>Math.abs(x-q.x)<w/2+q.hx+1&&Math.abs(z-q.z)<d/2+q.hz+1)}
+let rtgCount=0;
+for(const z of [580,680,780,880,980])for(const x of [300,405,520,650,770,900,1045]){
+ if(rtgCount>=9)break;
+ if(clearFootprint(x,z,29,16,33)&&openGround(x-11.75,z,4,14)&&openGround(x+11.75,z,4,14)){place('rtg-crane',x,5.18,z);rtgCount++}
+}
+// Rail foundations and wharf cranes above the southern berth. All lie seaward
+// of the launch route; the cantilever extends over the vessel loading area.
+for(const x of [-710,-230,270,770]){
+ if(clearFootprint(x,1174,24,29,85)){place('quay-container-crane',x,5.16,1174);for(const z of [1162,1186])box(m.steel,x,5.25,z,85,.17,.28)}
+}
+// Tidal wall equipment: rubber fenders are supported on steel backing plates.
+define('quay-fender',()=>{box(m.steel,0,0,0,2.7,3,.24);box(m.rubber,0,0,.52,2.3,2.7,.82);for(const x of [-.95,.95])for(const y of [-1.12,1.12])box(m.steel,x,y,.98,.18,.18,.12)});
+for(let x=-1160;x<1160;x+=21)place('quay-fender',x,2.6,1200.14);
+for(let z=-1150;z<-830;z+=21)place('quay-fender',330.15,2.6,z,Math.PI/2);
+for(let z=-750;z<-360;z+=21)place('quay-fender',330.15,2.6,z,Math.PI/2);
+// Quay coping, mooring ropes, tidal staining, drain channels and riprap.
 const stain=new T.MeshStandardMaterial({color:0x353b35,roughness:.95,metalness:0}),foam=new T.MeshBasicMaterial({color:0xc3d5d8,transparent:true,opacity:.22,depthWrite:false});
 for(let x=-1160;x<=1160;x+=25){box(stain,x,1.2,1200.05,24.8,1.5,.16);box(rawSteel,x,5.25,1195,24.5,.14,.25);if(x%100===-60)place('bollard',x,5.15,1194);place('breakwater-armour',x,0,-1342);box(foam,x,-.12,-1354,11,.04,1.1)}
 for(const x of [-1178,1178])for(let z=125;z<1200;z+=25){box(stain,x,1.5,z,.15,1.8,24.8);box(rawSteel,x,5.25,z,.25,.12,24.5)}
@@ -448,5 +517,5 @@ addEventListener('resize',()=>{resize();assetCamera.aspect=innerWidth/innerHeigh
 for(const id of Object.keys(presets)){const b=document.createElement('button');b.dataset.view=id;b.textContent=id; b.onclick=()=>setView(id);document.getElementById('views').append(b)}
 document.getElementById('tour').onclick=()=>{tour=!tour;if(tour){dist=0;sampleCourse(0)}};document.getElementById('route').onclick=()=>{guide.visible=!guide.visible;render()};document.getElementById('capture').onclick=()=>{render();const a=document.createElement('a');a.download='iron-tide-'+mode+'.png';a.href=renderer.domElement.toDataURL('image/png');a.click()};
 renderer.shadowMap.needsUpdate=true;resize();setView('overview');requestAnimationFrame(tick);
-window.IRON_TIDE={assetView,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
