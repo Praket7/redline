@@ -51,6 +51,30 @@ coat(m.orange,0xc96a2c,.63);coat(m.blue,0x3f6170,.45);coat(m.green,0x586d58,.39)
  coat(m.steel,0x777f80,.19);m.steel.metalness=.42;m.steel.roughness=.86;m.steel.normalScale.set(.18,.18);
  m.glass.color.setHex(0x182a35);m.glass.metalness=.0;m.glass.roughness=.33;m.glass.envMapIntensity=.42;
  m.wire=new T.MeshStandardMaterial({color:0x535960,metalness:.72,roughness:.43,envMapIntensity:.85});
+
+// World-metre corrosion and protective-coating roughness: the generator keeps
+// photographed tileable PBR inputs, while broad salt spray, rust runs and weld
+// heat discoloration are determined by actual world orientation/height.
+// No textures are reinterpreted as physically metallic when painted.
+function weatheredIndustrialPBR(mat,amount,key){
+ const previous=mat.onBeforeCompile;
+ mat.onBeforeCompile=shader=>{
+  if(previous)previous(shader);
+  shader.uniforms.uIndustrialWear={value:amount};
+  shader.vertexShader=shader.vertexShader
+   .replace('#include <common>','#include <common>\nvarying vec3 vIndustrialWorld;')
+   .replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 industrialP=vec4(transformed,1.);\n#ifdef USE_INSTANCING\nindustrialP=instanceMatrix*industrialP;\n#endif\nvIndustrialWorld=(modelMatrix*industrialP).xyz;');
+  shader.fragmentShader=shader.fragmentShader
+   .replace('#include <common>','#include <common>\nvarying vec3 vIndustrialWorld;\nuniform float uIndustrialWear;\nfloat iHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}\nfloat iNoise(vec2 p){vec2 k=floor(p),q=fract(p);q=q*q*(3.-2.*q);return mix(mix(iHash(k),iHash(k+vec2(1.,0.)),q.x),mix(iHash(k+vec2(0.,1.)),iHash(k+vec2(1.,1.)),q.x),q.y);}')
+   .replace('#include <color_fragment>','#include <color_fragment>\nvec3 iN=normalize(cross(dFdx(vIndustrialWorld),dFdy(vIndustrialWorld)));float iVertical=1.-abs(iN.y);float iCoast=iNoise(vIndustrialWorld.xz*.037)*.65+iNoise(vIndustrialWorld.xz*.19)*.35;float iRunoff=smoothstep(.66,.88,iNoise(vIndustrialWorld.xz*.23+.13))*iVertical*(1.-smoothstep(2.,43.,vIndustrialWorld.y));float iCorrosion=clamp((smoothstep(.59,.88,iCoast)*.65+iRunoff*.85)*uIndustrialWear,0.,.84);float iSoot=smoothstep(.70,.91,iNoise(vIndustrialWorld.xz*.11+vIndustrialWorld.yy*.028))*iVertical*uIndustrialWear*.20;diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.26,.085,.042),iCorrosion*.52);diffuseColor.rgb*=1.-iSoot;')
+   .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.95,iCorrosion*.44);');
+ };
+ mat.customProgramCacheKey=()=> 'iron3-weather-'+key;
+}
+for(const [mat,weight,key] of [[m.orange,.45,'crane'],[m.blue,.35,'blue'],[m.green,.35,'green'],[m.white,.22,'white'],[m.dark,.33,'coated-steel'],[m.door,.23,'shutters'],[m.roof,.16,'roof']]){
+ weatheredIndustrialPBR(mat,weight,key);
+}
+
 // World ground maps tile at approximately industrial pavement scale instead of stretching.
 for(const mat of [m.road,m.concrete]){mat.map.repeat.set(mat===m.road?12:1,mat===m.road?12:1);mat.normalMap.repeat.copy(mat.map.repeat);mat.roughnessMap.repeat.copy(mat.map.repeat);mat.normalScale.set(.2,.2)}
 const asphalt=new T.MeshStandardMaterial({color:0x393b3d,roughness:.86});const apron=new T.MeshStandardMaterial({color:0x464744,roughness:.88});const tar=new T.MeshStandardMaterial({color:0x282b2b,roughness:.9});
@@ -714,6 +738,41 @@ function updatePortReflection(cam){
  const contactCtx=contactCanvas.getContext('2d',{alpha:false});contactCtx.fillStyle='#fff';contactCtx.fillRect(0,0,2048,2048);
  const contactMap=new T.CanvasTexture(contactCanvas);contactMap.minFilter=T.LinearFilter;contactMap.magFilter=T.LinearFilter;contactMap.generateMipmaps=false;
  const contactUniform={value:contactMap};
+ // A deterministic world-scale pavement wear atlas, separate from AO and
+ // practical-light irradiance. Large dark freight routes, water pooling,
+ // patch repairs and oily forklift turning circles do not repeat every 30 m.
+ const freightCanvas=document.createElement('canvas');freightCanvas.width=freightCanvas.height=1536;
+ const freightCtx=freightCanvas.getContext('2d',{alpha:false});
+ freightCtx.fillStyle='#bababa';freightCtx.fillRect(0,0,1536,1536);
+ let freightSeed=784199;const freightRnd=()=>{freightSeed=(Math.imul(freightSeed,1664525)+1013904223)>>>0;return freightSeed/4294967296};
+ const fx=x=>(x+1500)*1536/3000,fz=z=>(z+1500)*1536/3000;
+ let freightStamps=0;
+ for(const [a,b,c,d] of layout.land){
+  const area=(b-a)*(d-c),count=Math.max(3,Math.round(area/4500));
+  for(let k=0;k<count;k++){
+   const x=a+(b-a)*freightRnd(),z=c+(d-c)*freightRnd(),r=2+freightRnd()*16,xx=fx(x),zz=fz(z),rr=r*1536/3000;
+   const g=freightCtx.createRadialGradient(xx,zz,0,xx,zz,rr);
+   const dark=freightRnd()>.18;
+   g.addColorStop(0,dark?'rgba(19,23,25,.35)':'rgba(235,230,215,.25)');
+   g.addColorStop(.62,dark?'rgba(23,28,31,.13)':'rgba(233,229,216,.07)');
+   g.addColorStop(1,'rgba(23,24,27,0)');
+   freightCtx.fillStyle=g;freightCtx.fillRect(xx-rr,zz-rr,2*rr,2*rr);freightStamps++;
+  }
+  if(b-a>110&&d-c>110){
+   const x=(a+b)/2,mainX=fx(x),z0=fz(c+14),z1=fz(d-14);
+   for(const off of [-1.9,-.4,.4,1.9]){
+    freightCtx.beginPath();freightCtx.moveTo(mainX+off,z0);freightCtx.lineTo(mainX+off,z1);
+    freightCtx.strokeStyle='rgba(14,18,18,.09)';freightCtx.lineWidth=.7;freightCtx.stroke();
+   }
+   for(let k=0;k<7;k++){
+    const z=c+(d-c)*freightRnd(),cx=fx(a+(b-a)*freightRnd()),cy=fz(z),rr=(2+freightRnd()*4)*1536/3000;
+    freightCtx.strokeStyle='rgba(19,22,23,.26)';freightCtx.lineWidth=.55;
+    freightCtx.beginPath();freightCtx.arc(cx,cy,rr,0,Math.PI*2);freightCtx.stroke();
+   }
+  }
+ }
+ const freightMap=new T.CanvasTexture(freightCanvas);freightMap.minFilter=T.LinearFilter;freightMap.magFilter=T.LinearFilter;freightMap.generateMipmaps=false;
+ const freightUniform={value:freightMap};
  // Static irradiance approximation for the existing practical fixtures.
  // Shared atlas is world-space and costs one texture sample, not more lights.
  const yardLightCanvas=document.createElement('canvas');yardLightCanvas.width=yardLightCanvas.height=2048;
@@ -724,9 +783,9 @@ function updatePortReflection(cam){
 // no longer share the same apparent UV scale. Preserve the original texture for GLB.
 for(const mat of [m.road,asphalt,apron]){
  mat.onBeforeCompile=shader=>{
-  shader.uniforms.uContact=contactUniform;shader.uniforms.uYardLight=yardLightUniform;shader.uniforms.uYardLightEnabled=yardLightEnabled;
+  shader.uniforms.uContact=contactUniform;shader.uniforms.uYardLight=yardLightUniform;shader.uniforms.uYardLightEnabled=yardLightEnabled;shader.uniforms.uFreight=freightUniform;
   shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 pavementP=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n pavementP=instanceMatrix*pavementP;\n#endif\n vPavement=(modelMatrix*pavementP).xyz;');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nuniform sampler2D uContact;uniform sampler2D uYardLight;uniform float uYardLightEnabled;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.044)*.72+wetNoise(vPavement.xz*.20)*.28;float puddle=smoothstep(.47,.76,wet*.84+wetNoise(vPavement.xz*.57)*.16);roughnessFactor=mix(roughnessFactor,.16,puddle*.78);float repairs=wetNoise(vPavement.xz*.11)*.55+wetNoise(vPavement.xz*.71)*.45;diffuseColor.rgb*=mix(.83,1.16,repairs)*mix(1.0,.69,puddle);').replace('#include <color_fragment>','#include <color_fragment>\nvec2 contactUV=vPavement.xz/3000.+.5;float contact=texture2D(uContact,vec2(contactUV.x,1.-contactUV.y)).r;diffuseColor.rgb*=mix(1.,contact,.78);').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\nfloat yardIrr=texture2D(uYardLight,vec2(contactUV.x,1.-contactUV.y)).r;float surfaceFacing=smoothstep(.78,.98,abs(normalize(cross(dFdx(vPavement),dFdy(vPavement))).y));float level=1.-smoothstep(.5,1.5,abs(vPavement.y-5.22));totalEmissiveRadiance+=diffuseColor.rgb*vec3(3.4,1.70,.72)*yardIrr*surfaceFacing*level*uYardLightEnabled;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nuniform sampler2D uContact;uniform sampler2D uYardLight;uniform sampler2D uFreight;uniform float uYardLightEnabled;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.044)*.72+wetNoise(vPavement.xz*.20)*.28;float puddle=smoothstep(.47,.76,wet*.84+wetNoise(vPavement.xz*.57)*.16);roughnessFactor=mix(roughnessFactor,.16,puddle*.78);float repairs=wetNoise(vPavement.xz*.11)*.55+wetNoise(vPavement.xz*.71)*.45;diffuseColor.rgb*=mix(.83,1.16,repairs)*mix(1.0,.69,puddle);').replace('#include <color_fragment>','#include <color_fragment>\nvec2 contactUV=vPavement.xz/3000.+.5;float contact=texture2D(uContact,vec2(contactUV.x,1.-contactUV.y)).r;float freight=texture2D(uFreight,vec2(contactUV.x,1.-contactUV.y)).r;diffuseColor.rgb*=mix(1.,contact,.78)*mix(.73,1.10,freight);').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\nfloat yardIrr=texture2D(uYardLight,vec2(contactUV.x,1.-contactUV.y)).r;float surfaceFacing=smoothstep(.78,.98,abs(normalize(cross(dFdx(vPavement),dFdy(vPavement))).y));float level=1.-smoothstep(.5,1.5,abs(vPavement.y-5.22));totalEmissiveRadiance+=diffuseColor.rgb*vec3(3.4,1.70,.72)*yardIrr*surfaceFacing*level*uYardLightEnabled;');
 
  if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
  };
@@ -2598,5 +2657,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,freightStamps,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
