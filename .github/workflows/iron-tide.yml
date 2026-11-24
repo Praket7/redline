@@ -4,6 +4,9 @@ on:
     branches: ['feature/iron-tide-camera-lab']
     paths: ['iron-tide/**', 'tests/iron_tide_capture.py', '.github/workflows/iron-tide.yml']
   workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
