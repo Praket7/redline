@@ -152,7 +152,7 @@ try:
             assert delta>.02, ("baked yard lights did not change framebuffer",delta)
         (OUT/"yard-light-audit.json").write_text(json.dumps({"mean_rgb_difference":delta}))
         page.evaluate("IRON_TIDE.bakedLights(true)")
-        for detail in ["gantryBase","hullServices","craneWorkshops","quaySurface","offshoreDetail","macro-hall","macro-lift","macro-plant","macro-barge"]:
+        for detail in ["gantryBase","hullServices","craneWorkshops","quaySurface","offshoreDetail","macro-hall","macro-lift","macro-plant","macro-barge","authored-crane","authored-pipes"]:
             page.evaluate("(id) => IRON_TIDE.detailView(id)",detail)
             capture(page,OUT/("detail-"+detail+".png"))
         page.evaluate("IRON_TIDE.setView('top')")
