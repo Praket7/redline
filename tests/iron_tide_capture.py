@@ -67,6 +67,8 @@ try:
             assert stats["newWorkCells"] > 0 and stats["newProcessTowers"] > 0, stats
             assert stats["fabricationJigs"] > 0 and stats["contactFootprints"] > stats["containerStacks"], stats
             assert stats["craneServiceSites"] > 0 and stats["winchSites"] > 0 and stats["hullWorkLights"] >= 30, stats
+            assert stats["bakedLightPools"] > 100 and stats["sharedRailBatches"] > 0, stats
+            assert stats["containerLODTiles"] < stats["containerChunks"], stats
             assert stats["photoMaterials"] == expected_photos, stats
             assert stats["skySource"] == expected_sky, stats
             assert 0 < stats["drawCalls"] < 400, stats
@@ -93,6 +95,19 @@ try:
             reflection_report[view]={"plane":expected,"mean_rgb_difference":mean,"passes":st["reflectionPasses"]}
         page.evaluate("IRON_TIDE.reflections(true)")
         (OUT / "reflection-audit.json").write_text(json.dumps(reflection_report,indent=2))
+        # Verify actual framebuffer contribution of the new baked yard lighting.
+        page.evaluate("IRON_TIDE.setView('1-launch'); IRON_TIDE.bakedLights(true)")
+        capture(page,OUT/"yard-light-on.png")
+        page.evaluate("IRON_TIDE.bakedLights(false)")
+        capture(page,OUT/"yard-light-off.png")
+        with Image.open(OUT/"yard-light-on.png") as a, Image.open(OUT/"yard-light-off.png") as b:
+            delta=sum(ImageStat.Stat(ImageChops.difference(a.convert("RGB"),b.convert("RGB"))).mean)/3
+            assert delta>.02, ("baked yard lights did not change framebuffer",delta)
+        (OUT/"yard-light-audit.json").write_text(json.dumps({"mean_rgb_difference":delta}))
+        page.evaluate("IRON_TIDE.bakedLights(true)")
+        for detail in ["gantryBase","hullServices","craneWorkshops"]:
+            page.evaluate("(id) => IRON_TIDE.detailView(id)",detail)
+            capture(page,OUT/("detail-"+detail+".png"))
         page.evaluate("IRON_TIDE.setView('top')")
         projected = page.evaluate("IRON_TIDE.projectGates()")
         # Overlay exact projected points on the rendered orthographic view.
