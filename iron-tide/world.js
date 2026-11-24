@@ -2507,12 +2507,77 @@ define('stage3-repair-barge',()=>{
  const dx=gb[0]-ga[0],dz=gb[2]-ga[2],dy=gb[1]-ga[1],run=Math.hypot(dx,dz),rot=new T.Quaternion().setFromAxisAngle(up,Math.atan2(-dz,dx));
  for(let i=0;i<=45;i++){const t=i/45,x=ga[0]+dx*t,y=ga[1]+dy*t,z=ga[2]+dz*t;part(boxGeo,m.steel,x,y,z,run/45+.06,.15,1.45,rot)}
  for(const side of [-1,1]){const ox=side*dz/run*.69,oz=-side*dx/run*.69;beam(m.steel,[ga[0]+ox,ga[1]-.2,ga[2]+oz],[gb[0]+ox,gb[1]-.2,gb[2]+oz],.24,.35);beam(m.yellow,[ga[0]+ox,ga[1]+1.1,ga[2]+oz],[gb[0]+ox,gb[1]+1.1,gb[2]+oz],.08);for(let i=0;i<=10;i++){const t=i/10,x=ga[0]+dx*t+ox,y=ga[1]+dy*t,z=ga[2]+dz*t+oz;beam(m.steel,[x,y,z],[x,y+1.1,z],.07)}}
+
+ // Shoreline remaster: replace the floating straight-edged visual silhouette
+ // with an irregular, structurally layered concrete/riprap berm. The canonical
+ // playable land polygons and drone corridor stay untouched. Edge detection
+ // excludes interior seams where rectangular reclamation slabs overlap.
+ const shorelineGeo={positions:[],colors:[],indices:[]};
+ const shorePalette=[[.22,.235,.232],[.31,.315,.289],[.37,.34,.30],[.26,.28,.29]];
+ const riprapStone=new T.IcosahedronGeometry(1,0);
+ const riprapFace=new T.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,side:T.DoubleSide});
+ let shorelineSegments=0,rockCount=0;
+ function shoreNoise(t,salt){return Math.sin(t*.147+salt*7.91)*.57+Math.sin(t*.83+salt*3.7)*.22+Math.sin(t*.031+salt)*.21}
+ function shorePoint(edge,along,offset,y){
+  const jitter=shoreNoise(along,edge.salt)*1.9;
+  return edge.axis==='x'
+   ? [edge.fixed+edge.sign*(offset+jitter*(offset/12)),y,along]
+   : [along,y,edge.fixed+edge.sign*(offset+jitter*(offset/12))];
+ }
+ for(const [a,b,c,d] of land){
+  const edges=[
+   {axis:'x',fixed:a,sign:-1,lo:c,hi:d,salt:1},
+   {axis:'x',fixed:b,sign:1,lo:c,hi:d,salt:2},
+   {axis:'z',fixed:c,sign:-1,lo:a,hi:b,salt:3},
+   {axis:'z',fixed:d,sign:1,lo:a,hi:b,salt:4}
+  ];
+  for(const edge of edges)for(let t=edge.lo+3;t<edge.hi-3;t+=10.0){
+   const end=Math.min(edge.hi-3,t+10.0),mid=(t+end)*.5;
+   const dry=edge.axis==='x'
+     ? edge.fixed>=dock.minX-20&&edge.fixed<=dock.maxX+20&&mid>=dock.minZ-30&&mid<=dock.maxZ+30
+     : mid>=dock.minX-30&&mid<=dock.maxX+30&&edge.fixed>=dock.minZ-20&&edge.fixed<=dock.maxZ+20;
+   const probe=shorePoint(edge,mid,4,1);
+   if(dry||onLand(probe[0],probe[2]))continue;
+   // Each segment is a 4-rail cross-section with shared vertices, not an
+   // ungrounded pile of repeated cubes. Irregular seaward outline meets water.
+   const idx0=shorelineGeo.positions.length/3,profile=[0,3.0,7.2,12.5];
+   for(const t0 of [t,end])for(let j=0;j<4;j++){
+    const h=[5.09,3.7,1.45,-.55][j]+(j===0?0:shoreNoise(t0*2+j,edge.salt)*.31);
+    shorelineGeo.positions.push(...shorePoint(edge,t0,profile[j],h));
+    const v=shorePalette[(Math.floor(t/10)+j+edge.salt)%shorePalette.length];
+    const m=.85+.19*shoreNoise(t0*1.3+j,edge.salt+5);
+    shorelineGeo.colors.push(v[0]*m,v[1]*m,v[2]*m);
+   }
+   for(let j=0;j<3;j++){
+    const v=idx0+j,w=idx0+j+4;
+    shorelineGeo.indices.push(v,w,v+1,v+1,w,w+1);
+   }
+   shorelineSegments++;
+   // Occasional angular armour stones sit directly on the berm, their lower
+   // vertices embedded in the mass so they do not visibly float at low water.
+   if(shorelineSegments%5===0){
+    const offset=8.1,pp=shorePoint(edge,mid,offset,1.5);
+    const rockR=1.6+Math.abs(shoreNoise(t,edge.salt))*2;
+    part(riprapStone,m.concrete,pp[0],pp[1],pp[2],rockR,rockR*.62,rockR*1.2,
+      new T.Quaternion().setFromAxisAngle(up,t*.14));
+    rockCount++;
+   }
+  }
+ }
+ if(shorelineGeo.indices.length){
+  const g=new T.BufferGeometry();
+  g.setAttribute('position',new T.Float32BufferAttribute(shorelineGeo.positions,3));
+  g.setAttribute('color',new T.Float32BufferAttribute(shorelineGeo.colors,3));
+  g.setIndex(shorelineGeo.indices);g.computeVertexNormals();
+  part(g,riprapFace,0,0,0,1,1,1);
+ }
+
  // Riprap and irregular sea-facing headlands add a non-rectangular silhouette.
  for(const [cx,cz,axis] of [[-1265,440,'z'],[-1285,-425,'z'],[-420,-1240,'x'],[485,-1225,'x'],[1245,-565,'z'],[1265,720,'z'],[1000,1125,'x']])for(let i=-5;i<=5;i++){const x=cx+(axis==='x'?i*11:0),z=cz+(axis==='z'?i*11:0);if(!onLand(x,z)){const a=(i*2.399+cx*.01);part(sphereGeo,m.concrete,x,.5,z,5.5+Math.abs(Math.sin(a))*3,2.4+Math.abs(Math.cos(a))*2,5.0+Math.abs(Math.sin(a+1))*3,new T.Quaternion().setFromAxisAngle(up,a))}}
  // Inspect actual hero meshes using a center ray and four radial offsets.
  // This finite sample is not continuous collision certification.
  function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<segments.length;i++){const [a,b]=segments[i];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius],[radius*.707,radius*.707],[-radius*.707,radius*.707],[radius*.707,-radius*.707],[-radius*.707,-radius*.707]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>segments.map(([a,c],j)=>intersectsSegment(b,a,c,radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
- const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,macroEvidence,quayDetails};
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,macroEvidence,quayDetails,shorelineSegments,rockCount};
   // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.
