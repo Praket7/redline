@@ -159,14 +159,18 @@ define('ship-hull',()=>{
    if(x%16===2){box(m.light,x+4,20,z+side,1,.32,.45);box(seam,x+4,20.22,z+side,1.2,.22,.6)}
   }
   for(const x of [-124,-64,0,64,124]){
-   const z=side*(profile(x,16)-3.5);for(const dx of [-.48,.48])beam(flange,[x+dx,4,z],[x+dx,17.5,z],.10);
-   for(let y=4.5;y<=17;y+=.45)beam(flange,[x-.48,y,z],[x+.48,y,z],.065);
+   const z0=side*(profile(x,4)-1.5),z1=side*(profile(x,16)-3.5);
+   // Inclined ladder remains inside the curved shell and ends at its access deck.
+   for(const dx of [-.48,.48])beam(flange,[x+dx,3.75,z0],[x+dx,17.1,z1],.10);
+   for(let i=0;i<=30;i++){const t=i/30,y=4+t*12.6,z=T.MathUtils.lerp(z0,z1,t);beam(flange,[x-.48,y,z],[x+.48,y,z],.065)}
+   for(const t of [0,.33,.66,1]){const y=4+t*12.6,z=T.MathUtils.lerp(z0,z1,t),wall=side*(profile(x,y)-1);beam(seam,[x,y,z],[x,y,wall],.16)}
+
   }
  }
  // Partial transverse bulkheads with center openings and overhead girders.
  for(const x of [-90,-20,50,120]){for(const side of [-1,1]){const z=side*(profile(x,22)-4.2);box(inner,x,22,z,.50,15,6.8);box(flange,x,22,z-side*3.5,.8,15,.4);for(const y of [17,22,27])box(flange,x,y,z,.7,.3,7.1);beam(primer,[x,27,z-side*3],[x,31,z-side*6],.65)}box(flange,x,32,0,1.05,.85,profile(x,32)*2-2);box(primer,x,32.6,0,1.6,.35,profile(x,32)*2-2)}
  // Inner bottom and parallel girders sit above the keel supports.
- for(let x=-174;x<174;x+=6){const z=Math.min(profile(x,4),profile(x+6,4))-.5;box(m.dark,x+3,3.1,0,6,.55,2*z);for(const side of [-1,1])box(flange,x+3,3.55,side*z*.58,6,.32,.42)}
+ for(let x=-174;x<174;x+=6){const z=Math.min(profile(x,4),profile(x+6,4))-.5;box(m.dark,x+3,3.22,0,6,.62,2*z);for(const side of [-1,1])box(flange,x+3,3.55,side*z*.58,6,.32,.42)}
  for(let x=-165;x<=165;x+=10){const z=profile(x,4)-.8;box(flange,x,3.75,0,.42,.85,z*2)}
  // Temporary top-edge handrails and suspended side cables are attached to plating.
  for(const side of [-1,1])for(let x=-165;x<165;x+=5){const a=P(x,32,side,.5),b=P(x+5,32,side,.5);beam(m.yellow,[a[0],33,a[2]],[b[0],33,b[2]],.08);beam(flange,a,[a[0],33,a[2]],.10)}
@@ -227,6 +231,9 @@ box(m.concrete,850,-10,-550,400,4,400);for(const x of [655,1045]){box(m.concrete
 for(const x of [660,1040])for(let z=-725;z<=-375;z+=35){box(m.dark,x,0,z,.3,12,.18);box(m.steel,x,5.2,z,1.2,.3,3);for(let i=0;i<20;i++)beam(m.orange,[x+(x<850?1:-1),-7+i*.65,z-1],[x+(x<850?1:-1),-7+i*.65,z+1],.09)}
 for(const z of [-720,-380]){for(let k=0;k<20;k++)box(m.concrete,690, -7+k*.65,z+(z<-550?k:-k)*.75,5,.7,.85);}
 slab(780,-920,700,250);slab(-900,-1230,500,150);slab(-1200,-920,110,450);slab(1120,720,180,480);slab(650,1250,650,80);slab(-650,1250,520,80);place('ship-hull',750,5,-920);place('propeller',550,5,-975);
+// Keel and bilge blocks carry the open fabrication section above the apron.
+for(let x=590;x<=910;x+=12){place('drydock-keel-block',x,5,-920,0,1.10);if(x>615&&x<885)for(const dz of [-8,8])place('drydock-keel-block',x,5,-920+dz,0,1.10)}
+
 /* legacy gantry retained as inspectable template, replaced in world by heavy-gantry-detail */place('luffing-crane',1100,5,-250);place('luffing-crane',400,5,-990,Math.PI);place('luffing-crane',-1100,5,950,.6);
 for(const z of [550,650,760,900])for(let x=230;x<=1100;x+=42){if(Math.abs(x-600)<35||Math.abs(x-850)<38||Math.abs(x-1020)<26)continue;const h=2+Math.floor(rnd()*5),orientation=rnd()>.85?Math.PI/2:0;for(let j=0;j<h;j++)place('container-'+['rust','blue','green','white'][Math.floor(rnd()*4)],x,5+j*2.94,z,orientation)}
 for(const z of [-650,-450,-170,100]){place('warehouse',-880,5,z);place('warehouse',-540,5,z)}
