@@ -1592,6 +1592,34 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
    for(let z=-15;z<=-11;z+=.6)box(m.steel,x,25.4,z,8.1,.14,.1);
   }
   for(const x of [-17,17]){box(m.light,x,10,-27.7,1.8,.55,.75);beam(m.steel,[x,10.4,-27.5],[x,11,-26.9],.18)}
+  // Roof service deck sits on the structural roof, with braced handrails,
+  // gridded ventilator housings and pipes that enter the actual wall.
+  box(m.steel,0,24.62,-3,34,.24,5.8);
+  rail(0,25.79,-.35,33);rail(0,25.79,-5.68,33);
+  for(const x of [-15,15])for(const z of [-5.4,-.6]){
+   box(m.dark,x,24.7,z,.8,.22,.8);
+   beam(m.steel,[x,24.72,z],[x,25.7,z],.15);
+  }
+  for(const x of [-13,0,13]){
+   box(m.dark,x,25.05,-15,7,.65,7);
+   box(m.steel,x,26.4,-15,6.6,2.2,6.6);
+   for(let z=-17.7;z<=-12.3;z+=.58)box(m.dark,x,27.52,z,6.8,.11,.19);
+   for(const dx of [-3.4,3.4])beam(m.steel,[x+dx,25.1,-15],[x+dx,24.27,-15],.20);
+   box(m.door,x,26.4,-18.4,6.2,1.8,.14);
+  }
+  // External steam and condensate headers are held by wall brackets.
+  // They turn into the roof riser rather than ending in free space.
+  for(const x of [-19,-17]){
+   beam(m.steel,[x,5,-26.65],[x,22,-26.65],.22,.22,true);
+   for(const y of [8,14,20]){beam(m.dark,[x, y,-26.8],[x,y,-25.7],.33);box(m.steel,x,y,-25.6,.75,.28,.8)}
+   beam(m.steel,[x,22,-26.65],[x,24.6,-25.2],.20,.20,true);
+  }
+  for(const x of [-12,12]){
+   // Stack ladders have brackets at each landing and no floating rungs.
+   for(const dx of [-.45,.45])beam(m.steel,[x+dx,24.5,12.6],[x+dx,37.6,12.6],.12);
+   for(let y=24.9;y<37.6;y+=.48)beam(m.dark,[x-.45,y,12.6],[x+.45,y,12.6],.075);
+   for(const y of [27,32,37])beam(m.steel,[x,y,12.6],[x,y,12.0],.15);
+  }
  });
  define('stage3-outfitting-annex',()=>{
   // Stepped roof heights, side clerestory and a recessed transfer/loading bay.
@@ -1619,6 +1647,38 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
    box(m.dark,26,13.4,z,5.6,1.5,4);
    for(let dx=-2;dx<=2;dx+=.5)box(m.steel,26+dx,14.2,z,.15,.16,3.8);
   }
+  // A mechanically connected stepped-roof access system: top landing,
+  // inclined stringers, individual treads and rails terminate on both roofs.
+  const landing=[13,19.9,9],foot=[19.5,13,9];
+  box(m.steel,landing[0],19.9,landing[2],3.8,.22,3.2);
+  box(m.steel,foot[0],13.06,foot[2],3.8,.22,3.2);
+  for(const z of [7.75,10.25]){
+   beam(m.steel,[13,19.8,z],[19.5,13,z],.28,.28);
+   beam(m.yellow,[13,20.9,z],[19.5,14.1,z],.10,.10,true);
+   for(let k=0;k<=7;k++){
+    const t=k/7,x=13+6.5*t,y=19.9-6.9*t;
+    beam(m.steel,[x,y,z],[x,y+1.1,z],.10);
+   }
+  }
+  for(let k=0;k<=16;k++){
+   const t=k/16,x=13+6.5*t,y=19.9-6.9*t;
+   box(m.steel,x,y-.16,9,2.45,.16,.28);
+  }
+  // Rainwater downpipes are connected to two roof drains, not decorative poles.
+  for(const [x,z,y] of [[-28,16,19.6],[30,-15,12.7]]){
+   beam(m.dark,[x,y,z],[x,.95,z],.26,.26,true);
+   box(m.steel,x,y,z,.72,.24,.72);
+   for(const yy of [3,7,11])if(yy<y-.5)beam(m.steel,[x,yy,z],[x-(x>0?.6:-.6),yy,z],.13);
+  }
+  // Asymmetric wall-mounted ventilation and secondary lighting.
+  for(const z of [-12,0,12]){
+   const x=30.25;
+   box(m.dark,x,7.7,z,.6,4.2,4.8);
+   box(m.steel,x+.34,7.7,z,.18,3.9,4.5);
+   for(let zz=z-2;zz<=z+2;zz+=.44)box(m.dark,x+.45,7.7,zz,.10,3.7,.12);
+   box(m.light,25,10.7,z,.85,.22,.4);
+   beam(m.steel,[25,10.9,z],[25,12.6,z],.12);
+  }
  });
  define('stage3-electrical-substation',()=>{
   // Transformer bay: connected bushings, cable bus, cooling fins and plinth.
@@ -1638,6 +1698,25 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   for(const x of [-10,0,10])for(const z of [4,7])beam(m.steel,[x,.6,z],[x,7.8,z],.23);
   for(const z of [4,7])beam(m.steel,[-10,7.8,z],[10,7.8,z],.28);
   for(const x of [-8,0,8])box(m.dark,x,1.7,-6,2.4,2.2,1.0);
+  // Copper bus work remains insulated from the steel support frames.
+  // The cable runs are anchored on the transformer terminals and cabinets.
+  for(const x of [-8,-4,0,4,8]){
+   cylinder(m.white,x,7.8,5.4,.23,.72);
+   for(const y of [7.66,7.95,8.18])cylinder(m.dark,x,y,5.4,.34,.10);
+   beam(m.orange,[x,8.28,5.4],[x,8.28,6.8],.09,.09,true);
+  }
+  for(const z of [5.4,6.8])beam(m.orange,[-9.8,8.28,z],[9.8,8.28,z],.11,.11,true);
+  for(const x of [-8,0,8]){
+   box(m.steel,x,.58,-5.4,2.8,.28,1.1);
+   beam(m.dark,[x,.68,-5.4],[x,1.7,-6],.16,.16,true);
+   box(m.door,x,1.85,-6.55,1.85,1.65,.14);
+   for(const dx of [-.68,.68])box(m.steel,x+dx,1.9,-6.66,.10,1.85,.14);
+   box(m.yellow,x+.48,1.68,-6.67,.16,.2,.08);
+  }
+  for(const x of [-6,6])for(const z of [-3,3]){
+   box(m.steel,x,4.48,z,.95,.20,.95);
+   for(const dx of [-.28,.28])for(const dz of [-.28,.28])cylinder(m.steel,x+dx,4.6,z+dz,.07,.12);
+  }
  });
 
  // Production look-development kits. All dimensions are metres, all solid
