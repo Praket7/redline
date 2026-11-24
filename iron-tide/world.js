@@ -2360,6 +2360,7 @@ define('stage3-repair-barge',()=>{
  // buildings and prominent lift equipment take precedence over shed grids.
  // Every terrestrial candidate uses the same land, 3D route, and overlap tests.
  const macroSites={assemblyHalls:0,shipLifts:0,processPlants:0,repairBarges:0};
+ const macroEvidence={hall:[],lift:[],plant:[],barge:[]};
  for(const [x,z,a,scale] of [
   [-430,-1040,0,.95],[130,-1080,0,.98],[-560,-1035,Math.PI/2,.82],
   [520,-1040,0,.88],[-1090,-1010,0,.78],[-65,400,Math.PI/2,.84],
@@ -2367,7 +2368,7 @@ define('stage3-repair-barge',()=>{
  ]){
   if(macroSites.assemblyHalls>=3)break;
   if(safe('stage3-block-assembly-hall',x,z,a,scale,'block-assembly')){
-   macroSites.assemblyHalls++;districtPlan.push({x,z,kind:'stage3-block-assembly-hall'});
+   macroSites.assemblyHalls++;macroEvidence.hall.push({x,z,angle:a,scale});districtPlan.push({x,z,kind:'stage3-block-assembly-hall'});
    const lz=z+scale*45;if(onLand(x,lz))lamp(x,5.25,lz);
   }
  }
@@ -2378,7 +2379,7 @@ define('stage3-repair-barge',()=>{
  ]){
   if(macroSites.shipLifts>=2)break;
   if(safe('stage3-ship-lift-portal',x,z,a,scale,'heavy-lifting')){
-   macroSites.shipLifts++;fixturePositions.push([x,5.25+scale*102,z]);pool(x,5.3,z,23);
+   macroSites.shipLifts++;macroEvidence.lift.push({x,z,angle:a,scale});fixturePositions.push([x,5.25+scale*102,z]);pool(x,5.3,z,23);
   }
  }
  for(const [x,z,a,scale] of [
@@ -2388,7 +2389,7 @@ define('stage3-repair-barge',()=>{
  ]){
   if(macroSites.processPlants>=3)break;
   if(safe('stage3-process-plant',x,z,a,scale,'process-plant')){
-   macroSites.processPlants++;fixturePositions.push([x,5.25+scale*39,z]);pool(x,5.3,z,20);
+   macroSites.processPlants++;macroEvidence.plant.push({x,z,angle:a,scale});fixturePositions.push([x,5.25+scale*39,z]);pool(x,5.3,z,20);
   }
  }
  // Four full-size waterside service craft introduce genuinely varied foreground
@@ -2397,7 +2398,7 @@ define('stage3-repair-barge',()=>{
   [-410,-140,-Math.PI/5,1.0],[80,600,Math.PI/2,.88]]){
   const bb=footprint('stage3-repair-barge',x,0,z,a,scale);
   if(!onLand(x,z)&&routeClear(bb)&&!placedSites.some(p=>p.intersectsBox(bb))){
-   hero('stage3-repair-barge',x,0,z,a,scale);referenceShips++;macroSites.repairBarges++;
+   hero('stage3-repair-barge',x,0,z,a,scale);referenceShips++;macroSites.repairBarges++;macroEvidence.barge.push({x,z,angle:a,scale});
   }
  }
  // Stage 3: distinctive utility buildings and service yards placed before infill.
@@ -2511,7 +2512,7 @@ define('stage3-repair-barge',()=>{
  // Inspect actual hero meshes using a center ray and four radial offsets.
  // This finite sample is not continuous collision certification.
  function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<segments.length;i++){const [a,b]=segments[i];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius],[radius*.707,radius*.707],[-radius*.707,radius*.707],[radius*.707,-radius*.707],[-radius*.707,-radius*.707]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>segments.map(([a,c],j)=>intersectsSegment(b,a,c,radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
- const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,quayDetails};
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,macroEvidence,quayDetails};
   // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.
@@ -2657,5 +2658,14 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,freightStamps,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(id.startsWith('macro-')){
+  const type=id.slice(6),site=macroEvidence[type]&&macroEvidence[type][0];
+  if(!site)throw Error('no placed site for '+id);
+  const rise={hall:32,lift:62,plant:30,barge:20}[type];
+  const distance={hall:130,lift:160,plant:112,barge:115}[type];
+  const turn=site.angle||0,forward=Math.cos(turn),side=Math.sin(turn);
+  views[id]=[[site.x+distance*forward+distance*.22*side,rise+15,site.z-distance*side+distance*.22*forward],
+              [site.x,rise*.53+(type==='barge'?0:5),site.z]];
+ }
+ if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,freightStamps,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
