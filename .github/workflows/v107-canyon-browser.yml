@@ -1,0 +1,67 @@
+name: REDLINE v107 canyon clearance acceptance
+on:
+  push:
+    branches: [stage3/v107-canyon-clearance]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [visual, grand, raven]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45289606393
+          name: REDLINE-v86-exact-browser-audit
+          path: v86-artifact
+      - name: Reconstruct exact standalone releases
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,json,gzip,base64
+          root=pathlib.Path('dist');root.mkdir(exist_ok=True)
+          src=next(pathlib.Path('v86-artifact').rglob('REDLINE_v86_AUDITED.html')).read_bytes()
+          for delta,out,expected in [('v93','REDLINE_v93_STAGE2.html','3821a89c199e56c95dd5ce989c9924859ed6074d8d9006d36a460c1934205453'),('v103','REDLINE_v103_STAGE3.html','cbabc85cef8a6675829549df7c8a75b2bba1e8d2990860961f00b74e4b9e44bd'),('v104','REDLINE_v104_GRAND_CANYON.html','f0d5b9c6f0e24b19e8ce37bd15a9f1b8ede7aceb72acc7f9f942f6f67689cdb9'),('v105','REDLINE_v105_EROSION_REMASTER.html','a53cee876706231cb03a3ee03f549b40b1208a1b029c0f0538e11a32d9c4f35c'),('v106','REDLINE_v106_STRATIFIED_CANYON.html','a6887a39609ac1cd2d13763627aa2f85ae1a42d96c577dbf87ab450fe0dd000b'),('v107','REDLINE_v107_CANYON.html','3f08f4d072bcfeef734722a73f33e716fa160ccb466ece009b553c82ee6a9155')]:
+              d=json.loads(gzip.decompress(base64.b64decode(pathlib.Path(f'qa/{delta}_standalone_delta.b64').read_text())))
+              assert hashlib.sha256(src).hexdigest()==d['base'],delta
+              lines=src.decode().splitlines(keepends=True)
+              for i,j,rep in reversed(d['ops']):lines[i:j]=rep.splitlines(keepends=True)
+              src=''.join(lines).encode()
+              assert hashlib.sha256(src).hexdigest()==d['target']==expected,delta
+              (root/out).write_bytes(src)
+              print('Exact',delta,len(src),expected)
+          PY
+      - name: Run production terrain and exact mesh regression
+        if: matrix.case == 'visual'
+        run: node tests/v107_geometry.cjs dist/REDLINE_v104_GRAND_CANYON.html dist/REDLINE_v107_CANYON.html > qa/v107_geometry.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright Pillow
+      - run: python -m playwright install --with-deps chromium
+      - name: Actual before and after canyon rendering
+        if: matrix.case == 'visual'
+        run: python tests/v107_canyon_visual.py
+      - name: Actual race and replay regression
+        if: matrix.case != 'visual'
+        env:
+          COURSE: ${{ matrix.case }}
+        run: |
+          sed -e 's/REDLINE_v93_STAGE2.html/REDLINE_v107_CANYON.html/g' -e 's/v93-stage2-candidate/v107-canyon-clearance/g' tests/v93_stage2_browser.py > tests/v107_stage2_regression.py
+          python tests/v107_stage2_regression.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: REDLINE-v107-${{ matrix.case }}
+          path: |
+            qa/v93/
+            qa/v107/
+            qa/v107_geometry.json
+          retention-days: 14
