@@ -618,10 +618,23 @@ coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coast
 // Reserve the original gate centerline; reject whole footprint candidates, not just their centers.
 function clearFootprint(x,z,w,d,top){for(const dx of [-w/2,0,w/2])for(const dz of [-d/2,0,d/2])if(!clearScenery(x+dx,top,z+dz))return false;return true}
 const rawSteel=material('#8b9196',.68,.46,'steel'),primer=material('#b27250',.18,.75,'steel'),deck=material('#5a615d',.3,.66,'steel');
+// Large crane paint must not resemble uniformly pitted raw rust.
+// Preserve fine source variation but attenuate it to a plausible coating.
+const gantryPaint=m.orange.clone();
+{
+ const source=m.orange.map.image,c=document.createElement('canvas');c.width=c.height=512;
+ const ctx=c.getContext('2d');ctx.drawImage(source,0,0,512,512);
+ const image=ctx.getImageData(0,0,512,512),px=image.data;
+ for(let i=0;i<px.length;i+=4){const r=px[i],g=px[i+1],b=px[i+2],lum=(r*.2126+g*.7152+b*.0722-95);
+  px[i]=Math.max(0,Math.min(255,164+lum*.22));px[i+1]=Math.max(0,Math.min(255,76+lum*.18));px[i+2]=Math.max(0,Math.min(255,39+lum*.14))}
+ ctx.putImageData(image,0,0);
+ const tex=new T.CanvasTexture(c);tex.encoding=T.sRGBEncoding;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+ gantryPaint.map=tex;gantryPaint.roughness=1;gantryPaint.roughnessMap=weatherRoughness(256,256,9137,.71);gantryPaint.metalness=.08;gantryPaint.normalScale=new T.Vector2(.095,.095);gantryPaint.envMapIntensity=.74;
+}
 define('heavy-gantry-detail',()=>{
  // Paired portal legs with substantial box sections, base bogies and a real trolley walkway.
  for(const x of [-62,62]){for(const z of [-13,13]){
-  beam(m.orange,[x,3,z],[x*.85,106,z*.65],5.6,6.2);
+  beam(gantryPaint,[x,3,z],[x*.85,106,z*.65],5.6,6.2);
   // Rail-running bogie frame is elevated above the wheels. Axles run in X;
   // wheel treads align with the pair of longitudinal Z rails at +/-3.8 m.
   box(m.dark,x,3.22,z,12.5,.95,10.5);
@@ -640,20 +653,30 @@ define('heavy-gantry-detail',()=>{
   beam(m.steel,[x-5,4.65,z-4.5],[x-5,4.65,z+4.5],.10);
   for(let y=13;y<=100;y+=15){const px=x*(1-y/700);box(rawSteel,px,y,z*.8,7,.65,7);for(const off of [-2.4,2.4])box(m.dark,px+off,y+.45,z*.8,.35,.3,6)}
  }
- for(let y=8;y<100;y+=14){const px=x*(1-y/700),px2=x*(1-(y+14)/700);beam(m.orange,[px,y,-12],[px2,y+14,12],1.5);beam(rawSteel,[px,y,12],[px2,y+14,-12],.65);}
+ for(let y=8;y<100;y+=14){const px=x*(1-y/700),px2=x*(1-(y+14)/700);beam(gantryPaint,[px,y,-12],[px2,y+14,12],1.5);beam(rawSteel,[px,y,12],[px2,y+14,-12],.65);}
  for(const off of [-.35,.35])beam(m.steel,[x-4,4,off],[x*.85-4,106,off],.12,.12,true);
  for(let y=4;y<105;y+=.75)beam(m.steel,[x*(1-y/700)-4,y,-.35],[x*(1-y/700)-4,y,.35],.065,.065,true);
  }
  for(const z of [-9,9]){
-  box(m.orange,0,110,z,142,8,4.5);box(rawSteel,0,114.5,z,142,.7,5.8);box(m.dark,0,105.5,z,141,.55,4.8);
+  box(gantryPaint,0,110,z,142,8,4.5);box(rawSteel,0,114.5,z,142,.7,5.8);box(m.dark,0,105.5,z,141,.55,4.8);
   for(let x=-68;x<70;x+=7){beam(rawSteel,[x,106,z-2.3],[x+6,114,z-2.3],.45);box(m.dark,x,110,z+2.35,.25,7.2,.35)}
   box(deck,0,115.2,z,144,.45,3);rail(0,116.4,z+1.5,142);
  }
  for(let x=-64;x<=64;x+=8)box(m.steel,x,112,0,1.25,1.4,19);
- box(m.orange,8,118,0,17,5.8,21);box(m.dark,8,121.2,0,18,.6,22);
- box(m.dark,19,114,12,6,4.5,4);box(m.glass,19,114.35,14.05,5.45,2.9,.15);for(const x of [17,19,21])box(m.steel,x,114.35,14.16,.12,2.95,.12);for(const x of [15.95,22.05])box(m.glass,x,114.35,12,.12,2.9,3.55);box(m.orange,19,116.38,12,6.5,.45,4.6);box(m.steel,19,111.4,12,7,.4,5);rail(19,112.55,14.45,7);
+ box(gantryPaint,8,118,0,17,5.8,21);box(m.dark,8,121.2,0,18,.6,22);
+ box(m.dark,19,114,12,6,4.5,4);box(m.glass,19,114.35,14.05,5.45,2.9,.15);for(const x of [17,19,21])box(m.steel,x,114.35,14.16,.12,2.95,.12);for(const x of [15.95,22.05])box(m.glass,x,114.35,12,.12,2.9,3.55);box(gantryPaint,19,116.38,12,6.5,.45,4.6);box(m.steel,19,111.4,12,7,.4,5);rail(19,112.55,14.45,7);
  for(const x of [2,14])for(const z of [-3,3])beam(m.dark,[x,113,z],[x,64,z],.12,.12,true);
  box(m.yellow,8,63,0,15,2.8,7);box(m.dark,8,61.1,0,11,.6,4);
+ // Four reinforced lifting eyes, pin housings and clevises are attached to
+ // the spreader beam, not suspended independently of it.
+ for(const x of [2.3,13.7])for(const z of [-2.35,2.35]){
+  box(rawSteel,x,64.6,z,1.25,.48,1.15);for(const dx of [-.38,.38])box(m.steel,x+dx,65.1,z,.23,1.05,.78);
+  beam(m.wire,[x-.62,65.2,z],[x+.62,65.2,z],.17,.17,true);
+  box(m.dark,x,61.1,z,1.18,.42,1.1);for(const dx of [-.35,.35])box(rawSteel,x+dx,60.5,z,.22,1.1,.64);
+  beam(m.steel,[x-.5,60.25,z],[x+.5,60.25,z],.18,.18,true);
+ }
+ for(const x of [2.3,13.7]){box(m.dark,x,63,3.52,1.8,.78,.1);for(let dx=-.65;dx<=.65;dx+=.35)beam(m.yellow,[x+dx-.2,62.65,3.59],[x+dx+.2,63.35,3.59],.12)}
+
  // Cable sheaves, lifting shackles, trolley wheel housings and access platforms.
  for(const x of [1,15])for(const z of [-5.5,5.5]){part(cylGeo,m.dark,x,114,z,1.4,.6,1.4,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));box(rawSteel,x,116,z,3.6,2.2,1.1)}
  for(const x of [-53,53])for(const z of [-9,9]){box(rawSteel,x,103.6,z,8,.65,8);rail(x,104.7,z+3.5,8);beam(m.steel,[x-3,103.2,z],[x,98,z],.48);}
@@ -663,9 +686,9 @@ define('heavy-gantry-detail',()=>{
  // Upper trolley motors, drum shafts, cable reeving, access platforms and service hoist.
  for(const z of [-7,7]){box(m.steel,8,121.4,z,13,.6,3);beam(m.dark,[2,122.8,z],[14,122.8,z],1.1,1.1,true);for(const x of [2.6,13.4])beam(m.steel,[x-.24,122.8,z],[x+.24,122.8,z],1.35,1.35,true);for(const x of [0,16])box(m.dark,x,122.2,z,3.5,2.6,3.5)}
  for(const x of [3,13])for(const z of [-2.8,2.8]){beam(m.steel,[x,112,z],[x,64,z],.085,.085,true);beam(m.dark,[x+.5,112,z],[x+.5,64,z],.07,.07,true)}
- for(const x of [-55,55]){box(m.dark,x,111,0,6.5,4,12);box(m.orange,x,114,0,7,.5,13);rail(x,115,6.4,7)}
- box(m.orange,-45,118,0,7,3,5);beam(m.orange,[-45,120,0],[-32,129,0],.7);beam(m.dark,[-32,129,0],[-32,115,0],.065,.065,true);
- for(const x of [-61,61])for(const z of [-12,12]){box(m.steel,x,4.8,z,6,.65,4.6);box(m.orange,x,6.5,z,3.2,2.8,2.8);box(m.dark,x,6.5,z+1.45,2.5,1.6,.15)}
+ for(const x of [-55,55]){box(m.dark,x,111,0,6.5,4,12);box(gantryPaint,x,114,0,7,.5,13);rail(x,115,6.4,7)}
+ box(gantryPaint,-45,118,0,7,3,5);beam(gantryPaint,[-45,120,0],[-32,129,0],.7);beam(m.dark,[-32,129,0],[-32,115,0],.065,.065,true);
+ for(const x of [-61,61])for(const z of [-12,12]){box(m.steel,x,4.8,z,6,.65,4.6);box(gantryPaint,x,6.5,z,3.2,2.8,2.8);box(m.dark,x,6.5,z+1.45,2.5,1.6,.15)}
  // Switchback maintenance stairs on the outboard face of the eastern leg.
  // Landing supports follow the tapered columns; continuous stringers carry
  // the treads and terminate at the actual trolley service deck.
