@@ -357,6 +357,15 @@ define('ship-hull',()=>{
    beam(m.steel,[x,19.2,z0],P(x,19.2,side,.42),.14);
   }
  }
+ // Short shell plate welds and irregular fitted doubler plates. Avoid the
+ // central flight space; attach all geometry directly to the loft.
+ for(const side of [-1,1])for(let x=-148;x<148;x+=19){
+  const y=10+(Math.abs(x)%4)*3.2;
+  for(const dy of [0,.45])beam(flange,P(x-2.1,y+dy,side,.48),P(x+2.1,y+dy,side,.48),.065,.11);
+  for(const dx of [-2.1,2.1])beam(seam,P(x+dx,y,side,.48),P(x+dx,y+.45,side,.48),.075);
+  const y2=23.5+(Math.abs(x)%3)*.8;
+  beam(seam,P(x-3,y2,side,.42),P(x+3,y2,side,.42),.065);
+ }
  // Partial transverse bulkheads with center openings and overhead girders.
  for(const x of [-90,-20,50,120]){for(const side of [-1,1]){const z=side*(profile(x,22)-4.2);box(inner,x,22,z,.50,15,6.8);box(flange,x,22,z-side*3.5,.8,15,.4);for(const y of [17,22,27])box(flange,x,y,z,.7,.3,7.1);beam(primer,[x,27,z-side*3],[x,31,z-side*6],.65)}box(flange,x,32,0,1.05,.85,profile(x,32)*2-2);box(primer,x,32.6,0,1.6,.35,profile(x,32)*2-2)}
  // Inner bottom and parallel girders sit above the keel supports.
@@ -695,15 +704,16 @@ for(const z of [410,570,730])for(const x of [-920,-580]){
 const coastMat=new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide});
 function shoreline(x){return -2500-170*Math.sin(x*.0007)-90*Math.cos(x*.0025)-65*Math.sin(x*.009)}
 function coastalHeight(x,z){const t=T.MathUtils.clamp((shoreline(x)-z)/2200,0,1);const ridge=Math.sin(Math.PI*t)**1.35;
- const large=.48+.24*Math.sin(x*.0008)+.13*Math.sin(x*.0019+1);
- const detail=.58+.25*smoothNoise(x*.004,z*.004)+.12*smoothNoise(x*.013,z*.013);
- return -3+ridge*(70+large*460)*detail}
+ const large=.40+.29*Math.sin(x*.0008)+.19*Math.sin(x*.0019+1);
+ const ridged=1.-Math.abs(2.*smoothNoise(x*.0023,z*.0023)-1.);
+ const detail=.38+.27*ridged+.21*smoothNoise(x*.006,z*.006)+.09*smoothNoise(x*.017,z*.017);
+ return -3+ridge*(100+Math.max(.05,large)*890)*detail}
 const coastGeo=new T.BufferGeometry(),coastPos=[],coastColors=[],coastIndices=[],coastN=220,coastM=48;
 for(let iz=0;iz<=coastM;iz++)for(let ix=0;ix<=coastN;ix++){
  const x=-6600+ix*60,t=iz/coastM,z=shoreline(x)-t*2200,height=coastalHeight(x,z);
  coastPos.push(x,height,z);const detail=smoothNoise(x*.012,z*.012),grass=smoothNoise(x*.003,z*.003),shore=T.MathUtils.smoothstep(t,.005,.065);
- const c=new T.Color().setRGB(.044+.025*detail+.012*grass,.055+.034*grass,.055+.021*detail);
- c.lerp(new T.Color(0x71675a),1-shore);coastColors.push(c.r,c.g,c.b)
+ const rock=T.MathUtils.smoothstep(height,240,560),c=new T.Color().setRGB(.035+.025*detail+.012*grass,.049+.025*grass,.054+.021*detail);
+ c.lerp(new T.Color().setRGB(.12+.055*detail,.13+.045*detail,.15+.045*detail),rock*.7);c.lerp(new T.Color(0x665c53),1-shore);coastColors.push(c.r,c.g,c.b)
 }
 for(let iz=0;iz<coastM;iz++)for(let ix=0;ix<coastN;ix++){const a=iz*(coastN+1)+ix,b=a+1,c=a+coastN+1,d=c+1;coastIndices.push(a,b,c,b,d,c)}
 coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coastGeo.setAttribute('color',new T.Float32BufferAttribute(coastColors,3));coastGeo.setIndex(coastIndices);coastGeo.computeVertexNormals();part(coastGeo,coastMat,0,0,0,1,1,1);
@@ -721,6 +731,8 @@ const gantryPaint=m.orange.clone();
  for(let i=0;i<px.length;i+=4){const r=px[i],g=px[i+1],b=px[i+2],lum=(r*.2126+g*.7152+b*.0722-95);
   px[i]=Math.max(0,Math.min(255,164+lum*.22));px[i+1]=Math.max(0,Math.min(255,76+lum*.18));px[i+2]=Math.max(0,Math.min(255,39+lum*.14))}
  ctx.putImageData(image,0,0);
+ let wearSeed=19021;const wearRand=()=>{wearSeed=(Math.imul(wearSeed,1664525)+1013904223)>>>0;return wearSeed/4294967296};
+ for(let i=0;i<85;i++){const x=wearRand()*512,y=wearRand()*512,w=1+wearRand()*3,h=1+wearRand()*5;ctx.fillStyle='rgba(56,46,40,.68)';ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(198,137,91,.52)';ctx.fillRect(x+w,y,w*.4,h);const len=8+wearRand()*50,g=ctx.createLinearGradient(x,y+h,x,y+h+len);g.addColorStop(0,'rgba(84,35,21,.36)');g.addColorStop(1,'rgba(84,35,21,0)');ctx.fillStyle=g;ctx.fillRect(x,y+h,w*.66,len)}
  const tex=new T.CanvasTexture(c);tex.encoding=T.sRGBEncoding;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
  gantryPaint.map=tex;gantryPaint.roughness=1;gantryPaint.roughnessMap=weatherRoughness(256,256,9137,.71);gantryPaint.metalness=.08;gantryPaint.normalScale=new T.Vector2(.095,.095);gantryPaint.envMapIntensity=.74;
 }
@@ -1592,15 +1604,15 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  define('stage3-quay-workbay',()=>{
   box(m.concrete,0,-.065,0,21,.21,12);
   for(const x of [-9,9])for(const z of [-5,5]){
-   box(m.steel,x,3.45,z,.32,6.9,.32);box(m.dark,x,.13,z,.7,.26,.7);
+   const h=z>0?7.7:6.8;box(m.steel,x,h/2,z,.32,h,.32);box(m.dark,x,.13,z,.7,.26,.7);
    for(const dx of [-.23,.23])for(const dz of [-.23,.23])cylinder(m.steel,x+dx,.29,z+dz,.075,.07);
   }
-  for(const z of [-5,5]){beam(m.steel,[-9,6.8,z],[9,6.8,z],.38);beam(m.steel,[-9,4.8,z],[-6.5,6.8,z],.18);beam(m.steel,[9,4.8,z],[6.5,6.8,z],.18)}
+  for(const z of [-5,5]){const h=z>0?7.7:6.8;beam(m.steel,[-9,h,z],[9,h,z],.38);beam(m.steel,[-9,h-2,z],[-6.5,h,z],.18);beam(m.steel,[9,h-2,z],[6.5,h,z],.18)}
   for(const x of [-9,-3,3,9])beam(m.steel,[x,6.8,-5],[x,7.7,5],.30);
   part(boxGeo,roofMetal,0,7.35,0,19.1,.18,10.5,new T.Quaternion().setFromAxisAngle(V(1,0,0),-.0898));
   // Three solid cladding panels, leaving an open loading frontage.
   box(oxideCladding,-9,3.3,0,.22,6.2,9.7);
-  for(const x of [-6,0,6]){box(cladding,x,3.2,-5,.0+5.8,6.2,.22);box(m.steel,x-2.8,3.3,-5,.12,6.4,.27)}
+  for(const x of [-6,0,6]){box(cladding,x,3.2,-5,5.8,6.2,.22);box(m.steel,x-2.8,3.3,-5,.12,6.4,.27)}
   for(const x of [-5,3]){
    for(const dx of [-2.3,2.3])for(const dz of [-1.5,1.5])box(m.dark,x+dx,.65,dz,.24,1.3,.24);
    box(m.steel,x,1.4,0,5,.26,3.4);
@@ -1608,7 +1620,7 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   }
   box(m.blue,6,1.2,-3.3,3.4,2.4,1.9);box(m.dark,6,2.48,-3.3,3.6,.16,2.05);
   for(let x=4.6;x<7.5;x+=.24)box(m.steel,x,1.5,-2.28,.075,.85,.1);
-  for(const x of [-5,5]){box(m.dark,x,6.62,0,1.8,.3,.7);box(m.light,x,6.42,0,1.55,.12,.52);beam(m.steel,[x,6.8,0],[x,7.3,0],.14)}
+  for(const x of [-5,5]){box(m.dark,x,6.62,0,1.8,.3,.7);box(m.light,x,6.42,0,1.55,.12,.52);beam(m.steel,[x,6.77,0],[x,7.3,0],.14);beam(m.steel,[x,7.3,0],[x,7.7,5],.20)}
   for(const x of [-8,8]){box(m.yellow,x,.75,4.8,.17,1.5,.17);box(m.dark,x,1.22,4.8,.2,.22,.2)}
  });
  define('stage3-forklift',()=>{
@@ -1649,6 +1661,16 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  fixturePositions.length=0;pavedSlabs.length=0;districtPlan.length=0;
  yardLightCtx.fillStyle='#000';yardLightCtx.fillRect(0,0,2048,2048);bakedLightPools=0;
  part(coastGeo,coastMat,0,0,0,1,1,1);
+ // A more distant overlapping mountain ridge provides atmospheric depth,
+ // outside the playable envelope and beyond the real port coast.
+ const farCoast=coastGeo.clone();farCoast.scale(1.10,1.50,1.10);farCoast.translate(500,0,-1600);
+ const farColor=farCoast.attributes.color;for(let i=0;i<farColor.count;i++){const k=farColor.getX(i);farColor.setXYZ(i,.045+k*.24,.062+k*.20,.084+k*.18)}
+ part(farCoast,coastMat,0,0,0,1,1,1);
+ // Small distant shore facilities make the surrounding landscape inhabited.
+ for(let i=0;i<21;i++){const x=-3100+i*310,z=shoreline(x)-130-35*Math.sin(i*2.7),y=coastalHeight(x,z),w=52+24*Math.sin(i*1.3),h=16+10*Math.cos(i*.6);
+  box(horizonMat,x,y+h/2-2,z,w,h+4,38);box(horizonRoof,x,y+h+.4,z,w+1,1,39);
+  if(i%4===0){cylinder(horizonRoof,x+24,y+34,z,3,68);cylinder(horizonMat,x+24,y+67,z,3.6,1)}
+ }
  const referenceSolids=[],referenceHeroes=[],referenceCivil=[],referenceDistricts=new Set();let shoreMeters=0,referenceShips=0,referenceOffshore=0,referenceBridge=0;
  const land=layout.land,dock=layout.dryDock;
  function onLand(x,z){return land.some(([a,b,c,d])=>x>=a&&x<=b&&z>=c&&z<=d)}
@@ -1663,9 +1685,10 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  function civilBox(mat,x,y,z,w,h,d){box(mat,x,y,z,w,h,d);referenceCivil.push(new T.Box3(V(x-w/2,y-h/2,z-d/2),V(x+w/2,y+h/2,z+d/2)))}
  function safe(name,x,z,angle=0,scale=1,district='yard'){
   if(!templates[name])throw Error('missing reference asset '+name);
-  const b=footprint(name,x,5.25,z,angle,scale);
+  const y=name==='stage3-forklift'||name==='stage3-hose-skid'?5.08:5.25;
+  const b=footprint(name,x,y,z,angle,scale);
   if(!supported(b)||!routeClear(b)||placedSites.some(p=>p.intersectsBox(b))||containerSlots.some(q=>b.min.x<q.x+q.hx&&b.max.x>q.x-q.hx&&b.min.z<q.z+q.hz&&b.max.z>q.z-q.hz))return false;
-  place(name,x,5.25,z,angle,scale);referenceSolids.push(b);referenceDistricts.add(district);return true
+  place(name,x,y,z,angle,scale);referenceSolids.push(b);referenceDistricts.add(district);return true
  }
  // Separate working peninsulas and true, navigable central water basins.
  for(const [a,b,c,d] of land){
@@ -1916,12 +1939,32 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  // Quay furniture and cargo handling equipment adjacent to the launch vessel.
  for(let z=735;z<=1060;z+=25){const x=-1188;place('bollard',x,5.25,z);if(z%50===35)lamp(x+8,5.25,z);if(z%75===60)safe('terminal-tractor',x+30,z,Math.PI/2,.85,'launch')}
  for(let z=760;z<=1050;z+=35){box(m.steel,-1198,5.35,z,.45,.25,34);if(z%70===60)box(m.dark,-1199,2.1,z,1.0,3.2,4.5)}
+ // Continuous foreground quay edge protection, inset drainage grates and
+ // attached fenders. Skip drydock openings and keep clear of ground access.
+ let quayDetails=0;
+ for(const [x,a,b,sign] of [[-1197,710,1120,-1],[-1257,275,675,-1],[-647,-620,-270,1],[1013,-450,95,-1]]){
+  if(x===1013)continue;
+  for(let z=a;z<b;z+=12){
+   const z2=Math.min(b,z+10.6),mid=(z+z2)/2;
+   if(!onLand(x-sign*3,mid))continue;
+   rail(x-sign*.5,6.32,mid,z2-z,'z');
+   box(m.dark,x-sign*3.4,5.103,mid,.52,.038,z2-z);
+   for(let zz=z+.5;zz<z2;zz+=1.25)box(m.steel,x-sign*3.4,5.139,zz,.49,.035,.11);
+   if(quayDetails%3===0){box(m.steel,x,2.75,mid,.32,3.5,2.2);box(m.rubber,x+sign*.58,2.75,mid,.86,3.1,1.85)}
+   quayDetails++;
+  }
+ }
+ // Launch ship mooring ropes connect existing deck bitts to the quay.
+ for(const lx of [-95,90]){
+  const a=[-1252+5*1.25,13.8*1.25,870-lx*1.25],b=[-1195,7.0,870-lx*1.25+(lx<0?18:-18)],mid=[(a[0]+b[0])/2,Math.min(a[1],b[1])-2,(a[2]+b[2])/2];
+  if(onLand(b[0],b[2])){place('bollard',b[0],5.08,b[2]);beam(m.wire,a,mid,.10,.10,true);beam(m.wire,mid,b,.10,.10,true)}
+ }
  // Riprap and irregular sea-facing headlands add a non-rectangular silhouette.
  for(const [cx,cz,axis] of [[-1265,440,'z'],[-1285,-425,'z'],[-420,-1240,'x'],[485,-1225,'x'],[1245,-565,'z'],[1265,720,'z'],[1000,1125,'x']])for(let i=-5;i<=5;i++){const x=cx+(axis==='x'?i*11:0),z=cz+(axis==='z'?i*11:0);if(!onLand(x,z)){const a=(i*2.399+cx*.01);part(sphereGeo,m.concrete,x,.5,z,5.5+Math.abs(Math.sin(a))*3,2.4+Math.abs(Math.cos(a))*2,5.0+Math.abs(Math.sin(a+1))*3,new T.Quaternion().setFromAxisAngle(up,a))}}
  // Inspect actual hero meshes using a center ray and four radial offsets.
  // This finite sample is not continuous collision certification.
- function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<routePoints.length;i++){const a=routePoints[i],b=routePoints[(i+1)%routePoints.length];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>routePoints.map((a,j)=>intersectsSegment(b,a,routePoints[(j+1)%routePoints.length],radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
- const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites};
+ function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<segments.length;i++){const [a,b]=segments[i];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius],[radius*.707,radius*.707],[-radius*.707,radius*.707],[radius*.707,-radius*.707],[-radius*.707,-radius*.707]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>segments.map(([a,c],j)=>intersectsSegment(b,a,c,radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,quayDetails};
   // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.

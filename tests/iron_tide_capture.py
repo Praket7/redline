@@ -42,7 +42,7 @@ try:
         audit = page.evaluate("IRON_TIDE.assetAudit()")
         required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
         required.update({"reference-sky-bridge","reference-offshore-platform","plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank","steel-transfer-station","curved-panel-jig","block-transport-cradle","gantry-service-hall","winch-service-skid"})
-        required.update({"stage3-boiler-house","stage3-outfitting-annex","stage3-electrical-substation","pipe-rack"})
+        required.update({"stage3-boiler-house","stage3-outfitting-annex","stage3-electrical-substation","pipe-rack","stage3-quay-workbay","stage3-forklift","stage3-hose-skid"})
         assert required.issubset(audit), required-set(audit)
         for name, info in audit.items():
             assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)
@@ -72,6 +72,8 @@ try:
             assert ref["solidRouteConflicts"] == 0 and ref["solidPlacements"] > 100 and ref["containerStacks"] > 100, ref
             assert ref["additionalHalls"] > 25 and ref["additionalTanks"] > 0 and ref["additionalRacks"] > 0, ref
             assert sum(ref["stage3Sites"].values()) >= 3, ref
+            assert ref["lookdevSites"]["workbays"] > 0 and ref["lookdevSites"]["forklifts"] > 0 and ref["lookdevSites"]["hoseSkids"] > 0, ref
+            assert ref["quayDetails"] > 20, ref
             assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100, stats
             assert stats["sharedRailBatches"] > 0, stats
             assert stats["photoMaterials"] == expected_photos, stats
@@ -94,7 +96,7 @@ try:
             page.evaluate("IRON_TIDE.reflections(true)")
             capture(page,OUT / (view+"-reflection-on.png"))
             st=page.evaluate("IRON_TIDE.stats()")
-            assert st["reflectionActive"] == expected and st["reflectionPasses"] > 0, st
+            assert st["reflectionActive"] == expected and st["reflectionPasses"] > 0 and st["dualReflection"], st
             page.evaluate("IRON_TIDE.reflections(false)")
             capture(page,OUT / (view+"-reflection-off.png"))
             with Image.open(OUT / (view+"-reflection-on.png")) as a, Image.open(OUT / (view+"-reflection-off.png")) as b:
@@ -114,7 +116,7 @@ try:
             assert delta>.02, ("baked yard lights did not change framebuffer",delta)
         (OUT/"yard-light-audit.json").write_text(json.dumps({"mean_rgb_difference":delta}))
         page.evaluate("IRON_TIDE.bakedLights(true)")
-        for detail in ["gantryBase","hullServices","craneWorkshops"]:
+        for detail in ["gantryBase","hullServices","craneWorkshops","quaySurface","offshoreDetail"]:
             page.evaluate("(id) => IRON_TIDE.detailView(id)",detail)
             capture(page,OUT/("detail-"+detail+".png"))
         page.evaluate("IRON_TIDE.setView('top')")
