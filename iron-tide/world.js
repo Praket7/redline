@@ -157,6 +157,48 @@ define('warehouse',()=>{const w=112,d=160,h=49;for(const x of [-w/2,w/2]){box(m.
    beam(m.dark,[x,6.7,z],[side*(w/2-1.8),6.7,z],.17,.17,true);
   }
  }
+ // Stage 3: distinct ship-block fabrication bays beneath the overhead flight
+ // corridor. Portal frames stay below y=18; the traversable hall keeps its
+ // original high-level route and structural envelope.
+ for(const side of [-1,1]){
+  const x=side*33;
+  for(const z of [-51,0,51]){
+   // Load-bearing adjustable jig supports and welding tables.
+   for(const dx of [-8,8])for(const dz of [-8,8]){
+    box(m.concrete,x+dx,.28,z+dz,2.4,.56,2.4);
+    box(m.dark,x+dx,1.4,z+dz,1.05,2.0,1.05);
+    box(m.steel,x+dx,2.5,z+dz,1.55,.35,1.55);
+   }
+   for(const dz of [-8,8])box(m.steel,x,2.85,z+dz,19,.7,.75);
+   box(m.rust,x,3.35,z,18,.32,17);
+   for(const dx of [-6,0,6])box(m.steel,x+dx,3.75,z,.27,.55,16.5);
+   for(const dz of [-5,0,5])box(m.rust,x,4.3,z+dz,17,.8,.28);
+   // Fixed local lifting frame and its diagonal supports.
+   for(const dx of [-9.5,9.5]){
+    box(m.steel,x+dx,7.2,z-9.5,.75,14.4,.75);
+    box(m.steel,x+dx,7.2,z+9.5,.75,14.4,.75);
+    beam(m.steel,[x+dx,10.5,z-9.5],[x+dx,14.1,z-5],.32);
+    beam(m.steel,[x+dx,10.5,z+9.5],[x+dx,14.1,z+5],.32);
+    box(m.steel,x+dx,14.2,z,.85,.85,20);
+   }
+   box(m.orange,x,14.8,z,20,1.1,1.5);
+   box(m.dark,x+4,13.95,z,2.4,.6,1.7);
+   for(const dx of [3.65,4.35])beam(m.wire,[x+dx,13.6,z],[x+dx,7.0,z],.085,.085,true);
+   box(m.yellow,x+4,6.8,z,1.5,.35,1.1);
+   for(const dx of [-8,8]){
+    box(m.light,x+dx,13.9,z,1.1,.25,.52);
+    box(m.dark,x+dx,14.13,z,1.3,.2,.65);
+   }
+  }
+  // Cable-fed control consoles are mounted to the original side columns.
+  for(const z of [-44,-12,22,55]){
+   const cx=side*48;box(m.dark,cx,.3,z,2.0,.6,2.0);
+   box(m.blue,cx,1.75,z,1.4,2.4,1.6);
+   box(m.glass,cx-side*.73,2.1,z,.12,.48,.75);
+   beam(m.wire,[cx,2.95,z],[side*52.6,6.5,z],.10,.10,true);
+   box(m.yellow,cx-side*.77,1.7,z+.52,.12,.19,.19);
+  }
+ }
 });
 define('pipe-rack',()=>{for(const z of [-9,9]){for(const x of [-35,0,35]){box(m.steel,x,17,z,1.8,34,1.8);beam(m.dark,[x,8,z],[x,28,-z],.6)}for(const y of [14,29])beam(m.steel,[-38,y,z],[38,y,z],1.5)}for(let i=0;i<4;i++){const y=30+i*2.7;beam(i%2?m.rust:m.steel,[-40,y,-5+i*3.3],[40,y,-5+i*3.3],1.05,1.05,true);for(let x=-35;x<=35;x+=10)beam(m.dark,[x-.45,y,-5+i*3.3],[x+.45,y,-5+i*3.3],1.18,1.18,true)}box(m.steel,0,39,8,76,.5,3);rail(0,40,9.5,76);
  // Stage 3: supported lower process headers, reducer collars, branch valves
