@@ -9,6 +9,9 @@ for path in ("node_modules/three/build/three.min.js","node_modules/three/example
     marker='<script src="../'+path+'"></script>'
     assert marker in html,marker
     html=html.replace(marker,script((root/path).read_text()))
+texture_marker='<script src="texture-pack.js"></script>'
+assert texture_marker in html
+html=html.replace(texture_marker,script((folder/"texture-pack.js").read_text()))
 marker='<script src="world.js"></script>'
 assert marker in html
 html=html.replace(marker,script("window.IRON_TIDE_LAYOUT="+(folder/"layout.json").read_text()+";")+script((folder/"world.js").read_text()))

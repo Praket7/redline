@@ -53,6 +53,7 @@ try:
                 assert max(ImageStat.Stat(im.convert("RGB")).stddev) > 8, "blank/flat screenshot: " + view
             stats = page.evaluate("IRON_TIDE.stats()")
             assert stats["gates"] == 32 and stats["revision"] == "128"
+            assert stats["photoMaterials"] == sorted(stats["photoMaterials"], key=["concrete","asphalt","rust","paint","steel"].index)
             assert 0 < stats["drawCalls"] < 400, stats
             assert 0 < stats["triangles"] < 5000000, stats
             results[view] = stats
