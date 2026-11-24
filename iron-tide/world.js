@@ -985,6 +985,36 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   const side=Math.sign(x),xx=x+side*13;box(m.concrete,xx,1.65,z,26,6.7,46);box(m.road,xx,5.06,z,24,.08,44);
   for(const dz of [-17,17]){place('bollard',xx,5.2,z+dz);box(m.dark,xx+side*12,2.2,z+dz,.9,4,3)}
  }
+ // Port service lanes: painted edge lines, drainage grates, cable covers,
+ // and grounded, directional floodlight structures instead of isolated light blobs.
+ const drainMat=new T.MeshStandardMaterial({color:0x303639,metalness:.55,roughness:.72});
+ define('dock-floodlight',()=>{
+  box(m.concrete,0,.40,0,2.8,.8,2.8);box(m.dark,0,.96,0,1.7,.32,1.7);
+  beam(m.steel,[0,1,0],[0,19,0],.42,.42,true);
+  for(const x of [-.56,.56])beam(m.steel,[x,1.2,0],[x*.5,4.1,0],.15);
+  box(m.steel,0,18.9,0,4.5,.28,.7);
+  for(const x of [-1.55,0,1.55]){
+   box(m.dark,x,18.8,.30,1.25,.78,.65);
+   box(warmGlow,x,18.64,.67,1.06,.46,.10);
+   beam(m.steel,[x-.5,18.4,.1],[x+.5,18.4,.1],.12);
+  }
+  box(m.dark,0,1.7,.36,.65,1.2,.28);
+ });
+ for(const [x,z] of [[-1010,1128],[-730,1128],[-430,1128],[-100,1128],[420,1146],[720,1146],[1105,1146],[640,-235],[1095,-235],[-1100,380],[-1095,810],[-690,850]]){
+  if(!clearFootprint(x,z,5,5,25))continue;
+  place('dock-floodlight',x,5.2,z);
+  fixturePositions.push([x,23.6,z+.72]);pool(x,5.38,z+6,18);
+ }
+ // Thin drain channels are positioned beside the launch roadway, not over
+ // the inspection route. Vary surface marks by location and keep them flat.
+ for(const z of [1045,1118])for(let x=-1140;x<1135;x+=25){
+  box(drainMat,x,5.29,z,19,.055,.56);
+  for(let dx=-8;dx<=8;dx+=2)box(m.steel,x+dx,5.325,z,.10,.025,.48);
+  if(x%100===-40){box(m.yellow,x,5.32,z+2.2,10,.025,.17)}
+ }
+ for(const z of [1010,1150])for(let x=-1130;x<=1130;x+=36){
+  if(clearFootprint(x,z,5,3,6.3)){box(m.dark,x,5.31,z,4,.16,1.4);box(m.yellow,x,5.42,z,3.6,.025,.25)}
+ }
  for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh);b.g.computeBoundingBox();const bounds=new T.Box3(),temp=new T.Box3();for(const matrix of b.matrices)bounds.union(temp.copy(b.g.boundingBox).applyMatrix4(matrix));worldBatches.push({mesh,bounds})}
 // Build container LODs in spatial chunks. Every container keeps the exact same
 // transform and color when changing mesh detail. Low models cast the static shadow.
@@ -1049,10 +1079,26 @@ const assetScene=new T.Scene();assetScene.background=new T.Color(0x303941);asset
 function assetView(name,angle=0){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();const elongated=size.x>size.z*2.5;const delta=(elongated?V(r*.34,r*.40,r*.93):V(r*.85,r*.58,r*.95)).applyAxisAngle(up,angle);assetCamera.position.copy(center).add(delta);assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
 // Keep only a small fixed-size set of real practical point lights active near
 // the camera. Distant fixtures retain their emissive meshes and baked glow pools.
-const practical=Array.from({length:6},()=>{const p=new T.PointLight(0xffb771,0,95,2);scene.add(p);return p});
+// Soft optical highlights are a single depth-tested world-space point batch.
+ // They are not photographic overlays and disappear behind opaque geometry.
+ const fixtureGeo=new T.BufferGeometry();
+ fixtureGeo.setAttribute('position',new T.Float32BufferAttribute(fixturePositions.flat(),3));
+ const fixtureHaloMat=new T.ShaderMaterial({uniforms:{uViewportHeight:{value:900}},vertexShader:`
+ uniform float uViewportHeight;
+ varying float vFade;
+ void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;
+ float d=max(1.,-p.z);gl_PointSize=clamp(uViewportHeight*1.8/d,1.,28.);
+ vFade=1.-smoothstep(350.,1800.,d);}
+ `,fragmentShader:`
+ varying float vFade;
+ void main(){float r=length(gl_PointCoord-.5)*2.;float a=exp(-r*r*7.)*vFade*.26;
+ if(r>1.)discard;gl_FragColor=vec4(1.,.51,.19,a);}
+ `,transparent:true,depthWrite:false,blending:T.AdditiveBlending});
+ const fixtureHalos=new T.Points(fixtureGeo,fixtureHaloMat);fixtureHalos.frustumCulled=false;fixtureHalos.renderOrder=5;scene.add(fixtureHalos);
+ const practical=Array.from({length:6},()=>{const p=new T.PointLight(0xffb771,0,95,2);scene.add(p);return p});
 function updatePractical(camera){const pos=camera.position;const nearby=fixturePositions.map(p=>({p,d:(p[0]-pos.x)**2+(p[1]-pos.y)**2+(p[2]-pos.z)**2})).sort((a,b)=>a.d-b.d).slice(0,practical.length);for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){light.position.set(...f.p);light.intensity=660}else light.intensity=0}}
 const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1600,1400,1720],[0,20,0]],north:[[1450,1300,-1720],[0,20,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1000,34,1108],[-650,42,1080]],'2-containers':[[384,25,1000],[620,32,850]],'3-crane':[[1000,35,210],[850,100,50]],'4-dive':[[850,137,-280],[850,0,-650]],'5-hull':[[925,27,-920],[600,24,-920]],'6-breakwater':[[350,34,-1270],[-600,40,-1230]],'7-foundry':[[-880,26,-558],[-880,29,-500]],'8-pipes':[[-970,65,320],[-760,32,740]]};
-function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
+function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);fixtureHaloMat.uniforms.uViewportHeight.value=renderer.domElement.height;camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
 function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
 function render(){if(active!==assetCamera){scene.fog.density=active.isOrthographicCamera?0:T.MathUtils.lerp(.00024,.000095,T.MathUtils.clamp(active.position.y/280,0,1));updatePractical(active);updateContainerLOD(active);updatePortReflection(active)}renderer.render(active===assetCamera?assetScene:scene,active);document.getElementById('readout').textContent=mode.toUpperCase()+' / '+active.position.toArray().map(Math.round).join(' · ')+' m'}
@@ -1071,5 +1117,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,newWorkCells,newProcessTowers,reflectionPasses,reflectionCalls,reflectionTriangles,reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,newWorkCells,newProcessTowers,reflectionPasses,reflectionCalls,reflectionTriangles,fixtureCount:fixturePositions.length,reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
