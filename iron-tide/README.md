@@ -3,7 +3,7 @@
 Independent from REDLINE's race runtime; main remains untouched. This branch is based on the repository's v78.1 modular foundation, not the separately described v125 HTML. The 3 km dimensions and ceiling are intentionally taken from the supplied v125 specification.
 
 ## Run
-From repository root: `npm install --ignore-scripts`, `python -m http.server 8000`, then open http://localhost:8000/iron-tide/. No CDN is required. The standalone viewer requires its sibling layout/world files and local Three.js dependency; it is not yet a one-file offline build.
+From repository root: `npm install --ignore-scripts`, `python -m http.server 8000`, then open http://localhost:8000/iron-tide/. No CDN is required. The source viewer uses sibling files; `python iron-tide/package.py` builds an offline single HTML with engine, layout and geometry inlined. CI uploads it.
 
 Drag to look, WASD moves, Q/E descends/ascends, Shift accelerates, wheel changes FOV, H hides UI. Select any sector, orthographic plan, north or overview. Save PNG captures the real canvas. Course tour follows the same 32 gate centers; it is a camera path, not a race physics or clearance guarantee.
 
@@ -24,3 +24,8 @@ The Iron Tide visual evidence workflow captures 11 presets, a clean overview, fi
 - No reference-image visual match claim: inspect captures, improve silhouettes and terrain composition, detailed ship bow/stern curvature, actual textured surfaces (UV tiling/decals), roughness and normal maps, shadows, water wave shader, sky/clouds, corrosion localization, rail/ladder consistency, meaningful variation and industrial clutter.
 - Models are procedural modular first-pass assets, not photogrammetry. No AI, player collisions, race progress validation, alternative route logic, moving obstacles, or REDLINE course integration yet. Camera movement intentionally allows inspection through geometry.
 - Performance metrics are scene counters, not a hardware benchmark. Real-device review and race playtesting required before merge.
+
+## Iterative visual findings
+The first real CI capture was reviewed: excessive fog flattened the aerial image and caused the top-down contrast check to fail; the port read as sparse slabs rather than a working shipyard. The next revisions reduced fog, removed fog from the top view, tiled pavement, added industrial districts and a connected breakwater, and introduced lower-detail container meshes for remote scenery. Indexed merged geometry, generated normal maps and roughness maps are intended to make the GLB library more useful; the capture pipeline must verify it. The current 32-gate linear route is approximately 8.43 km because it traverses the 3 km footprint; earlier concept-art lap distances were not geometrically measured. Main racing line runs from 5 to 125 m relative to sea level, not 310 m. 
+
+Reference art is a quality target, not evidence: check whole-map composition, crane/ship silhouettes, building placement, texture repetition, interior clearances, gate readability and meaningful scale in real captures. The first render did not pass that bar. No merge until approved visual review and gameplay integration.
