@@ -218,7 +218,7 @@ define('ship-hull',()=>{
    beam(m.yellow,[x,17.15,z-side*1.55],[x2,17.15,z-side*1.55],.09);
    beam(m.yellow,[x,16.15,z-side*1.55],[x,17.15,z-side*1.55],.08);
    beam(seam,[x+4,15.9,z],[x+4,12,z+side*2],.34);
-   if(x%16===2){box(m.light,x+4,20,z+side,1,.32,.45);box(seam,x+4,20.22,z+side,1.2,.22,.6);beam(flange,[x+4,20.3,z+side],[x+4,20.3,side*(profile(x+4,20.3)-.45)],.15)}
+   if((x+142)%16===0){box(m.light,x+4,20,z+side,1,.32,.45);box(seam,x+4,20.22,z+side,1.2,.22,.6);beam(flange,[x+4,20.3,z+side],[x+4,20.3,side*(profile(x+4,20.3)-.45)],.15)}
   }
   for(const x of [-124,-64,0,64,124]){
    const z0=side*(profile(x,4)-1.5),z1=side*(profile(x,16)-3.5);
@@ -1180,7 +1180,7 @@ for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-uni
  for(const z of [190,130,70,10,-50,-110,-170,-230,-290])for(const x of [548,600,698,742,964,1016,1070,1130]){
   if(craneServiceSites>=10)break;
   if(craneSite('gantry-service-hall',x,z,.82)){place('gantry-service-hall',x,5.25,z,0,.82);craneServiceSites++;
-   for(const dx of [-11,11])for(const dz of [-18,18]){fixturePositions.push([x+dx*.82,25.4,z+dz*.82]);pool(x+dx*.82,5.34,z+dz*.82,15)}
+   for(const dx of [-11,11])for(const dz of [-18,18]){fixturePositions.push([x+dx*.82,5.25+24.75*.82,z+dz*.82]);pool(x+dx*.82,5.34,z+dz*.82,15)}
   }
  }
  for(const z of [210,150,90,30,-30,-90,-150,-210,-270])for(const x of [575,675,730,965,1035,1125]){
@@ -1192,8 +1192,9 @@ for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-uni
  let hullWorkLights=0;
  for(let lx=-138;lx<=138;lx+=16)for(const side of [-1,1]){
   const u=Math.max(0,(Math.abs(lx)-124)/51),w=32*(1-.58*u*u)*(.91+(.97-.91)/6),z=-920+side*(w-3.4);
-  const x=750+lx;box(m.dark,x,24.8,z+side*.55,1.1,.32,.55);box(warmGlow,x,24.60,z+side*.55,.88,.12,.43);
-  fixturePositions.push([x,24.4,z+side*.4]);pool(x,21.18,z,5);hullWorkLights++;
+  const x=750+lx;
+  // Register the existing hull template's lens, not a second floating fixture.
+  fixturePositions.push([x,24.75,z+side]);pool(x,21.18,z,5);hullWorkLights++;
  }
  const worldBatches=[];// Connect the process equipment to supported ground-level headers. These
 // are below the visual racing corridor and leave the gate coordinates intact.
