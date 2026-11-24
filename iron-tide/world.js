@@ -486,7 +486,7 @@ function renderPortReflection(cam,plane){
 function updatePortReflection(cam){
  reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;roadFilm.visible=seaFilm.visible=false;
  if(!reflectionsEnabled||!cam.isPerspectiveCamera||cam.position.y<6||cam.position.y>190)return;
- const p=cam.position,sea=p.z<-1190||p.z>1200||p.x>1190||p.x<-1190||(p.x>350&&p.x<640&&p.z<100);
+ const p=cam.position,sea=!onLand(p.x,p.z);
  const plane=sea?-.25:5.24,now=performance.now();
  // Static camera captures are exact; continuous flight refreshes at most 8 Hz.
  const moving=tour||keys.size>0||drag;
@@ -1374,7 +1374,139 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  for(const z of [1010,1150])for(let x=-1130;x<=1130;x+=36){
   if(clearFootprint(x,z,5,3,6.3)){box(m.dark,x,5.31,z,4,.16,1.4);box(m.yellow,x,5.42,z,3.6,.025,.25)}
  }
- // Bounded, deterministic ground-contact approximation (not ray-traced AO).
+ // REFERENCE STAGES 1–2: replace the previous rectangular placement set,
+ // keeping its authored GLB templates and material library. The new civil
+ // geography and ordered gates come from one canonical JSON source.
+ batches.clear();placedSites.length=0;containerSlots.length=0;stackIndex.clear();containerChunks.clear();
+ fixturePositions.length=0;pavedSlabs.length=0;districtPlan.length=0;
+ yardLightCtx.fillStyle='#000';yardLightCtx.fillRect(0,0,2048,2048);bakedLightPools=0;
+ part(coastGeo,coastMat,0,0,0,1,1,1);
+ const referenceSolids=[],referenceDistricts=new Set();let shoreMeters=0,referenceShips=0,referenceOffshore=0,referenceBridge=0;
+ const land=layout.land,dock=layout.dryDock;
+ function onLand(x,z){return land.some(([a,b,c,d])=>x>=a&&x<=b&&z>=c&&z<=d)}
+ function supported(b){return land.some(([a,c,d,e])=>b.min.x>=a+1&&b.max.x<=c-1&&b.min.z>=d+1&&b.max.z<=e-1)}
+ const segments=routePoints.map((a,i)=>[a,routePoints[(i+1)%routePoints.length]]);
+ for(const alt of layout.alternates){const path=[routePoints[alt.from],...alt.via,routePoints[alt.to]];for(let i=1;i<path.length;i++)segments.push([path[i-1],path[i]])}
+ // Conservative swept-segment vs expanded AABB; solid assets cannot intrude.
+ function intersectsSegment(b,a,c,margin=9){let lo=0,hi=1;for(let k=0;k<3;k++){const axis=['x','y','z'][k],d=c[k]-a[k],mn=b.min[axis]-margin,mx=b.max[axis]+margin;if(Math.abs(d)<1e-8){if(a[k]<mn||a[k]>mx)return false;continue}let u=(mn-a[k])/d,v=(mx-a[k])/d;if(u>v)[u,v]=[v,u];lo=Math.max(lo,u);hi=Math.min(hi,v);if(lo>hi)return false}return true}
+ function footprint(name,x,y,z,angle=0,scale=1){const o=new T.Object3D();o.position.set(x,y,z);o.rotation.y=angle;o.scale.setScalar(scale);o.updateMatrix();return placementBounds.get(name).clone().applyMatrix4(o.matrix)}
+ function routeClear(b){return !segments.some(([a,c])=>intersectsSegment(b,a,c))}
+ function safe(name,x,z,angle=0,scale=1,district='yard'){
+  if(!templates[name])throw Error('missing reference asset '+name);
+  const b=footprint(name,x,5.25,z,angle,scale);
+  if(!supported(b)||!routeClear(b)||placedSites.some(p=>p.intersectsBox(b))||containerSlots.some(q=>b.min.x<q.x+q.hx&&b.max.x>q.x-q.hx&&b.min.z<q.z+q.hz&&b.max.z>q.z-q.hz))return false;
+  place(name,x,5.25,z,angle,scale);referenceSolids.push(b);referenceDistricts.add(district);return true
+ }
+ // Separate working peninsulas and true, navigable central water basins.
+ for(const [a,b,c,d] of land){
+  slab((a+b)/2,(c+d)/2,b-a,d-c);
+  // Surface expansion joints, drainage channels and broken painted markings.
+  for(let x=a+18;x<b-8;x+=24)box(tar,x,5.095,(c+d)/2,.07,.015,d-c-8);
+  for(let z=c+18;z<d-8;z+=24)box(tar,(a+b)/2,5.095,z,b-a-8,.015,.07);
+  for(const [edge,sign,axis,lo,hi] of [[a,-1,'x',c,d],[b,1,'x',c,d],[c,-1,'z',a,b],[d,1,'z',a,b]]){
+   for(let p=lo+10;p<hi-4;p+=20){const x=axis==='x'?edge:p,z=axis==='z'?edge:p;if(onLand(x+(axis==='x'?sign*3:0),z+(axis==='z'?sign*3:0)))continue;
+    const dryEdge=x>=dock.minX-1&&x<=dock.maxX+1&&z>=dock.minZ-1&&z<=dock.maxZ+1;if(dryEdge)continue;
+    box(m.dark,x,1.6,z,axis==='x'?.28:19.8,2.0,axis==='z'?.28:19.8);
+    box(m.concrete,x,5.15,z,axis==='x'?.8:19.8,.35,axis==='z'?.8:19.8);
+    box(m.yellow,x-sign*(axis==='x'?1.5:0),5.36,z-sign*(axis==='z'?1.5:0),axis==='x'?.14:19.6,.035,axis==='z'?.14:19.6);
+    if(Math.round(p/20)%3===0)place('bollard',x-sign*(axis==='x'?3:0),5.25,z-sign*(axis==='z'?3:0));
+    shoreMeters+=20;
+   }
+  }
+ }
+ // Central graving dock: genuinely excavated to -20 m, not a painted recess.
+ box(m.concrete,850,-22,-180,320,4,600);
+ for(const x of [695,1005]){box(m.concrete,x,-7.5,-180,10,25,600);rail(x,6.1,-180,600,'z');for(let z=-460;z<115;z+=22){
+  box(m.dark,x+(x<850?5.1:-5.1),-8,z,.28,20,1.2);
+  box(m.steel,x+(x<850?7:-7),-8,z,3.8,.5,16);
+  rail(x+(x<850?8.5:-8.5),-6.8,z,16,'z');
+  box(warmGlow,x+(x<850?5.4:-5.4),-4,z,.25,.5,1.3);fixturePositions.push([x+(x<850?6:-6),-4,z]);
+ }}
+ for(const z of [-475,115])box(m.concrete,850,-7.5,z,310,25,10);
+ for(const x of [810,890])for(let z=-455;z<100;z+=18)box(m.dark,x,-19.88,z,1.1,.15,17.8);
+ // The open hull axis coincides with the low-level Dry Dock racing corridor.
+ place('ship-hull',850,-19,-120,Math.PI/2);referenceShips++;
+ for(let z=-277;z<=37;z+=13)for(const x of [840,860])place('drydock-keel-block',x,-20,z,0,.7);
+ for(let z=-260;z<=20;z+=24)for(const side of [-1,1]){fixturePositions.push([850+side*20,1.2,z]);pool(850+side*20,-2.5,z,4)}
+ // The center pier is a ship assembly/outfitting spine, with two long berths.
+ for(const [x,z,a,scale] of [[245,-150,Math.PI/2,1.55],[-250,-260,Math.PI/2,1.25],[270,380,Math.PI/2,.92],[-380,600,0,.86]]){
+  place('merchant-vessel',x,0,z,a,scale);referenceShips++;
+ }
+ for(const [x,z] of [[-500,440],[400,-420],[450,530],[370,720]]){place('workboat',x,0,z,Math.PI/2,.65);referenceShips++}
+ // Start waterfront: quay road with tightly clustered logistics equipment.
+ for(const x of [-1130,-975,-820,-580,-390,-180])for(const z of [780,980]){
+  if(safe('outfit-workshop',x,z,Math.PI/2,.82,'launch'))lamp(x+36,5.25,z+38);
+ }
+ // Stacks in longitudinal blocks, preserving actual road corridors and altitude.
+ let referenceCargo=0;
+ for(const [cx,cz] of [[-1130,420],[-850,400],[-1120,100],[-790,100],[-1140,-190],[-790,-200],[-1000,640],[-430,925]]){
+  for(let a=-60;a<=60;a+=15)for(let b=-50;b<=50;b+=10){
+   const x=cx+a,z=cz+b,tiers=3+Math.floor(rnd()*4),bb=new T.Box3(V(x-6.2,5,z-1.3),V(x+6.2,5+tiers*2.94,z+1.3));
+   if(!supported(bb)||!routeClear(bb)||placedSites.some(p=>p.intersectsBox(bb)))continue;
+   const col=['rust','blue','green','white'][Math.floor(rnd()*4)];
+   for(let j=0;j<tiers;j++)place('container-'+col,x,5.25+j*2.94,z);
+   referenceSolids.push(bb);referenceCargo++;
+  }
+ }
+ referenceDistricts.add('container');
+ for(const [x,z] of [[-1110,545],[-850,240],[-800,-70],[-1160,-350]])safe('rtg-crane',x,z,0,.72,'container');
+ // Crane ascent: hero gantry and supporting shops sit on the western quay.
+ place('heavy-gantry-detail',-900,5.25,-575);referenceDistricts.add('crane');
+ for(const rx of [-962,-838])for(const dx of [-3.8,3.8])box(m.steel,rx+dx,5.62,-575,.55,.72,118);
+ for(const [x,z] of [[-1170,-850],[-750,-950],[-1150,-440],[-750,-390]])safe('gantry-service-hall',x,z,0,.8,'crane');
+ for(const [x,z] of [[-1130,-780],[-730,-730],[-1100,-1030],[-740,-540]])safe('winch-service-skid',x,z,0,1,'crane');
+ // Sky bridge is a deliberately stylized high-level race landmark, constructed
+ // with supported steel towers, X bracing and an open upper transfer deck.
+ define('reference-sky-bridge',()=>{
+  const W=360,H=207;
+  for(const x of [-150,150])for(const z of [-12,12]){
+   box(m.concrete,x,1.5,z,12,3,12);beam(m.steel,[x,3,z],[x,H,z],2.8,3.4);
+   for(let y=12;y<H-10;y+=18)beam(m.orange,[x,y,z],[x,y+18,-z],.75);
+  }
+  for(const z of [-9,9]){
+   beam(m.orange,[-180,H,z],[180,H,z],2.4,3.4);
+   beam(m.steel,[-180,H-10,z],[180,H-10,z],1.8,2.1);
+   for(let x=-180;x<180;x+=18){beam(m.steel,[x,H-10,z],[x+18,H,z],.8);beam(m.orange,[x,H,z],[x+18,H-10,z],.6)}
+  }
+  box(roofMetal,0,H+.4,0,W,.8,19);rail(0,H+1.7,-9,W);rail(0,H+1.7,9,W);
+  for(let x=-160;x<=160;x+=40){box(m.light,x,H-9,0,2.5,.6,2);box(m.steel,x,H-8.5,0,3,.4,2.4)}
+ });
+ place('reference-sky-bridge',-270,5.25,-1070);referenceBridge=1;referenceDistricts.add('sky');
+ // North and central production quarters follow material receiving -> plate
+ // preparation -> coating -> outfitting, facing the central deep-water quays.
+ const shopKinds=['plate-processing-hall','coating-shop','outfit-workshop','cargo-shed'];
+ for(const [x,z] of [[-570,-880],[-390,-830],[-180,-830],[45,-850],[250,-850],[450,-1050],[650,-900],[1040,-1000],[1040,-780],[-90,-500],[80,-330],[-90,-100],[75,100],[-90,330],[110,420]]){
+  const kind=shopKinds[districtPlan.length%shopKinds.length];if(safe(kind,x,z,0,.82,'fabrication')){districtPlan.push({x,z,kind});lamp(x+36,5.25,z+50)}
+ }
+ for(const [x,z] of [[-550,-1150],[170,-1150],[380,-740],[740,-730],[1120,-560]])safe('lattice-boom-crane',x,z,0,.8,'fabrication');
+ // East-side foundry and pipe grid, using aligned service corridors.
+ for(const [x,z] of [[1140,185],[740,300],[1155,470],[730,500],[1140,665]]){if(safe('warehouse',x,z,0,.72,'foundry'))lamp(x,5.25,z+48)}
+ for(const [x,z] of [[740,640],[1160,760],[790,870],[1070,1000]])safe('pipe-rack',x,z,Math.PI/2,.85,'pipes');
+ for(const [x,z] of [[725,730],[760,775],[1190,840],[1110,870],[900,930],[1130,590]])safe('tank',x,z,0,.72,'pipes');
+ for(const [x,z] of [[1100,280],[1150,380],[780,570],[770,800],[1050,850]])safe('process-manifold',x,z,0,1,'pipes');
+ // Offshore platform on piles in open water, not a concrete island.
+ define('reference-offshore-platform',()=>{
+  for(const x of [-24,24])for(const z of [-19,19]){cylinder(m.steel,x,5,z,2.3,22);for(const zz of [-19,19])beam(m.orange,[x,-3,z],[x,15,zz],.9)}
+  box(m.steel,0,16,0,58,2.0,48);box(m.dark,0,17.2,0,56,.45,46);
+  for(const z of [-22,22])rail(0,18.5,z,56);for(const x of [-28,28])rail(x,18.5,0,44,'z');
+  for(const x of [-16,16]){box(m.blue,x,22,-8,13,9,15);box(m.steel,x,26.7,-8,14,.5,16);box(m.glass,x,23,.05,10,2.2,.12)}
+  for(const x of [-22,22])beam(m.steel,[x,18,14],[x,34,14],.65);beam(m.orange,[-22,34,14],[22,34,14],1.2);
+  beam(m.wire,[10,34,14],[10,21,14],.12,.12,true);box(m.yellow,10,20.4,14,2,.9,2);
+  for(const x of [-22,22])for(const z of [-18,18])box(m.light,x,19,z,1.2,.4,1.1);
+ });
+ for(const [x,z] of [[850,1250],[440,1290]]){place('reference-offshore-platform',x,0,z);referenceOffshore++;for(const dx of [-22,22])fixturePositions.push([x+dx,19,z+18])}
+ referenceDistricts.add('offshore');
+ // Populate the narrow quays with connected equipment and practical light poles.
+ for(const [a,b,c,d] of land){for(let x=a+35;x<b-25;x+=80)for(let z=c+35;z<d-25;z+=100){
+  if(referenceSolids.length>1100)break;
+  const kind=['fabrication-rack','hydraulic-power-unit','welding-skid','pipe-bundle','curved-panel-jig','steel-transfer-station'][Math.abs(Math.floor(x+z))%6];safe(kind,x,z,0,.85,'services');
+  const lb=new T.Box3(V(x-2,5,z-2),V(x+4,18,z+2));
+  if(supported(lb)&&routeClear(lb)&&!placedSites.some(p=>p.intersectsBox(lb))&&!containerSlots.some(q=>Math.abs(q.x-x)<q.hx+4&&Math.abs(q.z-z)<q.hz+3)&&!fixturePositions.some(p=>Math.hypot(p[0]-x,p[2]-z)<40)){lamp(x,5.25,z);referenceSolids.push(lb)}
+ }}
+ // Explicit start reference, with attached quay fixtures and visible light pools.
+ for(const x of [-1140,-1020,-900,-780])lamp(x,5.25,1075);
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo};
+  // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.
  let contactFootprints=0;
@@ -1426,7 +1558,7 @@ waterMat.onBeforeCompile=shader=>{
 };
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
 function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),waterMat);water.rotation.x=-Math.PI/2;water.position.set(x,-.25,z);waterSurfaces.push(water);scene.add(water)}
-waterTile(-9675,0,20650,40000);waterTile(10525,0,18950,40000);waterTile(850,-10375,400,19250);waterTile(850,9825,400,20350);
+waterTile(-9655,0,20690,40000);waterTile(10505,0,18990,40000);waterTile(850,-10240,320,19520);waterTile(850,10060,320,19880);
 // Thin dielectric films above the existing PBR substrate, not a fake
 // sky-only highlight. The world-projected capture contains the actual scene.
 // Explicit separate mesh visibility also makes reflection A/B tests reliable.
@@ -1443,7 +1575,7 @@ function addFilm(group,mat,x,y,z,w,d){const mesh=new T.Mesh(new T.PlaneGeometry(
 for(const [x,z,w,d] of pavedSlabs)addFilm(roadFilm,pavementFilmMaterial,x,5.365,z,w-1,d-1);
 for(const water of waterSurfaces){const w=water.geometry.parameters.width,d=water.geometry.parameters.height;addFilm(seaFilm,waterFilmMaterial,water.position.x,-.22,water.position.z,w,d)}
 // Aircraft gates are free-standing in the air, not arches with ground legs.
-const gates=layout.sectors.flatMap((s,i)=>s.gates.map((p,j)=>({p:V(...p),sector:i,index:i*4+j+1})));
+const gates=layout.sectors.flatMap((s,i)=>s.gates.map(p=>({p:V(...p),sector:i}))).map((g,i)=>({...g,index:i+1}));
 const guide=new T.Group();guide.name='aerial-route';scene.add(guide);
 // A single instanced set of industrial beacons replaces 64 individual ring
 // submissions. Inner radius remains 9.65 m (5.79 m for confined sectors).
@@ -1460,9 +1592,9 @@ for(let k=0;k<8;k++){const theta=k*Math.PI/4;const g=new T.BoxGeometry(1.25,1.7,
 const fittingGeo=T.BufferGeometryUtils.mergeBufferGeometries(fittings),fittingMat=new T.MeshStandardMaterial({color:0x9c6440,metalness:.45,roughness:.68});
 const gateMeshes=[[edgeGeo,edgeMat],[stripeGeo,gateMat],[fittingGeo,fittingMat]].map(([g,m])=>{const mesh=new T.InstancedMesh(g,m,gates.length);mesh.frustumCulled=false;guide.add(mesh);return mesh});
 const gateTransform=new T.Object3D();
-for(let i=0;i<gates.length;i++){const g=gates[i],next=gates[(i+1)%gates.length],prev=gates[(i+gates.length-1)%gates.length],tangent=next.p.clone().sub(prev.p).normalize();gateTransform.position.copy(g.p);gateTransform.quaternion.setFromUnitVectors(V(0,0,1),tangent);gateTransform.scale.setScalar(g.sector===3||g.sector===4||g.sector===6?.6:1);gateTransform.updateMatrix();for(const mesh of gateMeshes)mesh.setMatrixAt(i,gateTransform.matrix)}
+for(let i=0;i<gates.length;i++){const g=gates[i],next=gates[(i+1)%gates.length],prev=gates[(i+gates.length-1)%gates.length],tangent=next.p.clone().sub(prev.p).normalize();gateTransform.position.copy(g.p);gateTransform.quaternion.setFromUnitVectors(V(0,0,1),tangent);gateTransform.scale.setScalar(g.sector===5||g.sector===6||g.sector===7?.6:1);gateTransform.updateMatrix();for(const mesh of gateMeshes)mesh.setMatrixAt(i,gateTransform.matrix)}
 for(const mesh of gateMeshes)mesh.instanceMatrix.needsUpdate=true;
-const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff6456,transparent:true,opacity:.85}));guide.add(route);
+const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff6456,transparent:true,opacity:.85}));guide.add(route);for(const alt of layout.alternates){const pts=[gates[alt.from].p,...alt.via.map(p=>V(...p)),gates[alt.to].p];const line=new T.Line(new T.BufferGeometry().setFromPoints(pts),new T.LineDashedMaterial({color:0xffc05d,dashSize:12,gapSize:8,transparent:true,opacity:.8}));line.computeLineDistances();guide.add(line)}
 // Separate asset inspection scene shares the exact merged source models and lighting.
 const assetScene=new T.Scene();assetScene.background=new T.Color(0x303941);assetScene.environment=scene.environment;assetScene.add(new T.HemisphereLight(0xc0d8ed,0x49413c,1.35));const assetSun=new T.DirectionalLight(0xffcf99,3.1);assetSun.position.set(-160,100,80);assetScene.add(assetSun);const assetFloor=new T.Mesh(new T.PlaneGeometry(2000,2000),new T.MeshStandardMaterial({color:0x45494b,roughness:.8}));assetFloor.rotation.x=-Math.PI/2;assetFloor.position.y=-.1;assetScene.add(assetFloor);let inspected=null;const assetCamera=new T.PerspectiveCamera(42,1,.1,4000);
 function assetView(name,angle=0){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();const elongated=size.x>size.z*2.5;const delta=(elongated?V(r*.34,r*.40,r*.93):V(r*.85,r*.58,r*.95)).applyAxisAngle(up,angle);assetCamera.position.copy(center).add(delta);assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
@@ -1490,12 +1622,12 @@ function updatePractical(camera){
  const nearby=fixturePositions.map(p=>{const dx=p[0]-pos.x,dy=p[1]-pos.y,dz=p[2]-pos.z,d=dx*dx+dy*dy+dz*dz,dot=(dx*dir.x+dy*dir.y+dz*dir.z)/Math.max(1,Math.sqrt(d));return {p,d,score:d*(dot<-.25?2.5:1)}});
  nearby.sort((a,b)=>a.score-b.score);
  for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){
-  light.position.set(...f.p);const [x,y,z]=f.p,insideHull=x>575&&x<925&&Math.abs(z+920)<31&&y>20&&y<26;
+  light.position.set(...f.p);const [x,y,z]=f.p,insideHull=Math.abs(x-850)<32&&z>-305&&z<75&&y<15;
   // Tight hull fixtures need less output than tall exterior floodlights.
   light.intensity=insideHull?290:820;light.distance=insideHull?35:95;light.color.setHex(insideHull?0xffaa64:0xffb771);
  }else light.intensity=0}
 }
-const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1600,1400,1720],[0,20,0]],north:[[1450,1300,-1720],[0,20,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1000,34,1108],[-650,42,1080]],'2-containers':[[384,25,1000],[620,32,850]],'3-crane':[[1000,35,210],[850,100,50]],'4-dive':[[850,137,-280],[850,0,-650]],'5-hull':[[925,27,-920],[600,24,-920]],'6-breakwater':[[350,34,-1270],[-600,40,-1230]],'7-foundry':[[-880,26,-558],[-880,29,-500]],'8-pipes':[[-970,65,320],[-760,32,740]]};
+const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1700,1420,1720],[0,30,0]],north:[[1620,1320,-1700],[0,25,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1070,33,1070],[-870,35,850]],'2-containers':[[-1030,28,420],[-950,32,100]],'3-crane':[[-1100,39,-395],[-900,85,-575]],'4-skybridge':[[-540,239,-1040],[90,205,-1070]],'5-drop':[[870,205,-790],[850,-8,-180]],'6-drydock':[[850,-2,-308],[850,-4,-50]],'7-foundry':[[1035,35,200],[1060,28,490]],'8-pipes':[[860,35,690],[1110,35,880]],'9-offshore':[[1050,45,1320],[440,26,1290]],'10-final':[[100,28,1110],[-900,35,1080]]};
 function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);fixtureHaloMat.uniforms.uViewportHeight.value=renderer.domElement.height;camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
 function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
@@ -1503,7 +1635,7 @@ function render(){if(active!==assetCamera){scene.fog.density=active.isOrthograph
 const lengths=gates.map((g,i)=>g.p.distanceTo(gates[(i+1)%gates.length].p)),total=lengths.reduce((a,b)=>a+b,0);
 function coursePoint(s){s=((s%total)+total)%total;let i=0;while(s>=lengths[i]&&i<lengths.length-1){s-=lengths[i++]};return gates[i].p.clone().lerp(gates[(i+1)%gates.length].p,s/lengths[i])}
 function sampleCourse(s){active=camera;mode='course';camera.position.copy(coursePoint(s));camera.lookAt(coursePoint(s+28));angles()}
-function tick(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(tour){dist=(dist+dt*42)%total;sampleCourse(dist)}else if(active===camera&&keys.size){const step=dt*(keys.has('ShiftLeft')||keys.has('ShiftRight')?160:45);camera.getWorldDirection(tmp);if(keys.has('KeyW'))camera.position.addScaledVector(tmp,step);if(keys.has('KeyS'))camera.position.addScaledVector(tmp,-step);tmp.cross(up).normalize();if(keys.has('KeyD'))camera.position.addScaledVector(tmp,step);if(keys.has('KeyA'))camera.position.addScaledVector(tmp,-step);if(keys.has('KeyE'))camera.position.y+=step;if(keys.has('KeyQ'))camera.position.y-=step;camera.position.x=T.MathUtils.clamp(camera.position.x,-1385,1385);camera.position.z=T.MathUtils.clamp(camera.position.z,-1385,1385);camera.position.y=T.MathUtils.clamp(camera.position.y,-5,310);mode='free'}if(tour||keys.size)render();requestAnimationFrame(tick)}
+function tick(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(tour){dist=(dist+dt*42)%total;sampleCourse(dist)}else if(active===camera&&keys.size){const step=dt*(keys.has('ShiftLeft')||keys.has('ShiftRight')?160:45);camera.getWorldDirection(tmp);if(keys.has('KeyW'))camera.position.addScaledVector(tmp,step);if(keys.has('KeyS'))camera.position.addScaledVector(tmp,-step);tmp.cross(up).normalize();if(keys.has('KeyD'))camera.position.addScaledVector(tmp,step);if(keys.has('KeyA'))camera.position.addScaledVector(tmp,-step);if(keys.has('KeyE'))camera.position.y+=step;if(keys.has('KeyQ'))camera.position.y-=step;camera.position.x=T.MathUtils.clamp(camera.position.x,-1385,1385);camera.position.z=T.MathUtils.clamp(camera.position.z,-1385,1385);camera.position.y=T.MathUtils.clamp(camera.position.y,layout.minAltitude,layout.ceiling);mode='free'}if(tour||keys.size)render();requestAnimationFrame(tick)}
 addEventListener('resize',()=>{resize();assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();render()});addEventListener('keydown',e=>{if(e.code==='KeyH'&&!e.repeat)document.body.classList.toggle('clean');keys.add(e.code)});addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>{keys.clear();drag=false});renderer.domElement.addEventListener('pointerdown',e=>{if(active!==camera)return;drag=true;tour=false;renderer.domElement.setPointerCapture(e.pointerId)});renderer.domElement.addEventListener('pointerup',()=>drag=false);renderer.domElement.addEventListener('pointercancel',()=>drag=false);renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;yaw-=e.movementX*.003;pitch=T.MathUtils.clamp(pitch-e.movementY*.003,-1.5,1.5);camera.rotation.set(pitch,yaw,0,'YXZ');mode='free';render()});renderer.domElement.addEventListener('wheel',e=>{if(active!==camera)return;e.preventDefault();camera.fov=T.MathUtils.clamp(camera.fov+e.deltaY*.025,28,88);camera.updateProjectionMatrix();render()},{passive:false});
 for(const id of Object.keys(presets)){const b=document.createElement('button');b.dataset.view=id;b.textContent=id; b.onclick=()=>setView(id);document.getElementById('views').append(b)}
 document.getElementById('tour').onclick=()=>{tour=!tour;if(tour){dist=0;sampleCourse(0)}};document.getElementById('route').onclick=()=>{guide.visible=!guide.visible;render()};document.getElementById('capture').onclick=()=>{render();const a=document.createElement('a');a.download='iron-tide-'+mode+'.png';a.href=renderer.domElement.toDataURL('image/png');a.click()};
@@ -1515,5 +1647,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[933,13,110],[910,21,50]],hullServices:[[870,22,-900],[815,20,-896]],craneWorkshops:[[960,30,163],[1030,22,100]]};if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,newWorkCells,newProcessTowers,transferStations,westernPiers,fabricationJigs,contactFootprints,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,craneServiceSites,winchSites,hullWorkLights,laneLightCount,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,referenceAudit(){return {...referenceAudit,lapMeters:total}},bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={gantryBase:[[-990,14,-520],[-962,23,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]]};if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});

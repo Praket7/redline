@@ -26,8 +26,9 @@ try:
         raise RuntimeError("local server did not start")
     layout = json.loads((ROOT / "iron-tide/layout.json").read_text())
     pts = [p for s in layout["sectors"] for p in s["gates"]]
-    assert len(pts) == 32 and len({tuple(p) for p in pts}) == 32
-    assert all(abs(x) <= 1385 and abs(z) <= 1385 and -5 <= y <= 310 for x,y,z in pts)
+    assert len(layout['sectors']) == 10 and len(pts) == 38 and len({tuple(p) for p in pts}) == 38
+    assert layout['dryDock']['floor'] == -20 and len(layout['alternates']) == 4
+    assert all(abs(x) <= 1385 and abs(z) <= 1385 and -20 <= y <= 310 for x,y,z in pts)
     assert max(p[1] for p in pts) - min(p[1] for p in pts) >= 100
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=["--use-gl=angle","--use-angle=swiftshader","--enable-unsafe-swiftshader"])
@@ -40,13 +41,13 @@ try:
         assert page.evaluate("Boolean(window.IRON_TIDE)"), page.locator("#error").inner_text()
         audit = page.evaluate("IRON_TIDE.assetAudit()")
         required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
-        required.update({"plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank","steel-transfer-station","curved-panel-jig","block-transport-cradle","gantry-service-hall","winch-service-skid"})
+        required.update({"reference-sky-bridge","reference-offshore-platform","plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank","steel-transfer-station","curved-panel-jig","block-transport-cradle","gantry-service-hall","winch-service-skid"})
         assert required.issubset(audit), required-set(audit)
         for name, info in audit.items():
             assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)
         (OUT / "mesh-audit.json").write_text(json.dumps(audit,indent=2))
         views = page.evaluate("IRON_TIDE.views")
-        assert len(views) == 11
+        assert len(views) == 13
         page.evaluate("IRON_TIDE.clean(true)")
         results = {}
         provenance = json.loads((OUT / "texture-provenance.json").read_text()) if (OUT / "texture-provenance.json").exists() else {}
@@ -62,13 +63,14 @@ try:
                 assert im.size == (1440,900)
                 assert max(ImageStat.Stat(im.convert("RGB")).stddev) > 8, "blank/flat screenshot: " + view
             stats = page.evaluate("IRON_TIDE.stats()")
-            assert stats["gates"] == 32 and stats["revision"] == "128"
-            assert stats["districtBuildings"] == 24 and stats["transferStations"] > 0, stats
-            assert stats["newWorkCells"] > 0 and stats["newProcessTowers"] > 0, stats
-            assert stats["fabricationJigs"] > 0 and stats["contactFootprints"] > stats["containerStacks"], stats
-            assert stats["craneServiceSites"] > 0 and stats["winchSites"] > 0 and stats["hullWorkLights"] >= 30, stats
-            assert stats["bakedLightPools"] > 100 and stats["sharedRailBatches"] > 0, stats
-            assert stats["containerLODTiles"] < stats["containerChunks"], stats
+            assert stats["gates"] == 38 and stats["revision"] == "128"
+            ref = stats["referenceAudit"]
+            assert ref["centralBasins"] and ref["landPieces"] >= 18 and ref["dryDockFloor"] == -20, ref
+            assert ref["sectors"] == 10 and ref["gates"] == 38 and ref["alternateCorridors"] == 4, ref
+            assert ref["offshorePlatforms"] == 2 and ref["skyBridges"] == 1 and ref["ships"] >= 8, ref
+            assert ref["solidRouteConflicts"] == 0 and ref["solidPlacements"] > 100 and ref["containerStacks"] > 100, ref
+            assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100, stats
+            assert stats["sharedRailBatches"] > 0, stats
             assert stats["photoMaterials"] == expected_photos, stats
             assert stats["skySource"] == expected_sky, stats
             assert 0 < stats["drawCalls"] < 400, stats
@@ -78,9 +80,10 @@ try:
                 stats["imageLuminanceMean"]=round(lum.mean[0],3)
                 stats["imageLuminanceStddev"]=round(lum.stddev[0],3)
             results[view] = stats
+        (OUT / "reference-audit.json").write_text(json.dumps(page.evaluate("IRON_TIDE.referenceAudit()"),indent=2))
         # Verify true reflected-scene contribution, not merely a flag or a glossy material.
         reflection_report = {}
-        for view, expected in [("1-launch","pavement"),("6-breakwater","water")]:
+        for view, expected in [("1-launch","pavement"),("9-offshore","water")]:
             page.evaluate("(id) => IRON_TIDE.setView(id)",view)
             page.evaluate("IRON_TIDE.reflections(true)")
             capture(page,OUT / (view+"-reflection-on.png"))
@@ -96,7 +99,7 @@ try:
         page.evaluate("IRON_TIDE.reflections(true)")
         (OUT / "reflection-audit.json").write_text(json.dumps(reflection_report,indent=2))
         # Verify actual framebuffer contribution of the new baked yard lighting.
-        page.evaluate("IRON_TIDE.setView('1-launch'); IRON_TIDE.bakedLights(true)")
+        page.evaluate("IRON_TIDE.detailView('yardLight'); IRON_TIDE.bakedLights(true)")
         capture(page,OUT/"yard-light-on.png")
         page.evaluate("IRON_TIDE.bakedLights(false)")
         capture(page,OUT/"yard-light-off.png")
@@ -122,11 +125,11 @@ try:
                 draw.ellipse((x-9,y-9,x+9,y+9), fill="#a72e2e", outline="white",width=1)
                 draw.text((x,y),str(p["index"]),font=tiny,anchor="mm",fill="white")
             draw.text((1460,25),"REDLINE / IRON TIDE",font=ImageFont.load_default(size=24),fill="white")
-            draw.text((1460,62),"3,000 m x 3,000 m | 32 airborne gates",font=tiny,fill="#d1d9df")
+            draw.text((1460,62),"3,000 m x 3,000 m | 38 airborne gates",font=tiny,fill="#d1d9df")
             for i,sector in enumerate(layout["sectors"]):
-                y = 110+i*91
+                y = 100+i*73
                 draw.text((1460,y),f'{i+1:02d}  {sector["name"]}',font=font,fill="#ff7468")
-                draw.text((1460,y+25),f'CP {i*4+1:02d}-{i*4+4:02d}  |  Altitude: '+ " / ".join(str(p[1]) for p in sector["gates"])+" m",font=tiny,fill="#e1e7ec")
+                draw.text((1460,y+25),f'CP {1+sum(len(s["gates"]) for s in layout["sectors"][:i]):02d}-{sum(len(s["gates"]) for s in layout["sectors"][:i+1]):02d}  |  Altitude: '+ " / ".join(str(p[1]) for p in sector["gates"])+" m",font=tiny,fill="#e1e7ec")
             draw.text((1460,853),"North is up. Render + actual gate projection.",font=tiny,fill="#a5b0b9")
             board.save(OUT / "top-annotated.png")
         # Same-world camera evidence with no visual route overlay.
@@ -174,7 +177,7 @@ try:
         (OUT / "report.json").write_text(json.dumps({"views":results,"assets":exported,"renderer":"Chromium SwiftShader (software; not real-device performance)","layout":layout},indent=2))
         page.goto("http://127.0.0.1:8765/iron-tide-output/IRON_TIDE.html", wait_until="load", timeout=90000)
         page.wait_for_function("Boolean(window.IRON_TIDE)", timeout=90000)
-        assert page.evaluate("IRON_TIDE.stats().gates") == 32
+        assert page.evaluate("IRON_TIDE.stats().gates") == 38
         assert not errors, errors
         browser.close()
 finally:
