@@ -124,6 +124,22 @@ define('ship-hull',()=>{
  for(let x=-172;x<174;x+=8){box(m.steel,x,4,0,.7,1.35,43);if(Math.round((x+172)/8)%3===0)box(m.rust,x,4.7,0,1.1,.28,44)}
  for(const z of [-18,-12,-6,0,6,12,18])box(m.steel,0,4.8,z,346,.7,.42);
  for(const side of [-1,1])for(let x=-153;x<154;x+=24){const z=side*25;box(m.orange,x,13,z,.7,17,1.6);box(m.steel,x,21.4,z,3.5,.3,3.2)}
+ // Partial transverse bulkheads: broad central construction openings remain.
+ // Side webs join shell, double bottom and upper transverse girder. Large
+ // openings are deliberate visual racing corridors, not real bulkhead design.
+ for(const x of [-112,-32,48,120]){
+  for(const side of [-1,1]){
+   box(inside,x,17.1,side*23,.55,23.8,10.2);
+   box(m.steel,x,17.1,side*17.7,1.15,23.8,.68);
+   for(const y of [7,12,17,22,27])box(m.steel,x, y,side*23,1.0,.34,10.6);
+   beam(m.rust,[x,5.4,side*15.8],[x,10.6,side*18.5],1.1);
+   beam(m.steel,[x,27.5,side*18],[x,31,side*14],.9);
+   box(m.light,x+.45,25.7,side*16.8,.18,.55,.75);
+  }
+  box(m.steel,x,30.9,0,.9,1.15,35.2);
+  box(m.rust,x,31.6,0,1.55,.3,36);
+ }
+
 });
 define('bollard',()=>{cylinder(m.dark,0,.55,0,1.2,1.1);cylinder(m.steel,0,1.3,0,.65,1.5);cylinder(m.dark,0,2.1,0,1,.32)});
 define('caisson',()=>{box(m.concrete,0,5,0,18,12,17);box(m.dark,0,11.2,0,20,1.4,19);for(const x of [-5,5])beam(m.steel,[x,11.8,-5],[x,14,-5],.5)});
@@ -534,6 +550,33 @@ for(const [x,z] of [[500,-1150],[100,-1190],[-340,-1180]]){
  }
 }
 for(const x of [-1050,-800,-600])if(clearFootprint(x,-1210,130,40,36))place('workboat',x,0,-1210,.02,.95);
+// New container-wall placements use segment-versus-inflated-box tests. The
+// conservative 13 m clearance protects the existing ring openings and gives
+// camera users the close walls suggested by the reference. This is not a
+// swept-volume audit of the original world or any particular REDLINE craft.
+function routeBoxClear(x,z,w,d,lo,hi,clearance=13){
+ const mn=[x-w/2-clearance,lo-clearance,z-d/2-clearance],mx=[x+w/2+clearance,hi+clearance,z+d/2+clearance];
+ for(let i=0;i<routePoints.length;i++){
+  const a=routePoints[i],b=routePoints[(i+1)%routePoints.length];let t0=0,t1=1;
+  for(let k=0;k<3;k++){const delta=b[k]-a[k];if(Math.abs(delta)<1e-8){if(a[k]<mn[k]||a[k]>mx[k]){t0=1;t1=0;break}}else{let n=(mn[k]-a[k])/delta,f=(mx[k]-a[k])/delta;if(n>f){const tmp=n;n=f;f=tmp}t0=Math.max(t0,n);t1=Math.min(t1,f);if(t0>t1)break}}
+  if(t0<=t1)return false;
+ }
+ return true
+}
+let corridorStacks=0;
+for(let i=4;i<=6;i++){
+ const a=routePoints[i],b=routePoints[i+1],dx=b[0]-a[0],dz=b[2]-a[2],len=Math.hypot(dx,dz),nx=-dz/len,nz=dx/len,angle=Math.atan2(-dz,dx),w=12.4*Math.abs(Math.cos(angle))+2.6*Math.abs(Math.sin(angle)),d=12.4*Math.abs(Math.sin(angle))+2.6*Math.abs(Math.cos(angle));
+ for(const side of [-1,1])for(const offset of [21,34])for(let k=20;k<len-15;k+=16){
+  const x=a[0]+dx*k/len+nx*offset*side,z=a[2]+dz*k/len+nz*offset*side;
+  if(!openGround(x,z,w,d))continue;
+  let added=false;
+  for(let h=0;h<7+(Math.round(k/16)%3);h++){
+   const y=5+h*2.94;if(!routeBoxClear(x,z,w,d,y,y+2.94))break;
+   if(place('container-'+['rust','blue','green','white'][(i+h+Math.round(k/16))%4],x,y,z,angle))added=true;else break
+  }
+  if(added)corridorStacks++;
+ }
+}
 // Tidal wall equipment: rubber fenders are supported on steel backing plates.
 define('quay-fender',()=>{box(m.steel,0,0,0,2.7,3,.24);box(m.rubber,0,0,.52,2.3,2.7,.82);for(const x of [-.95,.95])for(const y of [-1.12,1.12])box(m.steel,x,y,.98,.18,.18,.12)});
 for(let x=-1160;x<1160;x+=21)place('quay-fender',x,2.6,1200.14);
@@ -573,7 +616,7 @@ const guide=new T.Group();guide.name='aerial-route';scene.add(guide);const gateG
 const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff6456,transparent:true,opacity:.85}));guide.add(route);
 // Separate asset inspection scene shares the exact merged source models and lighting.
 const assetScene=new T.Scene();assetScene.background=new T.Color(0x303941);assetScene.environment=scene.environment;assetScene.add(new T.HemisphereLight(0xc0d8ed,0x49413c,1.35));const assetSun=new T.DirectionalLight(0xffcf99,3.1);assetSun.position.set(-160,100,80);assetScene.add(assetSun);const assetFloor=new T.Mesh(new T.PlaneGeometry(2000,2000),new T.MeshStandardMaterial({color:0x45494b,roughness:.8}));assetFloor.rotation.x=-Math.PI/2;assetFloor.position.y=-.1;assetScene.add(assetFloor);let inspected=null;const assetCamera=new T.PerspectiveCamera(42,1,.1,4000);
-function assetView(name,angle=0){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();const delta=V(r*1.05,r*.68,r*1.1).applyAxisAngle(up,angle);assetCamera.position.copy(center).add(delta);assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
+function assetView(name,angle=0){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();const elongated=size.x>size.z*2.5;const delta=(elongated?V(r*.34,r*.40,r*.93):V(r*.85,r*.58,r*.95)).applyAxisAngle(up,angle);assetCamera.position.copy(center).add(delta);assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
 // Keep only a small fixed-size set of real practical point lights active near
 // the camera. Distant fixtures retain their emissive meshes and baked glow pools.
 const practical=Array.from({length:4},()=>{const p=new T.PointLight(0xffbe77,0,75,2);scene.add(p);return p});
@@ -598,5 +641,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
