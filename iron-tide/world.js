@@ -315,7 +315,7 @@ define('heavy-gantry-detail',()=>{
  }
  for(let x=-64;x<=64;x+=8)box(m.steel,x,112,0,1.25,1.4,19);
  box(m.orange,8,118,0,17,5.8,21);box(m.dark,8,121.2,0,18,.6,22);
- box(m.glass,19,114,12,6,4.5,4);box(m.steel,19,111.4,12,7,.4,5);
+ box(m.dark,19,114,12,6,4.5,4);box(m.glass,19,114.35,14.05,5.45,2.9,.15);for(const x of [17,19,21])box(m.steel,x,114.35,14.16,.12,2.95,.12);for(const x of [15.95,22.05])box(m.glass,x,114.35,12,.12,2.9,3.55);box(m.orange,19,116.38,12,6.5,.45,4.6);box(m.steel,19,111.4,12,7,.4,5);rail(19,112.55,14.45,7);
  for(const x of [2,14])for(const z of [-3,3])beam(m.dark,[x,113,z],[x,64,z],.12,.12,true);
  box(m.yellow,8,63,0,15,2.8,7);box(m.dark,8,61.1,0,11,.6,4);
  for(const x of [-54,54])for(const z of [-10,10])box(m.light,x,104,z,2,.5,2);
@@ -453,7 +453,7 @@ define('rtg-crane',()=>{
  }
  for(const x of [-span/2,span/2]){box(m.orange,x,22,0,1.6,2.1,12);box(m.dark,x,4,0,2.6,1.4,9);rail(x,24,0,12,'z')}
  for(const z of [-4,4]){box(m.orange,0,H,z,26,2.2,1.55);box(m.steel,0,H+1.25,z,26,.25,1.2);rail(0,H+2.1,z+.7,25)}
- box(m.orange,0,24.5,0,5.2,2.1,10);box(m.glass,-3.2,21,4.8,2.8,2.7,2.6);
+ box(m.orange,0,24.5,0,5.2,2.1,10);box(m.dark,-3.2,21,4.8,2.8,2.7,2.6);box(m.glass,-3.2,21.35,6.13,2.45,1.68,.11);box(m.steel,-3.2,21.35,6.2,.08,1.68,.05);box(m.orange,-3.2,22.43,4.8,3,.23,2.8);
  box(m.dark,0,25.9,0,4,.75,6);for(const x of [-2.0,2.0])for(const z of [-3,3])for(const sign of [-1,1])beam(m.dark,[x,23,z+sign*.18],[x,17,z+sign*.18],.055,.055,true);
  box(m.yellow,0,16.9,0,2.65,.65,7);for(const x of [-1.2,1.2])for(const z of [-3.4,3.4])box(m.dark,x,16.4,z,.38,.4,.38);
  box(m.dark,span/2+1,5,0,2.1,3,5);box(m.light,-span/2,20,0,1.3,.4,.6);
@@ -477,7 +477,7 @@ define('quay-container-crane',()=>{
   beam(m.dark,[x,78,-4],[x,54,66],.11,.11,true);beam(m.dark,[x,78,-4],[x,54,-27],.11,.11,true);
  }
  beam(m.orange,[-6,78,-4],[6,78,-4],1.5);box(m.dark,0,56,-18,9,5,16);box(m.blue,0,58.7,-18,9.5,.45,16.5);
- box(m.orange,0,49,42,7.5,3.6,8);box(m.glass,4.2,48,42,2.8,3.2,4);
+ box(m.orange,0,49,42,7.5,3.6,8);box(m.dark,4.2,48,42,2.8,3.2,4);box(m.glass,5.64,48.4,42,.11,2.2,3.56);box(m.glass,4.2,48.4,44.04,2.45,2.2,.11);box(m.steel,5.72,48.4,42,.055,2.2,.08);box(m.orange,4.2,49.72,42,3.1,.25,4.3);
  for(const x of [-1.3,1.3])for(const z of [39,45])beam(m.dark,[x,48,z],[x,27,z],.08,.08,true);
  box(m.yellow,0,26.5,42,3.2,1.0,12);for(const x of [-1.5,1.5])for(const z of [36,48])box(m.dark,x,25.8,z,.35,.55,.35);
  box(m.steel,7,50,16,1.8,.42,85);rail(7.9,51,16,85,'z');for(const z of [-12,12,45])box(m.light,0,48,z,1.5,.45,1.1);
@@ -526,10 +526,38 @@ for(const [x,z] of [[-1040,465],[-1040,650],[-610,470],[-580,640],[-960,760]]){
 // Connected dock work zones: cargo inspection platform, piping, forklifts and
 // terminal trailers, arranged around existing access paths rather than scattered.
 define('terminal-tractor',()=>{
- box(m.dark,0,.85,0,2.4,.6,5.6);box(m.orange,0,1.75,-1.5,2.3,1.6,2.25);box(m.glass,0,2.95,-1.5,2.15,.85,2.05);
- box(m.orange,0,3.5,-1.5,2.5,.22,2.4);box(m.dark,0,1.4,1.4,2.05,.45,2.2);
- for(const z of [-1.65,1.65])for(const x of [-1.05,1.05]){const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);part(cylGeo,m.rubber,x,.72,z,.72,.48,.72,rot);part(cylGeo,m.steel,x+(x>0?.25:-.25),.72,z,.31,.12,.31,rot)}
- box(m.yellow,0,1.85,2.7,2.1,.2,.22);for(const x of [-.8,.8])box(m.light,x,1.62,-2.65,.48,.28,.10);
+ // Yard tractor: short wheelbase, elevated single cab and exposed rear chassis.
+ const body=m.white,paint=m.orange,tire=m.rubber,glass=m.glass.clone();glass.color.setHex(0x25343a);glass.roughness=.16;glass.metalness=.25;
+ const wheelQ=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);
+ for(const x of [-.69,.69])box(m.dark,x,.79,0,.20,.36,5.15);
+ for(let z=-2.3;z<2.5;z+=1.0)box(m.steel,0,.78,z,1.6,.23,.24);
+ for(const z of [-1.55,1.53]){beam(m.steel,[-1.1,.56,z],[1.1,.56,z],.17,.17,true);
+  for(const x of [-1.03,1.03]){
+   const side=Math.sign(x);part(cylGeo,tire,x,.57,z,.57,.35,.57,wheelQ);part(cylGeo,m.dark,x+side*.19,.57,z,.41,.08,.41,wheelQ);part(cylGeo,m.steel,x+side*.24,.57,z,.285,.055,.285,wheelQ);
+   for(let i=0;i<8;i++){const ang=i*Math.PI/4;part(cylGeo,m.dark,x+side*.279,.57+.19*Math.cos(ang),z+.19*Math.sin(ang),.032,.024,.032,wheelQ)}
+   if(z>0)part(cylGeo,tire,x-side*.34,.57,z,.57,.29,.57,wheelQ)
+   for(let i=0;i<16;i++){const ang=i*Math.PI/8,q=new T.Quaternion().setFromAxisAngle(V(1,0,0),ang);part(boxGeo,tire,x,.57+Math.cos(ang)*.565,z+Math.sin(ang)*.565,.29,.025,.105,q)}
+  }
+ }
+ // Cab shell has softened corners, separate window openings, A-pillars and roof cap.
+ box(body,-.12,1.46,-1.35,2.15,1.16,2.12);
+ const shape=new T.Shape();shape.moveTo(-1.08,-.45);shape.lineTo(1.08,-.45);shape.lineTo(1.08,.26);shape.lineTo(.91,.48);shape.lineTo(-.91,.48);shape.lineTo(-1.08,.26);shape.closePath();
+ const shell=new T.ExtrudeGeometry(shape,{depth:1.92,bevelEnabled:true,bevelSize:.055,bevelThickness:.055,bevelSegments:2,steps:1});shell.translate(0,0,-.96);part(shell,body,-.12,2.63,-1.35,1,1,1);
+ box(glass,-.12,2.69,-2.38,1.83,.72,.07);box(m.dark,-.12,2.69,-2.43,.055,.72,.035);
+ for(const x of [-1.23,.99]){box(glass,x,2.68,-1.42,.055,.65,1.56);box(m.dark,x,2.68,-1.42,.074,.69,.055);box(body,x,2.28,-1.42,.1,.14,1.8)}
+ box(body,-.12,3.17,-1.35,2.31,.20,2.19);box(paint,-.12,3.28,-1.35,2.31,.07,2.19);
+ // Bumper, radiator intake, headlamps, wipers, mirror arms and entry steps.
+ box(m.dark,0,.86,-2.47,2.38,.46,.24);box(m.dark,-.12,1.46,-2.43,1.31,.58,.08);
+ for(let y=1.23;y<1.73;y+=.08)box(m.steel,-.12,y,-2.49,1.22,.024,.055);
+ for(const x of [-.89,.75]){box(m.steel,x,1.38,-2.47,.39,.36,.1);box(m.light,x,1.39,-2.535,.29,.24,.055)}
+ for(const x of [-.54,.37])beam(m.dark,[x,2.38,-2.44],[x+.3,2.9,-2.44],.022);
+ for(const side of [-1,1]){const x=-.12+side*1.09;beam(m.dark,[x,2.72,-2.06],[x+side*.39,2.76,-2.06],.045,.045,true);box(m.dark,x+side*.39,2.75,-2.03,.19,.38,.12);box(m.steel,x+side*.13,.91,-1.3,.35,.13,.58);box(m.steel,x+side*.13,.66,-1.3,.35,.12,.56)}
+ for(const x of [-.77,.77]){beam(m.dark,[x,1.17,1.4],[x,1.75,1.4],.23,.23,true);box(m.steel,x,1.3,1.4,.45,.2,.75)}
+ // Fifth wheel plate and hydraulic lift, actual trailer coupling height.
+ box(m.dark,0,1.12,1.36,1.8,.25,1.55);cylinder(m.steel,0,1.43,1.36,.82,.20);box(m.dark,0,1.53,1.78,.19,.045,.68);
+ beam(m.dark,[0,.88,.7],[0,1.35,1.28],.15,.15,true);beam(m.steel,[.93,1.25,-.3],[.93,3.3,-.3],.12,.12,true);beam(m.dark,[.93,3.3,-.3],[.93,3.4,-.56],.13,.13,true);
+ for(const x of [-.98,.98]){box(m.dark,x,1.24,1.53,.44,.16,1.49);box(m.rust,x,.85,2.43,.22,.28,.12)}
+ box(m.yellow,-.48,3.41,-1.34,.22,.18,.22);
 });
 define('cargo-trailer',()=>{
  box(m.steel,0,1.4,0,2.6,.42,13.0);for(const x of [-1.1,1.1])box(m.dark,x,1.03,0,.25,.42,12.7);
