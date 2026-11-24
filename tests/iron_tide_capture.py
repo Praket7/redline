@@ -42,7 +42,7 @@ try:
         audit = page.evaluate("IRON_TIDE.assetAudit()")
         required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
         required.update({"reference-sky-bridge","reference-offshore-platform","plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank","steel-transfer-station","curved-panel-jig","block-transport-cradle","gantry-service-hall","winch-service-skid"})
-        required.update({"stage3-boiler-house","stage3-outfitting-annex","stage3-electrical-substation","pipe-rack","stage3-quay-workbay","stage3-forklift","stage3-hose-skid","stage3-outfitting-vessel","stage3-dock-jib"})
+        required.update({"stage3-boiler-house","stage3-outfitting-annex","stage3-electrical-substation","pipe-rack","stage3-quay-workbay","stage3-forklift","stage3-hose-skid","stage3-outfitting-vessel","stage3-dock-jib","stage3-block-assembly-hall","stage3-ship-lift-portal","stage3-process-plant","stage3-repair-barge"})
         assert required.issubset(audit), required-set(audit)
         for name, info in audit.items():
             assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)
@@ -92,7 +92,13 @@ try:
             assert sum(ref["stage3Sites"].values()) >= 3, ref
             assert ref["lookdevSites"]["workbays"] > 0 and ref["lookdevSites"]["forklifts"] > 0 and ref["lookdevSites"]["hoseSkids"] > 0, ref
             assert ref["quayDetails"] > 20 and ref["lookdevSites"]["dockJibs"] > 0, ref
-            assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100, stats
+            # These are different structural systems and must be placed, not
+            # merely exported as unused models or counted as extra triangles.
+            macro = ref["macroSites"]
+            assert all(macro[key] > 0 for key in ("assemblyHalls","shipLifts","processPlants","repairBarges")), macro
+            evidence = ref["macroEvidence"]
+            assert all(evidence[k] for k in ("hall","lift","plant","barge")), evidence
+            assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100 and stats["freightStamps"] > 100, stats
             assert stats["sharedRailBatches"] > 0, stats
             assert stats["photoMaterials"] == expected_photos, stats
             assert stats["skySource"] == expected_sky, stats
@@ -134,7 +140,7 @@ try:
             assert delta>.02, ("baked yard lights did not change framebuffer",delta)
         (OUT/"yard-light-audit.json").write_text(json.dumps({"mean_rgb_difference":delta}))
         page.evaluate("IRON_TIDE.bakedLights(true)")
-        for detail in ["gantryBase","hullServices","craneWorkshops","quaySurface","offshoreDetail"]:
+        for detail in ["gantryBase","hullServices","craneWorkshops","quaySurface","offshoreDetail","macro-hall","macro-lift","macro-plant","macro-barge"]:
             page.evaluate("(id) => IRON_TIDE.detailView(id)",detail)
             capture(page,OUT/("detail-"+detail+".png"))
         page.evaluate("IRON_TIDE.setView('top')")
