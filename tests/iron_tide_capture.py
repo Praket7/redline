@@ -2,7 +2,7 @@
 """Headless real WebGL capture and export; exits nonzero on missing/invalid evidence."""
 import base64, json, math, pathlib, struct, subprocess, sys, time
 from playwright.sync_api import sync_playwright
-from PIL import Image, ImageStat, ImageDraw, ImageFont
+from PIL import Image, ImageStat, ImageDraw, ImageFont, ImageChops
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "iron-tide-output"
 OUT.mkdir(exist_ok=True)
@@ -40,6 +40,7 @@ try:
         assert page.evaluate("Boolean(window.IRON_TIDE)"), page.locator("#error").inner_text()
         audit = page.evaluate("IRON_TIDE.assetAudit()")
         required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
+        required.update({"plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank"})
         assert required.issubset(audit), required-set(audit)
         for name, info in audit.items():
             assert info["nonfinite"] == 0 and info["triangles"] > 0 and all(math.isfinite(v) and v > 0 for v in info["meters"]), (name,info)
@@ -71,6 +72,23 @@ try:
                 stats["imageLuminanceMean"]=round(lum.mean[0],3)
                 stats["imageLuminanceStddev"]=round(lum.stddev[0],3)
             results[view] = stats
+        # Verify true reflected-scene contribution, not merely a flag or a glossy material.
+        reflection_report = {}
+        for view, expected in [("1-launch","pavement"),("6-breakwater","water")]:
+            page.evaluate("(id) => IRON_TIDE.setView(id)",view)
+            page.evaluate("IRON_TIDE.reflections(true)")
+            capture(page,OUT / (view+"-reflection-on.png"))
+            st=page.evaluate("IRON_TIDE.stats()")
+            assert st["reflectionActive"] == expected and st["reflectionPasses"] > 0, st
+            page.evaluate("IRON_TIDE.reflections(false)")
+            capture(page,OUT / (view+"-reflection-off.png"))
+            with Image.open(OUT / (view+"-reflection-on.png")) as a, Image.open(OUT / (view+"-reflection-off.png")) as b:
+                diff=ImageChops.difference(a.convert("RGB"),b.convert("RGB"))
+                mean=sum(ImageStat.Stat(diff).mean)/3
+                assert mean > .02, ("reflection produced no meaningful framebuffer change",view,mean)
+            reflection_report[view]={"plane":expected,"mean_rgb_difference":mean,"passes":st["reflectionPasses"]}
+        page.evaluate("IRON_TIDE.reflections(true)")
+        (OUT / "reflection-audit.json").write_text(json.dumps(reflection_report,indent=2))
         page.evaluate("IRON_TIDE.setView('top')")
         projected = page.evaluate("IRON_TIDE.projectGates()")
         # Overlay exact projected points on the rendered orthographic view.
