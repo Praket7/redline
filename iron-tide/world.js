@@ -3,8 +3,8 @@
 'use strict';
 const T=THREE, V=(x,y,z)=>new T.Vector3(x,y,z), layout=window.IRON_TIDE_LAYOUT || await (await fetch('layout.json')).json();
 const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0x777b86,.00012);
-const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.14;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
-const sun=new T.DirectionalLight(0xffbd80,3.25);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0xa9c6ef,0x74615a,1.20));
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.96;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
+const sun=new T.DirectionalLight(0xffb36f,2.85);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0x96acd0,0x54443c,.80));
 let seed=89423;function rnd(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
 function texture(base,kind){
  const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,256,256);
@@ -23,8 +23,16 @@ const m={concrete:material('#625d57',0,.71,'concrete'),road:material('#55575a',0
 const texturePack=window.IRON_TIDE_TEXTURES||{},loadedMaterials=[];
 async function photoMap(uri,srgb){const im=new Image();await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=()=>reject(Error('packed texture could not decode'));im.src=uri});const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());if(srgb)t.encoding=T.sRGBEncoding;return t}
 for(const [key,mat] of [['concrete',m.concrete],['asphalt',m.road],['rust',m.rust],['paint',m.orange],['steel',m.steel]]){const pack=texturePack[key];if(!pack)continue;const [diff,nor,rough]=await Promise.all([photoMap(pack.diff,true),photoMap(pack.nor_gl,false),photoMap(pack.rough,false)]);mat.map.dispose();mat.normalMap.dispose();mat.roughnessMap.dispose();mat.map=diff;mat.normalMap=nor;mat.roughnessMap=rough;mat.normalScale.set(.55,.55);mat.roughness=1;mat.needsUpdate=true;loadedMaterials.push(key)}
+// Preserve photographic structure while grade-matching the red oxide, painted
+// steel and rain-darkened asphalt palette. Paint/corrosion is not bare metal.
+if(loadedMaterials.includes('asphalt'))m.road.color.setHex(0x92918b);
+if(loadedMaterials.includes('concrete'))m.concrete.color.setHex(0xbab1a5);
+if(loadedMaterials.includes('rust'))m.rust.color.setHex(0xc27d51);
+if(loadedMaterials.includes('paint'))m.orange.color.setHex(0xedaa69);
+if(loadedMaterials.includes('steel'))m.steel.color.setHex(0xb4b9b8);
+for(const mat of Object.values(m))if(mat.isMeshStandardMaterial)mat.envMapIntensity=.72;
 // World ground maps tile at approximately industrial pavement scale instead of stretching.
-for(const mat of [m.road,m.concrete]){mat.map.repeat.set(12,12);mat.normalMap.repeat.set(12,12);mat.roughnessMap.repeat.set(12,12);mat.normalScale.set(.2,.2)}
+for(const mat of [m.road,m.concrete]){mat.map.repeat.set(mat===m.road?12:1,mat===m.road?12:1);mat.normalMap.repeat.copy(mat.map.repeat);mat.roughnessMap.repeat.copy(mat.map.repeat);mat.normalScale.set(.2,.2)}
 const asphalt=new T.MeshStandardMaterial({color:0x333a3c,roughness:.86});const apron=new T.MeshStandardMaterial({color:0x65605a,roughness:.88});const tar=new T.MeshStandardMaterial({color:0x282b2b,roughness:.9});
 const env=document.createElement('canvas');env.width=512;env.height=256;const e=env.getContext('2d'),grad=e.createLinearGradient(0,0,0,256);grad.addColorStop(0,'#182a49');grad.addColorStop(.45,'#af8677');grad.addColorStop(.52,'#f0ad76');grad.addColorStop(.65,'#4b4b56');grad.addColorStop(1,'#171b23');e.fillStyle=grad;e.fillRect(0,0,512,256);
 // Layered seeded cloud silhouettes in the same equirectangular sky used for reflections.
@@ -36,7 +44,7 @@ const skyPixels=e.getImageData(0,0,512,256);
 for(let y=12;y<128;y++)for(let x=0;x<512;x++){let u=x/512*7,v=y/256*10,n=0,a=.5;for(let o=0;o<5;o++){n+=a*smoothNoise(u,v);u*=2;v*=2;a*=.5}const opacity=T.MathUtils.clamp((n-.36)*1.8,0,.65)*Math.sin(y/128*Math.PI),i=(y*512+x)*4;const edge=T.MathUtils.clamp((y-65)/55,0,1),cloud=[38+edge*100,47+edge*39,65+edge*20];for(let k=0;k<3;k++)skyPixels.data[i+k]=skyPixels.data[i+k]*(1-opacity)+cloud[k]*opacity}
 e.putImageData(skyPixels,0,0);seed=skySeed;
 let envTex=new T.CanvasTexture(env),skySource='procedural';envTex.mapping=T.EquirectangularReflectionMapping;envTex.encoding=T.sRGBEncoding;
-if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(T.FloatType);envTex=await sky.loadAsync(texturePack.sky.hdr);envTex.mapping=T.EquirectangularReflectionMapping;skySource='industrial_sunset_02_puresky';}
+if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(T.FloatType);envTex=await sky.loadAsync(texturePack.sky.hdr);const pixels=envTex.image.data;for(let i=0;i<pixels.length;i+=4){pixels[i]*=.35;pixels[i+1]*=.29;pixels[i+2]*=.25}envTex.needsUpdate=true;envTex.mapping=T.EquirectangularReflectionMapping;skySource='industrial_sunset_02_puresky';}
 const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(envTex).texture;scene.background=envTex;pmrem.dispose();
 const boxGeo=new T.BoxGeometry(1,1,1),cylGeo=new T.CylinderGeometry(1,1,1,12),sphereGeo=new T.SphereGeometry(1,12,8);const q=new T.Quaternion(),up=V(0,1,0);
 const templates={};let target=null;const batches=new Map();
@@ -130,8 +138,8 @@ for(const z of [-1050,-840,-600,-400])place('tugboat',1210,.5,z,Math.PI/2);
 for(const mat of [m.road,asphalt,apron]){
  mat.onBeforeCompile=shader=>{
   shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 pavementP=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n pavementP=instanceMatrix*pavementP;\n#endif\n vPavement=(modelMatrix*pavementP).xyz;');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.045)*.7+wetNoise(vPavement.xz*.19)*.3;float puddle=smoothstep(.50,.78,wet);roughnessFactor=mix(roughnessFactor,.19,puddle*.72);diffuseColor.rgb*=mix(1.0,.62,puddle);');
- if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.045)*.7+wetNoise(vPavement.xz*.19)*.3;float puddle=smoothstep(.50,.78,wet);roughnessFactor=mix(roughnessFactor,.23,puddle*.62);diffuseColor.rgb*=mix(1.0,.67,puddle);');
+ if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
  };
 }
 // Native industrial kit: batched working-port models and practical lighting.
@@ -200,7 +208,7 @@ const coastMat=new T.MeshStandardMaterial({color:0x353b43,roughness:1,metalness:
 const coastGeo=new T.BufferGeometry(),coastPos=[],coastColors=[],coastIndices=[],coastN=160,coastM=32;
 for(let iz=0;iz<=coastM;iz++)for(let ix=0;ix<=coastN;ix++){const x=-6400+ix*80,t=iz/coastM,shore=-2500-170*Math.sin(x*.0007)-90*Math.cos(x*.0025),z=shore-t*2200;
  const ridge=Math.sin(Math.PI*t)**1.6,large=.48+.24*Math.sin(x*.0008)+.13*Math.sin(x*.0019+1),small=.65+.35*smoothNoise(x*.002,z*.002);
- const height=-3+ridge*(70+large*460)*small;coastPos.push(x,height,z);const v=.25+.15*small+.09*ridge;coastColors.push(v*.79,v*.88,v);}
+ const height=-3+ridge*(70+large*460)*small;coastPos.push(x,height,z);const v=.12+.10*small+.06*ridge;coastColors.push(v*.78,v*.87,v);}
 for(let iz=0;iz<coastM;iz++)for(let ix=0;ix<coastN;ix++){const a=iz*(coastN+1)+ix,b=a+1,c=a+coastN+1,d=c+1;coastIndices.push(a,b,c,b,d,c)}
 coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coastGeo.setAttribute('color',new T.Float32BufferAttribute(coastColors,3));coastGeo.setIndex(coastIndices);coastGeo.computeVertexNormals();coastMat.side=T.DoubleSide;coastMat.color.setHex(0xffffff);coastMat.vertexColors=true;part(coastGeo,coastMat,0,0,0,1,1,1);
 // Richer native industrial architecture: each kit has an inspectable/exportable model.
@@ -364,12 +372,12 @@ for(const chunk of containerChunks.values()){
 }
 const lodFrustum=new T.Frustum(),lodMatrix=new T.Matrix4();let lodInitialized=false;
 function updateContainerLOD(cam){cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true}
-const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x203b49,roughness:.36,metalness:.28,bumpMap:waterTex,bumpScale:.6});
+const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x16333c,roughness:.39,metalness:.04,envMapIntensity:.55,bumpMap:waterTex,bumpScale:.6});
 // World-position ripples avoid the previous giant repeated bump texture.
 waterMat.bumpMap=null;
 waterMat.onBeforeCompile=shader=>{
  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz; vec2 w1=vec2(.32,.19),w2=vec2(-.61,1.13),w3=vec2(.91,.74);float p1=dot(seaP,w1),p2=dot(seaP,w2),p3=dot(seaP,w3);float a1=1.-smoothstep(.4,2.0,fwidth(p1)),a2=1.-smoothstep(.4,2.0,fwidth(p2)),a3=1.-smoothstep(.4,2.0,fwidth(p3));vec2 rip=.09*cos(p1)*w1*a1+.045*sin(p2)*w2*a2+.035*cos(p3)*w3*a3;normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=sin(vSea.x*.022+sin(vSea.z*.013)*2.0)*cos(vSea.z*.024);diffuseColor.rgb*=.93+.07*seaRip;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz; vec2 w1=vec2(.32,.19),w2=vec2(-.61,1.13),w3=vec2(.91,.74);vec2 warp=vec2(sin(seaP.y*.031+sin(seaP.x*.008)*2.),cos(seaP.x*.027+cos(seaP.y*.011)*2.))*3.5;float p1=dot(seaP+warp,w1),p2=dot(seaP-warp,w2),p3=dot(seaP+warp*.64,w3);float a1=1.-smoothstep(.4,2.0,fwidth(p1)),a2=1.-smoothstep(.4,2.0,fwidth(p2)),a3=1.-smoothstep(.4,2.0,fwidth(p3));vec2 rip=.065*cos(p1)*w1*a1+.033*sin(p2)*w2*a2+.026*cos(p3)*w3*a3;normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=sin(vSea.x*.022+sin(vSea.z*.013)*2.0)*cos(vSea.z*.024);diffuseColor.rgb*=.93+.07*seaRip;');
 };
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
 function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),waterMat);water.rotation.x=-Math.PI/2;water.position.set(x,-.25,z);scene.add(water)}
