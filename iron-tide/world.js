@@ -2,9 +2,18 @@
 (async function(){
 'use strict';
 const T=THREE, V=(x,y,z)=>new T.Vector3(x,y,z), layout=window.IRON_TIDE_LAYOUT || await (await fetch('layout.json')).json();
-const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0x555c68,.00012);
+const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0x777f8c,.00012);
 const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.94;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
 const sun=new T.DirectionalLight(0xffa65c,2.45);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0x9aaec8,0x594d46,.90));
+// Integrated marine aerosol: a shallow moist boundary layer and weaker
+// far-distance airlight. The built-in scene fog remains the density control.
+// All fog-capable built-in materials (including instancing) share the model.
+const fogVertPars=T.ShaderChunk.fog_pars_vertex,fogFragPars=T.ShaderChunk.fog_pars_fragment;
+T.ShaderChunk.fog_pars_vertex=fogVertPars+'\n#if defined(USE_FOG) && defined(FOG_EXP2)\nvarying vec3 vHarborFogWorld;\n#endif';
+T.ShaderChunk.fog_pars_fragment=fogFragPars+'\n#if defined(USE_FOG) && defined(FOG_EXP2)\nvarying vec3 vHarborFogWorld;\n#endif';
+T.ShaderChunk.fog_vertex=T.ShaderChunk.fog_vertex+'\n#if defined(USE_FOG) && defined(FOG_EXP2)\nvec4 harborFogLocal=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\nharborFogLocal=instanceMatrix*harborFogLocal;\n#endif\nvHarborFogWorld=(modelMatrix*harborFogLocal).xyz;\n#endif';
+T.ShaderChunk.fog_fragment=T.ShaderChunk.fog_fragment.replace('float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDepth * fogDepth );',
+ 'float hfLength=length(vHarborFogWorld-cameraPosition);float hf0=max(cameraPosition.y,0.0);float hf1=max(vHarborFogWorld.y,0.0);float hfDelta=(hf1-hf0)/65.0;float hfIntegral=abs(hfDelta)<0.001?exp(-hf0/65.0):(exp(-hf0/65.0)-exp(-hf1/65.0))/hfDelta;float fogFactor=1.0-exp(-fogDensity*hfLength*(0.66+3.15*hfIntegral));');
 let seed=89423;function rnd(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
 function texture(base,kind){
  const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,256,256);
@@ -692,6 +701,22 @@ function clearScenery(x,top,z){for(let i=0;i<routePoints.length;i++){const a=rou
     for(let dz=-2.7;dz<2.8;dz+=.54)box(m.dark,xx,y+1.35,z+dz,5.5,.08,.16);
    }
   }
+  // Raised roof monitor: paired continuous daylighting walls and a dark
+  // folded metal ridge. Supports descend to the existing truss top chords.
+  for(const [cz,len,height] of [[-19,24,3.2],[19,17,2.55]]){
+   box(m.steel,0,ridge+.1,cz,6.5,.42,len);
+   for(const side of [-1,1]){
+    const xx=side*2.9;
+    box(m.dark,xx,ridge+height*.5,cz,.28,height,len);
+    for(let zz=cz-len/2+1.5;zz<cz+len/2;zz+=3){
+     box(m.glass,xx+side*.16,ridge+height*.62,zz,.12,height*.58,2.55);
+     box(m.steel,xx+side*.22,ridge+height*.62,zz-1.32,.11,height*.65,.13);
+    }
+    part(boxGeo,roofMetal,side*1.6,ridge+height+.25,cz,3.45,.25,len+.65,new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*.13));
+    for(const zz of [cz-len*.38,cz+len*.38])beam(m.steel,[xx,ridge-.48,zz],[xx,ridge+height,zz],.30);
+   }
+   for(const zz of [cz-len*.5,cz+len*.5])box(cladding,0,ridge+height*.5,zz,5.9,height,.20);
+  }
   // Portal frontage: piers, header and two asymmetric real open loading bays.
   for(const side of [-1,1]){
    const z=side*43.85;
@@ -777,8 +802,8 @@ for(const x of [-820,-420,60,650,1020])place('tugboat',x,.5,(x===60||x===1020)?1
 for(const z of [-1050,-840,-600,-400])place('tugboat',1210,.5,z,Math.PI/2);
 // Planar reflected-scene buffers: one bounded-resolution capture shared by
 // wet pavement, or by the harbor surface when viewing the waterfront.
-const reflectionRT=new T.WebGLRenderTarget(768,480,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true});
-const seaReflectionRT=new T.WebGLRenderTarget(640,400,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true});
+const reflectionRT=new T.WebGLRenderTarget(896,560,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true,type:renderer.capabilities.isWebGL2?T.HalfFloatType:T.UnsignedByteType});
+const seaReflectionRT=new T.WebGLRenderTarget(768,480,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true,type:renderer.capabilities.isWebGL2?T.HalfFloatType:T.UnsignedByteType});
 const reflectionPlanes={road:{target:reflectionRT,projection:{value:new T.Matrix4()},map:{value:reflectionRT.texture}},sea:{target:seaReflectionRT,projection:{value:new T.Matrix4()},map:{value:seaReflectionRT.texture}}};
 const reflUniforms={uRoadReflect:{value:0},uSeaReflect:{value:0}};
 let dualReflection=false;
@@ -798,9 +823,10 @@ function renderPortReflection(cam,plane){
  const oldRoad=reflUniforms.uRoadReflect.value,oldSea=reflUniforms.uSeaReflect.value;
  reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;
  for(const water of waterSurfaces)water.visible=false;
- guide.visible=false;reflectionClip.constant=-plane+.08;renderer.clippingPlanes=[reflectionClip];
+ const lineVisibility=guide.children.filter(o=>o.isLine).map(o=>[o,o.visible]);for(const [o] of lineVisibility)o.visible=false;
+ const oldTone=renderer.toneMapping;renderer.toneMapping=T.NoToneMapping;reflectionClip.constant=-plane+.035;renderer.clippingPlanes=[reflectionClip];
  try{updateContainerLOD(reflectionCamera,true);renderer.setRenderTarget(layer.target);renderer.render(scene,reflectionCamera);reflectionCalls+=renderer.info.render.calls;reflectionTriangles+=renderer.info.render.triangles;reflectionPasses++}
- finally{renderer.setRenderTarget(oldTarget);renderer.clippingPlanes=oldClips;guide.visible=oldGuide;fixtureHalos.visible=oldHalos;for(const water of waterSurfaces)water.visible=true;reflUniforms.uRoadReflect.value=oldRoad;reflUniforms.uSeaReflect.value=oldSea;updateContainerLOD(cam)}
+ finally{renderer.setRenderTarget(oldTarget);renderer.toneMapping=oldTone;for(const [o,v] of lineVisibility)o.visible=v;renderer.clippingPlanes=oldClips;guide.visible=oldGuide;fixtureHalos.visible=oldHalos;for(const water of waterSurfaces)water.visible=true;reflUniforms.uRoadReflect.value=oldRoad;reflUniforms.uSeaReflect.value=oldSea;updateContainerLOD(cam)}
 }
 function updatePortReflection(cam){
  reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;roadFilm.visible=seaFilm.visible=false;dualReflection=false;
@@ -1118,35 +1144,56 @@ function defineMerchant(name,unfinished=false){define(name,()=>{
  // Meter-scale hull plating atlas: actual courses, weld lines, and downward
  // oxidation from damaged paint. No baked shadows or sunset colors.
  function shipFinish(base,wear){
-  const c=document.createElement('canvas');c.width=1024;c.height=256;const ctx=c.getContext('2d');
-  ctx.fillStyle=base;ctx.fillRect(0,0,c.width,c.height);
-  if(m.rust.map?.image){
-   ctx.save();ctx.globalAlpha=wear*.54;ctx.globalCompositeOperation='multiply';
-   for(let x=0;x<1024;x+=256)ctx.drawImage(m.rust.map.image,0,0,m.rust.map.image.width,m.rust.map.image.height,x,0,256,256);
-   ctx.restore();
-   ctx.save();ctx.globalAlpha=wear*.37;ctx.globalCompositeOperation='soft-light';
-   for(let x=0;x<1024;x+=256)ctx.drawImage(m.rust.map.image,x,0,256,256);
-   ctx.restore();
-  }
-  // Long-scale varying exposure to salt and local oxidation, independent of
-  // the repeated plating grid. The boot stripe receives the strongest wear.
-  const salt=ctx.createLinearGradient(0,0,0,256);salt.addColorStop(0,'rgba(40,30,26,.13)');salt.addColorStop(.34,'rgba(45,36,30,0)');salt.addColorStop(.78,'rgba(63,37,21,.12)');salt.addColorStop(1,'rgba(44,26,17,.45)');ctx.fillStyle=salt;ctx.fillRect(0,0,1024,256);
-  let sd=27113;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
-  for(let y=0;y<256;y+=64){
-   for(let x=-40+(y%128?40:0);x<1024;x+=80){
-    ctx.fillStyle='rgba(12,18,22,'+(rand()*.13)+')';ctx.fillRect(x,y,79,63);
-    ctx.fillStyle='rgba(16,19,21,.32)';ctx.fillRect(x,y,1,64);ctx.fillRect(x,y,80,1);
-    ctx.fillStyle='rgba(190,164,140,.11)';ctx.fillRect(x+1,y+1,1,62);
-    for(let n=0;n<6;n++){
-     const xx=x+rand()*80,yy=y+rand()*15,h=12+rand()*48,w=.5+rand()*2.8,g=ctx.createLinearGradient(xx,yy,xx,yy+h);
-     g.addColorStop(0,'rgba(105,48,27,'+wear+')');g.addColorStop(1,'rgba(105,48,27,0)');ctx.fillStyle=g;ctx.fillRect(xx,yy,w,h)
-    }
+  const W=2048,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const ctx=c.getContext('2d');
+  const rough=document.createElement('canvas');rough.width=W;rough.height=H;const rc=rough.getContext('2d');
+  const bump=document.createElement('canvas');bump.width=W;bump.height=H;const bc=bump.getContext('2d');
+  ctx.fillStyle=base;ctx.fillRect(0,0,W,H);rc.fillStyle='#b1b1b1';rc.fillRect(0,0,W,H);bc.fillStyle='#808080';bc.fillRect(0,0,W,H);
+  let sd=27113+base.charCodeAt(2)*149;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
+  // Photographed iron surface is used at plausible metre scale, not stretched
+  // across the entire bow. Vary crops and blend gently into shop-primer paint.
+  const img=m.rust.map?.image;
+  if(img){
+   for(let x=0;x<W;x+=256)for(let y=0;y<H;y+=256){
+    const size=Math.min(img.width,img.height)*.55,sx=rand()*(img.width-size),sy=rand()*(img.height-size);
+    ctx.save();ctx.globalAlpha=.26+wear*.25;ctx.globalCompositeOperation='soft-light';
+    ctx.drawImage(img,sx,sy,size,size,x,y,256,256);ctx.restore();
    }
   }
-  const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-  return new T.MeshStandardMaterial({map:t,roughness:.84,roughnessMap:weatherRoughness(1024,256,27113,.73),metalness:.07,normalMap:m.steel.normalMap,normalScale:new T.Vector2(.25,.25),envMapIntensity:.68});
+  // 2 m strakes, 7–9 m plate lengths, butt joints stagger by course.
+  const row=64,plate=152;
+  for(let y=0;y<H;y+=row)for(let x=-(y/row%2)*plate*.5;x<W;x+=plate){
+   const tone=rand()-.5;
+   ctx.fillStyle=tone<0?'rgba(28,25,23,'+(-tone*.28)+')':'rgba(210,203,187,'+(tone*.24)+')';ctx.fillRect(x,y,plate,row);
+   rc.fillStyle='rgba(225,225,225,'+(rand()*.24)+')';rc.fillRect(x,y,plate,row);
+   ctx.fillStyle='rgba(32,28,26,.48)';ctx.fillRect(x,y,plate,1.6);ctx.fillRect(x,y,1.6,row);
+   ctx.fillStyle='rgba(230,216,193,.17)';ctx.fillRect(x+1.6,y+1.6,plate-2,1.1);ctx.fillRect(x+1.6,y+1.6,1.1,row-2);
+   bc.fillStyle='#575757';bc.fillRect(x,y,plate,2);bc.fillRect(x,y,2,row);
+   bc.fillStyle='#a0a0a0';bc.fillRect(x+2,y+2,plate-3,1);bc.fillRect(x+2,y+2,1,row-3);
+   for(let n=0;n<6;n++){
+    const xx=x+rand()*plate,yy=y+rand()*8,h=10+rand()*78,ww=1+rand()*7;
+    const g=ctx.createLinearGradient(xx,yy,xx,yy+h);
+    g.addColorStop(0,'rgba(96,42,18,'+(wear*(.28+rand()*.64))+')');g.addColorStop(.6,'rgba(132,65,28,'+(wear*.22)+')');g.addColorStop(1,'rgba(92,43,21,0)');
+    ctx.fillStyle=g;ctx.fillRect(xx,yy,ww,h);
+    rc.fillStyle='rgba(236,236,236,.21)';rc.fillRect(xx,yy,ww,h*.6);
+   }
+  }
+  // Large contiguous repair coats and oxidation patches with non-hard edges.
+  for(let i=0;i<115;i++){
+   const x=rand()*W,y=rand()*H,r=18+rand()*90,ry=.45+rand()*1.1;
+   ctx.save();ctx.translate(x,y);ctx.scale(1,ry);
+   const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+   grad.addColorStop(0,'rgba(99,48,25,'+(wear*(.14+rand()*.48))+')');grad.addColorStop(.6,'rgba(118,65,33,'+(wear*.13)+')');grad.addColorStop(1,'rgba(118,65,33,0)');
+   ctx.fillStyle=grad;ctx.fillRect(-r,-r,2*r,2*r);ctx.restore();
+  }
+  const salt=ctx.createLinearGradient(0,0,0,H);salt.addColorStop(0,'rgba(56,34,22,.25)');salt.addColorStop(.2,'rgba(56,34,22,0)');salt.addColorStop(.8,'rgba(45,38,31,.08)');salt.addColorStop(1,'rgba(30,25,22,.35)');ctx.fillStyle=salt;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<3000;i++){
+   const x=rand()*W,y=rand()*H,r=1+rand()*2;
+   ctx.fillStyle=rand()>.5?'rgba(220,210,191,.07)':'rgba(26,21,18,.12)';ctx.fillRect(x,y,r,r);
+  }
+  const tex=(canvas,srgb=false)=>{const t=new T.CanvasTexture(canvas);if(srgb)t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return t};
+  return new T.MeshStandardMaterial({map:tex(c,true),roughness:.92,roughnessMap:tex(rough),metalness:.10,normalMap:m.steel.normalMap,normalScale:new T.Vector2(.32,.32),bumpMap:tex(bump),bumpScale:.036,envMapIntensity:.84});
  }
- const hullmat=shipFinish(unfinished?'#928477':'#344752',unfinished?.83:.55),bootmat=shipFinish(unfinished?'#85483a':'#713b33',.42);
+ const hullmat=shipFinish(unfinished?'#a29e91':'#465761',unfinished?.83:.55),bootmat=shipFinish(unfinished?'#85483a':'#713b33',.42);
  const topmat=shipFinish('#3d4546',.32);
  function width(x){const q=x/(length/2);return 16.3*Math.sqrt(Math.max(.0005,1-Math.abs(q)**(q>0?3.8:9)))}
  function P(i,j,side){return loftPoint(-length/2+i*length/stations,sections[j][0],side).toArray()}
@@ -2634,6 +2681,21 @@ define('stage3-repair-barge',()=>{
    }
   }
  }
+ // Foreground production aprons: keep the traffic lane free, group fitted
+ // equipment by work operation and use the existing supported placement audit.
+ const foregroundWork={transport:0,winches:0,jigs:0,power:0};
+ const workAprons=[[-1140,1110],[-1135,1055],[-1125,920],[-1115,835],[-1080,1040],[-1060,940],[-1040,780],[-1000,1095],[-940,1050],[-900,1010],[-1190,700],[-1160,660],[-1125,-410],[-1100,-465],[-1000,-520],[740,325],[760,440],[1130,620],[850,695],[1080,850]];
+ const kits=[['block-transport-cradle','transport',.64],['winch-service-skid','winches',1.05],['curved-panel-jig','jigs',.65],['hydraulic-power-unit','power',1.03]];
+ for(const [x,z] of workAprons){
+  for(let k=0;k<kits.length;k++){
+   const [name,key,scale]=kits[k];if(foregroundWork[key]>=5)continue;
+   for(const [dx,dz] of [[0,0],[6,7],[-6,-7],[0,12]]){
+    if(safe(name,x+dx,z+dz,k%2?Math.PI/2:0,scale,'foreground-production')){
+     foregroundWork[key]++;break;
+    }
+   }
+  }
+ }
  // Pack each production district with staggered, large-scale buildings and
  // connected service roads. Avoid the centerline and existing model bounds.
  let additionalHalls=0,additionalTanks=0,additionalRacks=0,additionalCranes=0;
@@ -2778,7 +2840,7 @@ define('stage3-repair-barge',()=>{
  // Inspect actual hero meshes using a center ray and four radial offsets.
  // This finite sample is not continuous collision certification.
  function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<segments.length;i++){const [a,b]=segments[i];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius],[radius*.707,radius*.707],[-radius*.707,radius*.707],[radius*.707,-radius*.707],[-radius*.707,-radius*.707]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>segments.map(([a,c],j)=>intersectsSegment(b,a,c,radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
- const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,macroEvidence,quayDetails,shorelineSegments,rockCount};
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,macroEvidence,foregroundWork,quayDetails,shorelineSegments,rockCount};
 
  // Production asset bridge: actual artist-authored CC0 PBR meshes are cached
  // offline at build time, loaded as native scene geometry and supported by
@@ -2862,7 +2924,7 @@ for(const tile of lodTiles.values()){
 }
 const lodFrustum=new T.Frustum(),lodMatrix=new T.Matrix4();let lodInitialized=false;
 function updateContainerLOD(cam,reflectionLowDetail=false){cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));for(const batch of worldBatches)batch.mesh.visible=!lodInitialized||lodFrustum.intersectsBox(batch.bounds);for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=!reflectionLowDetail&&lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true}
-const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x10282e,roughness:.30,metalness:.02,envMapIntensity:.55,bumpMap:waterTex,bumpScale:.6});
+const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x10282e,roughness:.20,metalness:0,envMapIntensity:.87,bumpMap:waterTex,bumpScale:.6});
 // World-position ripples avoid the previous giant repeated bump texture.
 waterMat.bumpMap=null;
 const shoreCanvas=document.createElement('canvas');shoreCanvas.width=shoreCanvas.height=1024;const shoreCtx=shoreCanvas.getContext('2d',{alpha:false});shoreCtx.fillStyle='#000';shoreCtx.fillRect(0,0,1024,1024);
@@ -2871,7 +2933,7 @@ shoreCtx.fillStyle='#000';for(const [a,b,c,d] of land)shoreCtx.fillRect((a+1500)
 waterMat.onBeforeCompile=shader=>{
  shader.uniforms.uShore={value:shoreMap};
  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nuniform sampler2D uShore;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 a=seaP*.31,b=vec2(seaP.x+seaP.y,seaP.y-seaP.x)*.87;float af=1.-smoothstep(.5,2.2,length(fwidth(a))),bf=1.-smoothstep(.5,2.2,length(fwidth(b)));vec2 rip=vec2(seaNoise(a+vec2(.17,0.))-seaNoise(a-vec2(.17,0.)),seaNoise(a+vec2(0.,.17))-seaNoise(a-vec2(0.,.17)))*.24*af;vec2 rb=vec2(seaNoise(b+vec2(.19,0.))-seaNoise(b-vec2(.19,0.)),seaNoise(b+vec2(0.,.19))-seaNoise(b-vec2(0.,.19)));rip+=rb*.115*bf;vec2 wave=vec2(.72,.69);float phase=dot(seaP,wave)*.83+seaNoise(seaP*.055)*4.;rip+=wave*cos(phase)*.095*(1.-smoothstep(.5,2.2,length(fwidth(phase))));float nearWave=1.-smoothstep(220.,1600.,distance(cameraPosition,vSea));normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y)*nearWave);').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.82+.22*seaRip;vec2 shoreUV=vSea.xz/3000.+.5;float inMap=step(0.,shoreUV.x)*step(shoreUV.x,1.)*step(0.,shoreUV.y)*step(shoreUV.y,1.);float shore=texture2D(uShore,vec2(shoreUV.x,1.-shoreUV.y)).r*inMap;float froth=shore*smoothstep(.49,.84,seaNoise(vSea.xz*.49)*.65+seaNoise(vSea.xz*.12)*.35);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.32,.40,.39),froth*.48);');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nuniform sampler2D uShore;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 a=seaP*.31,b=vec2(seaP.x+seaP.y,seaP.y-seaP.x)*.87;float af=1.-smoothstep(.5,2.2,length(fwidth(a))),bf=1.-smoothstep(.5,2.2,length(fwidth(b)));vec2 rip=vec2(seaNoise(a+vec2(.17,0.))-seaNoise(a-vec2(.17,0.)),seaNoise(a+vec2(0.,.17))-seaNoise(a-vec2(0.,.17)))*.24*af;vec2 rb=vec2(seaNoise(b+vec2(.19,0.))-seaNoise(b-vec2(.19,0.)),seaNoise(b+vec2(0.,.19))-seaNoise(b-vec2(0.,.19)));rip+=rb*.115*bf;vec2 wave=vec2(.72,.69);float phase=dot(seaP,wave)*.83+seaNoise(seaP*.055)*7.;rip+=wave*cos(phase)*.10+vec2(-.37,.93)*cos(dot(seaP,vec2(-.37,.93))*1.49+seaNoise(seaP*.075)*5.)*.067*(1.-smoothstep(.5,2.2,length(fwidth(phase))));float nearWave=1.-smoothstep(220.,1600.,distance(cameraPosition,vSea));normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y)*nearWave);').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.82+.22*seaRip;vec2 shoreUV=vSea.xz/3000.+.5;float inMap=step(0.,shoreUV.x)*step(shoreUV.x,1.)*step(0.,shoreUV.y)*step(shoreUV.y,1.);float shore=texture2D(uShore,vec2(shoreUV.x,1.-shoreUV.y)).r*inMap;float froth=shore*smoothstep(.49,.84,seaNoise(vSea.xz*.49)*.65+seaNoise(vSea.xz*.12)*.35);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.32,.40,.39),froth*.48);');
 
 };
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
@@ -2884,7 +2946,7 @@ const filmVertex='varying vec3 vFilm;void main(){vFilm=(modelMatrix*vec4(positio
 const filmNoise='float fh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}';
 function filmMaterial(sea){
  const frag='varying vec3 vFilm;\n'+reflectionCommon+filmNoise+'\nvoid main(){vec3 v=normalize(cameraPosition-vFilm);float f=.025+.975*pow(1.-clamp(v.y,0.,1.),5.);vec2 p=vFilm.xz;float m=fn(p*.044)*.72+fn(p*.20)*.28;vec2 noise=vec2(fn(p*.33),fn(p.yx*.37))-.5;'+
- (sea?'float alpha=clamp(.09+f*.76,0.,.80);vec2 swell=vec2(sin(p.x*.63+p.y*.27),sin(p.x*.19-p.y*.81));vec4 reflected=portSample(vFilm,noise*.015+swell*.007);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb*vec3(.88,.94,.96);':'float fine=fn(p*.57);float wet=smoothstep(.39,.68,m*.78+fine*.22);float alpha=wet*clamp(.15+f*.86,0.,.86);vec4 reflected=portSample(vec3(vFilm.x,5.14,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.94,.95,.94);')+
+ (sea?'float alpha=clamp(.09+f*.76,0.,.80);vec2 swell=vec2(sin(p.x*.63+p.y*.27),sin(p.x*.19-p.y*.81));vec4 reflected=portSample(vFilm,noise*.015+swell*.007);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb*vec3(.88,.94,.96);':'float fine=fn(p*.57);float wet=smoothstep(.34,.67,m*.78+fine*.22);float alpha=wet*clamp(.065+f*.94,0.,.91);vec4 reflected=portSample(vec3(vFilm.x,5.14,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.98,.99,.99);')+
  '\ngl_FragColor=vec4(col,alpha);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}';
  return new T.ShaderMaterial({uniforms:{uPortReflection:reflectionPlanes[sea?'sea':'road'].map,uPortProjection:reflectionPlanes[sea?'sea':'road'].projection},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
 }
@@ -2959,7 +3021,7 @@ const sunWorldAxis=sun.position.clone().sub(sun.target.position).normalize();
 const shadowFocus=V(1e8,0,1e8);let shadowSpan=0,shadowUpdates=0;
 function updateShadowFocus(cam){
  const high=cam.isOrthographicCamera||cam.position.y>310;
- const span=high?1900:cam.position.y>180?1150:620;
+ const span=high?1900:cam.position.y>180?1150:410;
  const focal=high?V(0,0,0):cam.position.clone().addScaledVector(cam.getWorldDirection(V(0,0,0)),115);
  focal.y=0;
  focal.x=T.MathUtils.clamp(focal.x,-1260,1260);
@@ -2975,7 +3037,7 @@ function updateShadowFocus(cam){
  shadowFocus.copy(focal);shadowSpan=span;shadowUpdates++;
 }
 
-function render(){if(active!==assetCamera){updateShadowFocus(active);scene.fog.density=active.isOrthographicCamera?0:T.MathUtils.lerp(.00024,.000095,T.MathUtils.clamp(active.position.y/280,0,1));fixtureHalos.visible=active.isPerspectiveCamera&&active.position.y<260;updatePractical(active);updateContainerLOD(active);updatePortReflection(active)}renderer.render(active===assetCamera?assetScene:scene,active);document.getElementById('readout').textContent=mode.toUpperCase()+' / '+active.position.toArray().map(Math.round).join(' · ')+' m'}
+function render(){if(active!==assetCamera){updateShadowFocus(active);scene.fog.density=active.isOrthographicCamera?0:T.MathUtils.lerp(.00036,.00014,T.MathUtils.clamp(active.position.y/280,0,1));fixtureHalos.visible=active.isPerspectiveCamera&&active.position.y<260;updatePractical(active);updateContainerLOD(active);updatePortReflection(active)}renderer.render(active===assetCamera?assetScene:scene,active);document.getElementById('readout').textContent=mode.toUpperCase()+' / '+active.position.toArray().map(Math.round).join(' · ')+' m'}
 const lengths=gates.map((g,i)=>g.p.distanceTo(gates[(i+1)%gates.length].p)),total=lengths.reduce((a,b)=>a+b,0);
 function coursePoint(s){s=((s%total)+total)%total;let i=0;while(s>=lengths[i]&&i<lengths.length-1){s-=lengths[i++]};return gates[i].p.clone().lerp(gates[(i+1)%gates.length].p,s/lengths[i])}
 function sampleCourse(s){active=camera;mode='course';camera.position.copy(coursePoint(s));camera.lookAt(coursePoint(s+28));angles()}

@@ -88,6 +88,8 @@ try:
             evidence = ref["macroEvidence"]
             assert all(evidence[k] for k in ("hall","lift","plant","barge")), evidence
             assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100 and stats["freightStamps"] > 100, stats
+            foreground = ref["foregroundWork"]
+            assert sum(foreground.values()) >= 4 and sum(v > 0 for v in foreground.values()) >= 2, foreground
             assert stats["sharedRailBatches"] > 0, stats
             assert stats["photoMaterials"] == expected_photos, stats
             # Authentic authored CC0 mesh content is optional when the source
