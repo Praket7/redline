@@ -1,0 +1,33 @@
+name: Iron Tide visual evidence
+on:
+  push:
+    branches: ['feature/iron-tide-camera-lab']
+    paths: ['iron-tide/**', 'tests/iron_tide_capture.py', '.github/workflows/iron-tide.yml']
+  pull_request:
+    paths: ['iron-tide/**', 'tests/iron_tide_capture.py', '.github/workflows/iron-tide.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  camera-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: pip install playwright==1.51.0 Pillow==11.1.0
+      - run: python -m playwright install --with-deps chromium
+      - run: node --check iron-tide/world.js
+      - run: python tests/iron_tide_capture.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iron-tide-visual-evidence
+          path: iron-tide-output/
+          if-no-files-found: error
