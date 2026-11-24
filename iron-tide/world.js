@@ -309,9 +309,20 @@ function clearScenery(x,top,z){for(let i=0;i<routePoints.length;i++){const a=rou
 // Functional production districts, sized to the same civil footprint:
  // steel receiving -> plate preparation -> block fabrication -> coating -> outfitting.
  const districtPlan=[];
- const cladding=new T.MeshStandardMaterial({color:0x53646a,roughness:.75,metalness:.18});
- const oxideCladding=new T.MeshStandardMaterial({color:0x755349,roughness:.82,metalness:.12});
- const roofMetal=new T.MeshStandardMaterial({color:0x464a4c,roughness:.66,metalness:.3});
+ // Rolled painted sheet cladding: baked seam shading, runoff and corrosion.
+ // UVs are metre-projected by define(), so scale remains consistent per facade.
+ function cladMaterial(base,roof=false){
+  const c=document.createElement('canvas');c.width=c.height=512;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,512,512);
+  let sd=base.charCodeAt(2)*113+173;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
+  for(let x=0;x<512;x+=64){const g=ctx.createLinearGradient(x,0,x+64,0);g.addColorStop(0,'rgba(12,16,18,.40)');g.addColorStop(.07,'rgba(255,255,255,.12)');g.addColorStop(.20,'rgba(255,255,255,0)');g.addColorStop(.9,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(10,12,13,.20)');ctx.fillStyle=g;ctx.fillRect(x,0,64,512);
+   for(let y=0;y<512;y+=128){ctx.fillStyle='rgba(16,19,20,.55)';ctx.fillRect(x+4,y+4,3,3)}
+  }
+  for(let i=0;i<210;i++){const x=rand()*512,y=rand()*512,h=10+rand()*115,g=ctx.createLinearGradient(x,y,x,y+h);g.addColorStop(0,'rgba(77,41,24,.18)');g.addColorStop(1,'rgba(77,41,24,0)');ctx.fillStyle=g;ctx.fillRect(x,y,1+rand()*4,h)}
+  for(let i=0;i<3200;i++){const x=rand()*512,y=rand()*512;ctx.fillStyle=rand()>.55?'rgba(220,214,198,.045)':'rgba(9,12,14,.055)';ctx.fillRect(x,y,1+rand()*3,1+rand()*4)}
+  const map=new T.CanvasTexture(c);map.encoding=T.sRGBEncoding;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  return new T.MeshStandardMaterial({map,roughness:roof?.73:.80,metalness:roof?.23:.12,envMapIntensity:.68});
+ }
+ const cladding=cladMaterial('#53646a'),oxideCladding=cladMaterial('#755349'),roofMetal=cladMaterial('#464a4c',true);
  const translucentClerestory=new T.MeshStandardMaterial({color:0x57717b,roughness:.37,metalness:.18});
  define('plate-processing-hall',()=>{
   const W=76,L=116,H=28;
@@ -434,7 +445,7 @@ function updatePortReflection(cam){
 // Approximate baked footprint occlusion, sampled in world coordinates.
  // The atlas is populated once after the complete static placement pass.
  const contactCanvas=document.createElement('canvas');contactCanvas.width=contactCanvas.height=2048;
- const contactCtx=contactCanvas.getContext('2d');contactCtx.fillStyle='#fff';contactCtx.fillRect(0,0,2048,2048);
+ const contactCtx=contactCanvas.getContext('2d',{alpha:false});contactCtx.fillStyle='#fff';contactCtx.fillRect(0,0,2048,2048);
  const contactMap=new T.CanvasTexture(contactCanvas);contactMap.minFilter=T.LinearFilter;contactMap.magFilter=T.LinearFilter;contactMap.generateMipmaps=false;
  const contactUniform={value:contactMap};
  // Ground macro variation is evaluated in world space so large slabs and tiny props
@@ -1152,8 +1163,11 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  function stampContact(x,z,w,d,height){
   if(height<.3||w<.3||d<.3||w>400||d>400)return;
   const k=2048/3000,pad=Math.min(7,1.3+height*.06),px=(x+1500)*k,py=(z+1500)*k;
-  contactCtx.fillStyle='rgba(0,0,0,.25)';contactCtx.filter='blur('+Math.max(1,pad*k*.65)+'px)';
-  contactCtx.fillRect(px-(w/2+pad)*k,py-(d/2+pad)*k,(w+pad*2)*k,(d+pad*2)*k);contactFootprints++;
+  // Four inexpensive nested footprints avoid a per-object full-canvas blur.
+  for(const [f,alpha] of [[1,.035],[.7,.055],[.4,.075],[.12,.11]]){
+   const r=pad*f;contactCtx.fillStyle='rgba(0,0,0,'+alpha+')';
+   contactCtx.fillRect(px-(w/2+r)*k,py-(d/2+r)*k,(w+2*r)*k,(d+2*r)*k);
+  }contactFootprints++;
  }
  for(const b of placedSites){if(b.min.y<4.7||b.min.y>6.0)continue;const c=b.getCenter(V(0,0,0)),v=b.getSize(V(0,0,0));stampContact(c.x,c.z,v.x,v.z,v.y)}
  for(const q of containerSlots)stampContact(q.x,q.z,q.hx*2,q.hz*2,q.next-5);
