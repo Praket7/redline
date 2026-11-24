@@ -56,13 +56,13 @@ let envTex=new T.CanvasTexture(env),skySource='procedural';envTex.mapping=T.Equi
 if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(T.FloatType);envTex=await sky.loadAsync(texturePack.sky.hdr);const pixels=envTex.image.data,stride=pixels.length/(envTex.image.width*envTex.image.height);if(stride!==3&&stride!==4)throw Error('Unexpected HDR pixel stride '+stride);for(let i=0;i<pixels.length;i+=stride){pixels[i]*=.35;pixels[i+1]*=.29;pixels[i+2]*=.25}envTex.needsUpdate=true;envTex.mapping=T.EquirectangularReflectionMapping;skySource='industrial_sunset_02_puresky';}
 const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(envTex).texture;scene.background=envTex;pmrem.dispose();
 const boxGeo=new T.BoxGeometry(1,1,1),cylGeo=new T.CylinderGeometry(1,1,1,12),sphereGeo=new T.SphereGeometry(1,12,8);const q=new T.Quaternion(),up=V(0,1,0);
-const templates={};let target=null;const batches=new Map();
+const templates={},placementBounds=new Map(),placedSites=[];let target=null;const batches=new Map();
 function part(g,mat,x,y,z,sx,sy,sz,rot){const mesh=new T.Mesh(g,mat);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);if(rot)mesh.quaternion.copy(rot);mesh.updateMatrix();if(target){target.push(mesh)}else{const key=g.uuid+mat.uuid;if(!batches.has(key))batches.set(key,{g,mat,matrices:[]});batches.get(key).matrices.push(mesh.matrix.clone())}return mesh}
 const box=(mat,x,y,z,w,h,d)=>part(boxGeo,mat,x,y,z,w,h,d);
 const cylinder=(mat,x,y,z,r,h)=>part(cylGeo,mat,x,y,z,r,h,r);
 function beam(mat,a,b,w,d=w,round=false){const p=V(...a),r=V(...b),delta=r.clone().sub(p);q.setFromUnitVectors(up,delta.clone().normalize());const c=p.add(r).multiplyScalar(.5);return part(round?cylGeo:boxGeo,mat,c.x,c.y,c.z,w,delta.length(),d,q)}
 function rail(x,y,z,length,axis='x'){const a=axis==='x'?[x-length/2,y,z]:[x,y,z-length/2],b=axis==='x'?[x+length/2,y,z]:[x,y,z+length/2];beam(m.yellow,a,b,.11);for(let i=0;i<=Math.ceil(length/4);i++){const t=i/Math.ceil(length/4),p=a.map((v,j)=>v+(b[j]-v)*t);beam(m.yellow,[p[0],y-1,p[2]],p,.10)}}
-function define(name,fn){target=[];fn();const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map&&!mesh.geometry.userData.keepUV){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;target=null;}
+function define(name,fn){target=[];fn();const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map&&!mesh.geometry.userData.keepUV){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;placementBounds.set(name,new T.Box3().setFromObject(group));target=null;}
 // Container stack support footprints: all tiers must be aligned and consecutive.
 const containerSlots=[],stackIndex=new Map(),containerChunks=new Map(),containerLOD=[];
 function reserveContainer(x,y,z,angle,scale){
@@ -74,7 +74,7 @@ function reserveContainer(x,y,z,angle,scale){
  for(const q of containerSlots)if(Math.abs(x-q.x)<hx+q.hx+.06&&Math.abs(z-q.z)<hz+q.hz+.06)return false;
  const q={x,z,hx,hz,next:y+2.94*scale};containerSlots.push(q);stackIndex.set(key,q);return true
 }
-function place(name,x,y,z,angle=0,scale=1){if(name.startsWith('container-')&&!reserveContainer(x,y,z,angle,scale))return false;const group=templates[name];const root=new T.Object3D();root.position.set(x,y,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();if(name.startsWith('container-')){const col=name.split('-').pop(),key=[Math.floor(x/600),Math.floor(z/600),col].join(':');if(!containerChunks.has(key))containerChunks.set(key,{col,matrices:[],bounds:new T.Box3()});const chunk=containerChunks.get(key);chunk.matrices.push(root.matrix.clone());chunk.bounds.expandByPoint(V(x-7,y,z-7));chunk.bounds.expandByPoint(V(x+7,y+3,z+7));return true}for(const mesh of group.children){let key=mesh.geometry.uuid+mesh.material.uuid;if(!batches.has(key))batches.set(key,{g:mesh.geometry,mat:mesh.material,matrices:[]});batches.get(key).matrices.push(root.matrix.clone())}}
+function place(name,x,y,z,angle=0,scale=1){if(name.startsWith('container-')&&!reserveContainer(x,y,z,angle,scale))return false;const group=templates[name];const root=new T.Object3D();root.position.set(x,y,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();if(name.startsWith('container-')){const col=name.split('-').pop(),key=[Math.floor(x/600),Math.floor(z/600),col].join(':');if(!containerChunks.has(key))containerChunks.set(key,{col,matrices:[],bounds:new T.Box3()});const chunk=containerChunks.get(key);chunk.matrices.push(root.matrix.clone());chunk.bounds.expandByPoint(V(x-7,y,z-7));chunk.bounds.expandByPoint(V(x+7,y+3,z+7));return true}const placementBox=placementBounds.get(name).clone().applyMatrix4(root.matrix);placedSites.push(placementBox);for(const mesh of group.children){let key=mesh.geometry.uuid+mesh.material.uuid;if(!batches.has(key))batches.set(key,{g:mesh.geometry,mat:mesh.material,matrices:[]});batches.get(key).matrices.push(root.matrix.clone())}}
 // Dedicated cargo paint and UV atlas: localized chipping, runoff and scale markings.
 const cargoSkin={},cargoSide={};
 for(const [col,base,label] of [['rust','#87382c','IRON TIDE'],['blue','#28546d','NORTHLINE'],['green','#4b6251','HARBOR'],['white','#a7a79a','COASTAL']]){
@@ -895,6 +895,74 @@ for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-uni
  for(const z of [-650,-450,-170,100])for(const x of [-915,-845])for(const dz of [-48,-12,24,60]){
   const zz=z+dz;box(m.dark,x,19.3,zz,1.2,.42,.6);box(warmGlow,x,19.04,zz,1.0,.1,.4);fixturePositions.push([x,18.9,zz]);pool(x,5.34,zz,19);
  }
+ // Flight-height density pass: complete work cells rather than scatter props.
+ // Grounded additions are accepted only if their whole transformed model bounds
+ // avoid existing template footprints, stacked cargo and the protected centerline.
+ let newWorkCells=0,newProcessTowers=0;
+ function siteAvailable(name,x,z,angle=0,scale=1){
+  const root=new T.Object3D();root.position.set(x,5.25,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();
+  const bounds=placementBounds.get(name).clone().applyMatrix4(root.matrix),c=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0));
+  if(bounds.min.x<-1175||bounds.max.x>1175||bounds.min.z<105||bounds.max.z>1195)return false;
+  if(!clearFootprint(c.x,c.z,size.x+3,size.z+3,bounds.max.y)||!openGround(c.x,c.z,size.x+2,size.z+2))return false;
+  return !placedSites.some(b=>bounds.min.x<b.max.x+1.5&&bounds.max.x>b.min.x-1.5&&bounds.min.z<b.max.z+1.5&&bounds.max.z>b.min.z-1.5&&bounds.min.y<b.max.y+.5&&bounds.max.y>b.min.y-.5);
+ }
+ define('quayside-workcell',()=>{
+  const W=24,D=19,H=19;
+  box(m.concrete,0,.3,0,W+.5,.6,D+.5);
+  for(const x of [-11.6,11.6])for(const z of [-9,9]){
+   box(m.steel,x,H/2,z,.65,H,.65);box(m.concrete,x,.4,z,1.7,.8,1.7);
+   box(m.steel,x,1,z,1.05,.25,1.05);
+  }
+  for(const z of [-9,9]){
+   box(m.steel,0,H-.7,z,W,1.3,.8);
+   for(let x=-11;x<=8;x+=4)beam(m.steel,[x,H-3,z],[x+3,H-.2,z],.24);
+  }
+  box(cladding,0,13,-9.2,W,11.5,.5);
+  for(let x=-10;x<=10;x+=2)box(m.steel,x,13,-9.47,.12,11.2,.15);
+  for(const side of [-1,1]){
+   const angle=-side*Math.atan2(2.2,W/2);
+   part(boxGeo,roofMetal,side*W/4,H+1.1,0,Math.hypot(W/2,2.2)+.5,.35,D+1,new T.Quaternion().setFromAxisAngle(V(0,0,1),angle));
+   for(let z=-8;z<=8;z+=2)beam(m.steel,[0,H+2.45,z],[side*12,H+.2,z],.1);
+   box(m.orange,side*10.1,14,0,.8,1,D-1);
+  }
+  box(m.orange,0,15,0,W-3,1.6,1.2);box(m.dark,4,14.1,0,2.7,.9,2.1);
+  for(const z of [-.45,.45])beam(m.dark,[4,13.8,z],[4,8,z],.065,.065,true);
+  box(m.yellow,4,7.8,0,2.4,.4,1.1);
+  // Fabrication table, raw steel plates and material racks.
+  for(const x of [-6,6]){box(m.dark,x,1.6,-4,7,3,3);box(m.steel,x,3.2,-4,7.5,.3,3.5);for(let i=0;i<5;i++)box(m.rust,x,3.4+i*.14,-4,6.4,.12,2.8)}
+  for(const x of [-7,7]){box(m.light,x,H-2.2,5,1.6,.22,.65);box(m.dark,x,H-1.9,5,1.8,.4,.8)}
+  box(m.glass,-7,11,-9.52,4,3,.18);box(m.glass,6,11,-9.52,4,3,.18);
+ });
+ define('fractionation-service-tower',()=>{
+  const rad=2.8,H=36,cg=new T.CylinderGeometry(1,1,1,32);
+  box(m.concrete,0,.5,0,9,1,9);
+  part(cg,m.steel,0,H/2+1,0,rad,H,rad);
+  for(let y=4;y<=35;y+=6){
+   const ring=new T.TorusGeometry(rad+.06,.08,5,32);part(ring,m.dark,0,y,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+   for(let a=0;a<Math.PI*2;a+=Math.PI/2){const x=Math.cos(a)*rad,z=Math.sin(a)*rad;box(m.steel,x,y,z,.2,.35,.2)}
+  }
+  for(const y of [11,23,35]){
+   box(m.steel,3.6,y,0,2.6,.3,6);
+   rail(4.8,y+1.1,0,6,'z');beam(m.steel,[2.6,y-2.5,-2.3],[4.6,y,-2.3],.24);beam(m.steel,[2.6,y-2.5,2.3],[4.6,y,2.3],.24);
+   box(m.light,3.4,y+2,0,.4,.2,.45);
+  }
+  for(const z of [-.45,.45])beam(m.yellow,[4,1,z],[4,36,z],.08);
+  for(let y=1.5;y<36;y+=.48)beam(m.steel,[4,y,-.45],[4,y,.45],.055);
+  for(const z of [-1.4,1.4]){beam(m.rust,[-2.5,5,z],[-4,5,z],.34,.34,true);beam(m.rust,[-4,5,z],[-4,30,z],.34,.34,true);beam(m.rust,[-4,30,z],[-2.5,30,z],.34,.34,true);for(let y=6;y<30;y+=5)beam(m.steel,[-4,y,z],[-2.4,y,z],.18)}
+  cylinder(m.steel,0,37.9,0,1.1,1.8);cylinder(m.dark,0,39,0,1.3,.4);
+ });
+ for(const z of [1038,1125])for(let x=-1070;x<=160;x+=47){
+  if(newWorkCells>=22)break;
+  const angle=z<1080?0:Math.PI;
+  if(siteAvailable('quayside-workcell',x,z,angle,.9)){
+   place('quayside-workcell',x,5.25,z,angle,.9);newWorkCells++;
+   for(const dx of [-6,6]){fixturePositions.push([x+dx,20,z]);pool(x+dx,5.33,z,13)}
+  }
+ }
+ for(const x of [-1110,-1020,-980,-930,-780,-730,-590,-515])for(const z of [465,550,630,715,795]){
+  if(newProcessTowers>=16)break;
+  if(siteAvailable('fractionation-service-tower',x,z,Math.PI/2,.88)){place('fractionation-service-tower',x,5.25,z,Math.PI/2,.88);newProcessTowers++;pool(x,5.33,z,11)}
+ }
  const worldBatches=[];// Connect the process equipment to supported ground-level headers. These
 // are below the visual racing corridor and leave the gate coordinates intact.
 for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
@@ -989,5 +1057,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,reflectionPasses,reflectionCalls,reflectionTriangles,reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,newWorkCells,newProcessTowers,reflectionPasses,reflectionCalls,reflectionTriangles,reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
