@@ -477,6 +477,36 @@ for(const z of [580,680,780,880,980])for(const x of [300,405,520,650,770,900,104
 for(const x of [-710,-230,270,770]){
  if(clearFootprint(x,1174,24,29,85)){place('quay-container-crane',x,5.16,1174);for(const z of [1162,1186])box(m.steel,x,5.25,z,85,.17,.28)}
 }
+// Foundry and process district equipment: functional assembly layouts, not loose boxes.
+define('steel-forming-press',()=>{
+ box(m.dark,0,.55,0,9,1.1,6.5);box(m.steel,0,1.2,0,8.3,.35,5.6);
+ for(const x of [-3.5,3.5])for(const z of [-2.5,2.5]){box(m.steel,x,5,z,.9,9,.9);box(m.dark,x,1.4,z,1.3,.45,1.3)}
+ box(m.blue,0,9.2,0,9,2.2,6.2);for(const x of [-2.3,2.3]){cylinder(m.dark,x,7.2,0,.65,2.9);cylinder(m.steel,x,5.1,0,.28,2.8)}
+ box(m.steel,0,3.9,0,7.4,.8,4.8);box(m.orange,0,2,0,7,.5,4.5);
+ box(m.dark,4.8,2.1,0,1.9,3.4,3);box(m.glass,4.8,3.1,1.55,1.4,.85,.12);
+ for(const z of [-2,2]){beam(m.rust,[4.9,4,z],[4.9,8,z],.12,.12,true);beam(m.steel,[4.9,8,z],[2.3,8,z],.12,.12,true)}
+ for(const x of [-4.3,4.3])box(m.yellow,x,.17,0,.18,.15,6.4);
+});
+define('roller-conveyor',()=>{
+ for(const x of [-2.25,2.25]){box(m.steel,x,1.65,0,.45,.5,26);for(let z=-12;z<=12;z+=4){box(m.dark,x,.8,z,.5,1.6,.5);box(m.steel,x,.18,z,1.1,.36,1.1)}}
+ for(let z=-12;z<=12;z+=.85){beam(m.steel,[-2.4,1.85,z],[2.4,1.85,z],.19,.19,true);for(const x of [-2.28,2.28])box(m.dark,x,1.85,z,.32,.32,.28)}
+ box(m.orange,2.8,1.7,8,.65,.7,2.1);
+});
+define('process-pump-skid',()=>{
+ box(m.steel,0,.24,0,8.3,.48,5.4);for(const z of [-1.3,1.3]){
+  beam(m.steel,[-2.6,1.5,z],[.6,1.5,z],.65,.65,true);beam(m.dark,[-2.8,1.5,z],[-2.55,1.5,z],.8,.8,true);
+  part(sphereGeo,m.blue,1.45,1.5,z,1.03,1.12,1.1);beam(m.steel,[1.45,1.7,z],[1.45,3.4,z],.33,.33,true);beam(m.steel,[1.45,3.4,z],[3.8,3.4,z],.33,.33,true);
+  for(const x of [-2.4,-1.2,.2])box(m.dark,x,.62,z,1.05,.6,.95);
+ }
+ for(const z of [-1.3,1.3])beam(m.rust,[3.8,3.4,z],[3.8,1.15,z],.35,.35,true);beam(m.steel,[3.8,1.15,-1.8],[3.8,1.15,1.8],.48,.48,true);
+ for(const z of [-1.8,1.8]){beam(m.dark,[3.8,1.0,z],[3.8,1.7,z],.57,.57,true);cylinder(m.yellow,3.8,2.1,z,.24,1)}
+});
+for(const center of [-650,-450,-170,100]){
+ for(const x of [-916,-844])for(const dz of [-35,22]){if(clearFootprint(x,center+dz,11,30,17)){place('steel-forming-press',x,5.2,center+dz);place('roller-conveyor',x,5.22,center+dz+16)}}
+}
+for(const [x,z] of [[-1040,465],[-1040,650],[-610,470],[-580,640],[-960,760]]){
+ if(clearFootprint(x,z,20,14,13)){for(const off of [-5,5])place('process-pump-skid',x,5.2,z+off);for(const y of [8.3,10.7]){beam(m.steel,[x-10,y,z-6],[x+10,y,z-6],.4,.4,true);beam(m.steel,[x+10,y,z-6],[x+10,y,z+8],.4,.4,true)}pool(x,5.29,z,13)}
+}
 // Connected dock work zones: cargo inspection platform, piping, forklifts and
 // terminal trailers, arranged around existing access paths rather than scattered.
 define('terminal-tractor',()=>{
@@ -493,6 +523,17 @@ define('cargo-trailer',()=>{
 for(const [x,z] of [[-875,1143],[-570,1140],[-55,1153],[390,1145],[870,1145],[1000,1120]]){
  if(clearFootprint(x,z,6,23,11)&&openGround(x,z,6,23)){place('terminal-tractor',x,5.22,z,Math.PI/2);place('cargo-trailer',x+9,5.22,z,Math.PI/2)}
 }
+// Northern berth finger piers and loading infrastructure interrupt the overly
+// empty sea corridor; stays clear of the original checkpoint-center route.
+for(const [x,z] of [[500,-1150],[100,-1190],[-340,-1180]]){
+ if(clearFootprint(x,z,90,34,22)){
+  box(m.concrete,x,1.4,z,90,5.5,34);box(m.road,x,4.3,z,88,.2,32);
+  for(const dx of [-40,-20,0,20,40]){place('bollard',x+dx,4.5,z-15);box(m.dark,x+dx,2,z-17,2,3,.5)}
+  for(const dx of [-24,24])lamp(x+dx,4.5,z+7);
+  if(clearFootprint(x,z,24,16,26))place('maintenance-bay',x,4.5,z);
+ }
+}
+for(const x of [-1050,-800,-600])if(clearFootprint(x,-1210,130,40,36))place('workboat',x,0,-1210,.02,.95);
 // Tidal wall equipment: rubber fenders are supported on steel backing plates.
 define('quay-fender',()=>{box(m.steel,0,0,0,2.7,3,.24);box(m.rubber,0,0,.52,2.3,2.7,.82);for(const x of [-.95,.95])for(const y of [-1.12,1.12])box(m.steel,x,y,.98,.18,.18,.12)});
 for(let x=-1160;x<1160;x+=21)place('quay-fender',x,2.6,1200.14);
@@ -521,7 +562,7 @@ const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const water
 waterMat.bumpMap=null;
 waterMat.onBeforeCompile=shader=>{
  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz; vec2 w1=vec2(.32,.19),w2=vec2(-.61,1.13),w3=vec2(.91,.74);vec2 warp=vec2(sin(seaP.y*.031+sin(seaP.x*.008)*2.),cos(seaP.x*.027+cos(seaP.y*.011)*2.))*3.5;float p1=dot(seaP+warp,w1),p2=dot(seaP-warp,w2),p3=dot(seaP+warp*.64,w3);float a1=1.-smoothstep(.4,2.0,fwidth(p1)),a2=1.-smoothstep(.4,2.0,fwidth(p2)),a3=1.-smoothstep(.4,2.0,fwidth(p3));vec2 rip=.032*cos(p1)*w1*a1+.018*sin(p2)*w2*a2+.016*cos(p3)*w3*a3;normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=sin(vSea.x*.009+sin(vSea.z*.013)*3.0)*cos(vSea.z*.012+sin(vSea.x*.016)*2.5);diffuseColor.rgb*=.965+.035*seaRip;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 a=seaP*.31,b=vec2(seaP.x+seaP.y,seaP.y-seaP.x)*.87;float af=1.-smoothstep(.5,2.2,length(fwidth(a))),bf=1.-smoothstep(.5,2.2,length(fwidth(b)));vec2 rip=vec2(seaNoise(a+vec2(.17,0.))-seaNoise(a-vec2(.17,0.)),seaNoise(a+vec2(0.,.17))-seaNoise(a-vec2(0.,.17)))*.15*af;vec2 rb=vec2(seaNoise(b+vec2(.19,0.))-seaNoise(b-vec2(.19,0.)),seaNoise(b+vec2(0.,.19))-seaNoise(b-vec2(0.,.19)));rip+=rb*.075*bf;normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.92+.08*seaRip;');
 };
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
 function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),waterMat);water.rotation.x=-Math.PI/2;water.position.set(x,-.25,z);scene.add(water)}
@@ -537,7 +578,7 @@ function assetView(name,angle=0){const source=templates[name];if(!source)throw E
 // the camera. Distant fixtures retain their emissive meshes and baked glow pools.
 const practical=Array.from({length:4},()=>{const p=new T.PointLight(0xffbe77,0,75,2);scene.add(p);return p});
 function updatePractical(camera){const pos=camera.position;const nearby=fixturePositions.map(p=>({p,d:(p[0]-pos.x)**2+(p[1]-pos.y)**2+(p[2]-pos.z)**2})).sort((a,b)=>a.d-b.d).slice(0,practical.length);for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){light.position.set(...f.p);light.intensity=520}else light.intensity=0}}
-const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1600,1400,1720],[0,20,0]],north:[[1450,1300,-1720],[0,20,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1000,34,1108],[-650,42,1080]],'2-containers':[[384,25,1000],[620,32,850]],'3-crane':[[1000,35,210],[850,100,50]],'4-dive':[[850,137,-280],[850,0,-650]],'5-hull':[[925,27,-920],[600,24,-920]],'6-breakwater':[[350,30,-1250],[-600,30,-1280]],'7-foundry':[[-880,26,-558],[-880,29,-500]],'8-pipes':[[-970,65,320],[-760,32,740]]};
+const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1600,1400,1720],[0,20,0]],north:[[1450,1300,-1720],[0,20,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1000,34,1108],[-650,42,1080]],'2-containers':[[384,25,1000],[620,32,850]],'3-crane':[[1000,35,210],[850,100,50]],'4-dive':[[850,137,-280],[850,0,-650]],'5-hull':[[925,27,-920],[600,24,-920]],'6-breakwater':[[350,34,-1270],[-600,40,-1230]],'7-foundry':[[-880,26,-558],[-880,29,-500]],'8-pipes':[[-970,65,320],[-760,32,740]]};
 function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
 function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
