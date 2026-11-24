@@ -191,7 +191,31 @@ define('service-block',()=>{box(m.concrete,0,4,0,24,8,18);box(m.dark,0,8.2,0,25,
 define('drydock-keel-block',()=>{box(m.concrete,0,1.1,0,5,2.2,3);box(m.dark,0,2.4,0,4,.5,2.6);for(const x of [-1.8,1.8])box(m.steel,x,2.1,0,.2,1.1,3.2);});
 define('office-block',()=>{box(m.concrete,0,12,0,55,24,30);box(m.dark,0,24.4,0,56,.8,31);for(const z of [-15.1,15.1])for(let y=5;y<=20;y+=5)for(let x=-23;x<=23;x+=6){box(m.glass,x,y,z,4,2.5,.3);box(m.steel,x,y-1.4,z,4.4,.2,.6)}for(const x of [-27.7,27.7])for(let y=5;y<=20;y+=5)for(let z=-11;z<=11;z+=6)box(m.glass,x,y,z,.3,2.5,4);box(m.steel,-12,27,3,8,5,6);box(m.steel,12,25.8,-5,12,2.8,8)});
 define('tugboat',()=>{const deck=26;for(let i=0;i<9;i++){let x=-18+i*4.5,w=7*Math.min(1,(19-Math.abs(x))/8+.25);box(m.blue,x,1.4,0,4.6,4.4,w*2);box(m.rust,x,-.9,0,4.6,.9,w*1.9);box(m.dark,x,3.7,0,4.6,.6,w*2)}box(m.white,-5,6.1,0,12,4.4,10);box(m.white,-4,10,0,9,3.3,8);box(m.glass,-4,10.3,4.1,8,1.8,.25);box(m.glass,-4,10.3,-4.1,8,1.8,.25);box(m.glass,.7,10.3,0,.2,1.8,7.5);cylinder(m.dark,-12,8,2,1.3,9);beam(m.steel,[-6,11,0],[-6,18,0],.17);beam(m.steel,[-10,15,0],[-2,15,0],.12);for(let x=-13;x<15;x+=4)for(const z of [-6.5,6.5])part(cylGeo,m.rubber,x,2,z,1.15,.55,1.15,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));});
-define('cargo-shed',()=>{box(m.blue,0,12,0,65,24,100);box(m.dark,0,24.5,0,67,1,102);for(const x of [-32.7,32.7])for(let z=-48;z<=48;z+=8){box(m.steel,x,12,z,.3,24,.5);box(m.glass,x,18,z,.4,4,5)}for(const z of [-50.2,50.2])for(let x=-24;x<=24;x+=12){box(m.steel,x,8,z,8,16,.5);for(let y=1;y<15;y+=2)box(m.dark,x,y,z+.1,7.5,.12,.4)}for(let z=-35;z<=35;z+=18)box(m.glass,0,25.2,z,8,.5,12)});
+define('cargo-shed',()=>{
+ // Clad workshop with raised seam roof, drainage, loading doors and roof vents.
+ const W=65,D=100,H=24,roofRise=5.8;
+ box(m.blue,0,11.8,0,W,23.6,D);box(m.concrete,0,.42,0,W+.4,.84,D+.4);
+ for(const side of [-1,1]){
+  const x=side*(W/2+.15),z=side*(D/2+.15);
+  for(let zz=-48;zz<=48;zz+=4){box(m.steel,x,12,zz,.18,23.4,.17);if(zz%8===0)box(m.glass,x+side*.16,18,zz,.14,3.6,4.5)}
+  for(let xx=-29;xx<=29;xx+=4)box(m.steel,xx,12,z,.17,23.4,.18);
+  for(const xx of [-22,0,22]){
+   box(m.dark,xx,7,z+side*.2,10.5,13,.26);box(m.steel,xx,7,z+side*.4,9.8,12.4,.14);
+   for(let y=1;y<13;y+=.65)box(m.dark,xx,y,z+side*.49,9.7,.075,.08);
+   for(const dx of [-5.2,5.2]){box(m.yellow,xx+dx,1,z+side*.55,.15,2,.17);box(m.steel,xx+dx,7,z+side*.42,.28,13.4,.32)}
+   box(m.light,xx,14.8,z+side*.3,2.4,.28,.55);
+  }
+  // Roof slopes are structurally continuous instead of rectangular slabs.
+  const angle=-side*Math.atan2(roofRise,W/2),rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),angle);
+  part(boxGeo,m.dark,side*W/4,H+roofRise/2,0,Math.hypot(W/2,roofRise)+1,.42,D+1.5,rot);
+  for(let zz=-49;zz<=49;zz+=3)beam(m.steel,[0,H+roofRise+.25,zz],[side*(W/2+.4),H+.2,zz],.09,.14);
+  beam(m.steel,[side*(W/2+.65),H, -51],[side*(W/2+.65),H,51],.26,.26,true);
+  for(const zz of [-47,0,47])beam(m.steel,[side*(W/2+.65),H,zz],[side*(W/2+.65),.8,zz],.14,.14,true);
+  for(const zz of [-34,0,34]){const xx=side*13,y=H+roofRise*(1-Math.abs(xx)/(W/2));box(m.steel,xx,y+.7,zz,6,1.8,9);box(m.dark,xx,y+1.7,zz,6.6,.32,9.6);for(let dz=-3;dz<=3;dz+=1.5)box(m.dark,xx,y+1,zz+dz,6.1,.17,.3)}
+ }
+ beam(m.steel,[0,H+roofRise+.35,-51],[0,H+roofRise+.35,51],.28,.35);
+ for(const zz of [-27,27]){box(m.steel,4,H+roofRise+.85,zz,2,2.5,2);box(m.dark,4,H+roofRise+2.2,zz,2.8,.3,2.8)}
+});
 /* Civil layout: separate slabs leave actual excavated dock unobstructed. */
 function slab(x,z,w,d){box(m.concrete,x,1.8,z,w,6.4,d);box(m.road,x,5.04,z,w-8,.08,d-8)}
 slab(0,650,2360,1100);slab(-425,-550,1510,1300);slab(1000,-985,360,410);slab(850,-125,660,450);slab(1140,-550,100,500);
@@ -230,7 +254,7 @@ for(const x of [-1180,1180])for(let z=150;z<1150;z+=26){box(m.dark,x,3.7,z,2.2,1
 // Connected sea wall and harbor breakwaters, rather than floating caisson rows.
 box(m.concrete,0,2,-1320,2280,5.2,26);box(m.dark,0,5,-1320,2280,.4,18);
 for(let x=-1120;x<1120;x+=100){box(m.yellow,x,5.3,-1320,36,.06,.35);if(x%200===-120)place('light-tower',x,5,-1320)}
-for(const x of [-820,-420,60,650,1020])place('tugboat',x,.5,1270,Math.PI*(rnd()>.5?0:1));
+for(const x of [-820,-420,60,650,1020])place('tugboat',x,.5,(x===60||x===1020)?1270:1311,Math.PI*(rnd()>.5?0:1));
 for(const z of [-1050,-840,-600,-400])place('tugboat',1210,.5,z,Math.PI/2);
 // Ground macro variation is evaluated in world space so large slabs and tiny props
 // no longer share the same apparent UV scale. Preserve the original texture for GLB.
@@ -267,7 +291,7 @@ define('workboat',()=>{
 });
 define('workshop-kit',()=>{box(m.dark,0,.35,0,10,.7,5);for(const x of [-3,0,3]){box(m.rust,x,1.4,0,2.7,2,2);for(const z of [-1.1,1.1])box(m.steel,x,1.1,z,2.6,.12,.14)}for(let x=-4;x<=4;x+=2){beam(m.steel,[x,.7,-2],[x,.7,2],.23);box(m.yellow,x,2.45,0,.25,.10,1.8)}});
 for(let x=-1100;x<=1080;x+=42){if(clearScenery(x,18,1155))lamp(x,5.15,1155);for(const z of [1060,1100])box(m.steel,x,5.29,z,42,.12,.15);if(clearScenery(x,9,1020))place('welding-skid',x,5.25,1020,Math.PI/2)}
-for(const x of [-950,-600,-240,220,590,1000])place('workboat',x,0,1322,Math.PI*(x>0?1:0));
+for(const x of [-950,-600,-240,220,590,1000]){if(x===-600||x===590)continue;place('workboat',x,0,1322,Math.PI*(x>0?1:0))}
 for(const x of [695,1005])for(let z=-720;z<-360;z+=27){lamp(x,-7.8,z);if(clearScenery(x,-2,z))place('welding-skid',x,-7.8,z,Math.PI/2)}
 for(const x of [660,1040])for(let z=-310;z<=360;z+=48){if(clearScenery(x,19,z))lamp(x,5.16,z);box(m.steel,x,5.25,z,.22,.12,48)}
 for(const x of [-1010,-750,-670,-420,320,490,780,1080])for(let z=320;z<1000;z+=48){const xx=x+(rnd()-.5)*12,zz=z+(rnd()-.5)*16;if(clearScenery(xx,18,zz)){if(rnd()<.40)lamp(xx,5.26,zz);else place(rnd()<.5?'welding-skid':'workshop-kit',xx,5.26,zz,rnd()*Math.PI)}}
@@ -400,6 +424,20 @@ place('merchant-vessel',390,0,-1030,Math.PI/2,.72);
  // Full-size vessels occupy true water berths, not concrete aprons.
  place('merchant-vessel',-1050,0,1232);
  place('merchant-vessel',-150,0,1232,Math.PI);
+ place('merchant-vessel',-660,0,1312);
+ for(const cx of [-515,-280])if(clearFootprint(cx,-1218,210,34,49)){
+  place('merchant-vessel',cx,0,-1218,Math.PI);
+  for(const dx of [-78,78]){beam(m.dark,[cx+dx,12,-1207],[cx+dx*1.1,5.6,-1194],.14,.14,true);place('bollard',cx+dx*1.1,5.15,-1194)}
+  // Gangway joins the lower quay to the elevated ship deck.
+  const a=[cx-40,5.4,-1197],b=[cx-40,12.4,-1209];
+  beam(m.steel,a,b,2.5,.28);for(const side of [-1,1])beam(m.yellow,[a[0]+side*1.05,a[1]+1.05,a[2]],[b[0]+side*1.05,b[1]+1.05,b[2]],.08);
+  for(let i=0;i<=7;i++){const t=i/7,x=a[0],y=a[1]+(b[1]-a[1])*t,z=a[2]+(b[2]-a[2])*t;box(m.steel,x,y,z,2.4,.14,1.3)}
+ }
+ // Working north waterfront: cranes and sheds are at the edge of the berth,
+ // with maintained roadway and actual mooring infrastructure.
+ for(const x of [-620,-380,-140,115,270])if(clearFootprint(x,-1150,26,26,90))place('lattice-boom-crane',x,5,-1150,-Math.PI/2,.9);
+ for(const x of [-485,-235,15,245])if(clearFootprint(x,-1120,68,104,36))place('cargo-shed',x,5.2,-1120,Math.PI/2,.84);
+
  // Shipyard shore power and mooring points connect vessel to quay.
  for(const cx of [-1050,-150])for(const dx of [-76,76]){beam(m.dark,[cx+dx,12,1222],[cx+dx*1.12,5.7,1193],.16,.16,true);place('bollard',cx+dx*1.12,5.15,1193);}
 
@@ -614,7 +652,8 @@ for(const [x,z] of [[500,-1150],[100,-1190],[-340,-1180]]){
   if(clearFootprint(x,z,24,16,26))place('maintenance-bay',x,4.5,z);
  }
 }
-for(const x of [-1050,-800,-600])if(clearFootprint(x,-1210,130,40,36))place('workboat',x,0,-1210,.02,.95);
+// Northwest pier occupies this area; move small craft to real open water rather than through concrete.
+for(const x of [-1050,-800])if(clearFootprint(x,-1360,130,40,36))place('workboat',x,0,-1360,.02,.95);
 // New container-wall placements use segment-versus-inflated-box tests. The
 // conservative 13 m clearance protects the existing ring openings and gives
 // camera users the close walls suggested by the reference. This is not a
@@ -692,7 +731,7 @@ for(const z of [390,550,690,790])for(const x of [-1010,-610])if(clearFootprint(x
 for(const center of [-650,-450,-170,100])for(const x of [-920,-840])for(const dz of [-48,12,54]){const z=center+dz;if(clearFootprint(x,z,13,7,11)){place('fabrication-rack',x,5.25,z,Math.PI/2);place('hydraulic-power-unit',x,5.25,z+9)}}
 for(let x=-1150;x<1150;x+=22)place('quay-fender',x,0,1200.4,-Math.PI/2);
 for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-unit',x,-7.8,z);
-for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh)}
+const worldBatches=[];for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh);b.g.computeBoundingBox();const bounds=new T.Box3(),temp=new T.Box3();for(const matrix of b.matrices)bounds.union(temp.copy(b.g.boundingBox).applyMatrix4(matrix));worldBatches.push({mesh,bounds})}
 // Build container LODs in spatial chunks. Every container keeps the exact same
 // transform and color when changing mesh detail. Low models cast the static shadow.
 for(const chunk of containerChunks.values()){
@@ -703,7 +742,7 @@ for(const chunk of containerChunks.values()){
  containerLOD.push({bounds:chunk.bounds,center:chunk.bounds.getCenter(V(0,0,0)),high:variants.high,low:variants.low});
 }
 const lodFrustum=new T.Frustum(),lodMatrix=new T.Matrix4();let lodInitialized=false;
-function updateContainerLOD(cam){cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true}
+function updateContainerLOD(cam){cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));for(const batch of worldBatches)batch.mesh.visible=!lodInitialized||lodFrustum.intersectsBox(batch.bounds);for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true}
 const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x142a31,roughness:.46,metalness:.02,envMapIntensity:.40,bumpMap:waterTex,bumpScale:.6});
 // World-position ripples avoid the previous giant repeated bump texture.
 waterMat.bumpMap=null;
