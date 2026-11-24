@@ -3,8 +3,6 @@ on:
   push:
     branches: ['feature/iron-tide-camera-lab']
     paths: ['iron-tide/**', 'tests/iron_tide_capture.py', '.github/workflows/iron-tide.yml']
-  pull_request:
-    paths: ['iron-tide/**', 'tests/iron_tide_capture.py', '.github/workflows/iron-tide.yml']
   workflow_dispatch:
 permissions:
   contents: read

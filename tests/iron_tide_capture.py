@@ -62,6 +62,13 @@ try:
             page.evaluate("(f) => IRON_TIDE.course(IRON_TIDE.stats().lapMeters*f)", frac)
             page.locator("canvas").screenshot(path=str(OUT / ("flight-%02d.png" % (frac*100))), timeout=90000)
         assets = page.evaluate("IRON_TIDE.stats().assets")
+        (OUT / "assets").mkdir(exist_ok=True)
+        for name in assets:
+            page.evaluate("(n) => IRON_TIDE.assetView(n)", name)
+            path = OUT / "assets" / (name + ".png")
+            page.locator("canvas").screenshot(path=str(path), timeout=90000)
+            with Image.open(path) as im:
+                assert max(ImageStat.Stat(im.convert("RGB")).stddev) > 4, "flat asset: " + name
         exported = {}
         for name in assets:
             data = base64.b64decode(page.evaluate("(n) => IRON_TIDE.exportAsset(n)",name))
