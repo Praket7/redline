@@ -2,9 +2,9 @@
 (async function(){
 'use strict';
 const T=THREE, V=(x,y,z)=>new T.Vector3(x,y,z), layout=window.IRON_TIDE_LAYOUT || await (await fetch('layout.json')).json();
-const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0x777b86,.00012);
-const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
-const sun=new T.DirectionalLight(0xffb36f,2.85);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0xa9bddd,0x807066,1.16));
+const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0x555c68,.00012);
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.94;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
+const sun=new T.DirectionalLight(0xffa65c,2.45);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0x9aaec8,0x594d46,.90));
 let seed=89423;function rnd(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
 function texture(base,kind){
  const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,256,256);
@@ -104,9 +104,9 @@ if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(
   const phi=((peakIndex%w+.5)/w-.5)*Math.PI*2;
   const elev=Math.max(.085,(.5-(Math.floor(peakIndex/w)+.5)/h)*Math.PI);
   sun.position.set(Math.cos(phi)*Math.cos(elev),Math.sin(elev),Math.sin(phi)*Math.cos(elev)).multiplyScalar(2300);
-  sun.intensity=2.85;sun.color.setHex(0xffbe87);sun.shadow.normalBias=.65;
+  sun.intensity=2.45;sun.color.setHex(0xffb36d);sun.shadow.normalBias=.65;
  }
- for(let i=0;i<pixels.length;i+=stride){pixels[i]*=.35;pixels[i+1]*=.29;pixels[i+2]*=.25}envTex.needsUpdate=true;envTex.mapping=T.EquirectangularReflectionMapping;skySource='industrial_sunset_02_puresky';}
+ for(let i=0;i<pixels.length;i+=stride){pixels[i]*=.24;pixels[i+1]*=.23;pixels[i+2]*=.25}envTex.needsUpdate=true;envTex.mapping=T.EquirectangularReflectionMapping;skySource='industrial_sunset_02_puresky';}
 const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(envTex).texture;scene.background=envTex;pmrem.dispose();
 const boxGeo=new T.BoxGeometry(1,1,1),cylGeo=new T.CylinderGeometry(1,1,1,12),sphereGeo=new T.SphereGeometry(1,12,8);const q=new T.Quaternion(),up=V(0,1,0);
 const templates={},placementBounds=new Map(),placedSites=[];let target=null;const batches=new Map();
@@ -2570,10 +2570,10 @@ define('stage3-repair-barge',()=>{
  let shorelineSegments=0,rockCount=0;
  function shoreNoise(t,salt){return Math.sin(t*.147+salt*7.91)*.57+Math.sin(t*.83+salt*3.7)*.22+Math.sin(t*.031+salt)*.21}
  function shorePoint(edge,along,offset,y){
-  const jitter=shoreNoise(along,edge.salt)*1.9;
+  const jitter=shoreNoise(along,edge.salt)*6.2;
   return edge.axis==='x'
-   ? [edge.fixed+edge.sign*(offset+jitter*(offset/12)),y,along]
-   : [along,y,edge.fixed+edge.sign*(offset+jitter*(offset/12))];
+   ? [edge.fixed+edge.sign*(offset+jitter*(offset/35)),y,along]
+   : [along,y,edge.fixed+edge.sign*(offset+jitter*(offset/35))];
  }
  for(const [a,b,c,d] of land){
   const edges=[
@@ -2591,7 +2591,7 @@ define('stage3-repair-barge',()=>{
    if(dry||onLand(probe[0],probe[2]))continue;
    // Each segment is a 4-rail cross-section with shared vertices, not an
    // ungrounded pile of repeated cubes. Irregular seaward outline meets water.
-   const idx0=shorelineGeo.positions.length/3,profile=[0,3.0,7.2,12.5];
+   const idx0=shorelineGeo.positions.length/3,profile=[0,5.5,17,35];
    for(const t0 of [t,end])for(let j=0;j<4;j++){
     const h=[5.09,3.7,1.45,-.55][j]+(j===0?0:shoreNoise(t0*2+j,edge.salt)*.31);
     shorelineGeo.positions.push(...shorePoint(edge,t0,profile[j],h));
@@ -2608,8 +2608,8 @@ define('stage3-repair-barge',()=>{
    // Occasional angular armour stones sit directly on the berm, their lower
    // vertices embedded in the mass so they do not visibly float at low water.
    if(shorelineSegments%5===0){
-    const offset=8.1,pp=shorePoint(edge,mid,offset,1.5);
-    const rockR=1.6+Math.abs(shoreNoise(t,edge.salt))*2;
+    const offset=21.0,pp=shorePoint(edge,mid,offset,1.2);
+    const rockR=2.6+Math.abs(shoreNoise(t,edge.salt))*3;
     part(riprapStone,m.concrete,pp[0],pp[1],pp[2],rockR,rockR*.62,rockR*1.2,
       new T.Quaternion().setFromAxisAngle(up,t*.14));
     rockCount++;
