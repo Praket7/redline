@@ -269,6 +269,25 @@ define('ship-hull',()=>{
    for(const dx of [-.25,0,.25])box(m.dark,x+3+dx,18,z,.11,.12,.7);
   }
  }
+ // Stage 3: shipyard staging platforms, cable trays and ventilator risers,
+ // attached to the actual lofted shell, outside the center flight corridor.
+ for(const side of [-1,1]){
+  for(const x of [-126,-86,-46,-6,34,74,114]){
+   const z=side*(profile(x,24)-3.0);
+   box(m.steel,x,23.8,z,5.4,.32,3.6);
+   for(const dx of [-2.4,2.4])beam(m.steel,[x+dx,23.7,z],[x+dx,20.1,side*(profile(x+dx,20.1)-.5)],.28);
+   rail(x,24.95,z-side*1.65,5.2);
+   box(m.dark,x,24.8,z+side*.55,1.8,1.65,1.2);
+   box(m.blue,x,24.85,z-side*.12,1.55,1.2,.18);
+   for(const dz of [-.44,.44])beam(m.steel,[x-1.1,25.9,z+dz],[x+1.1,25.9,z+dz],.13,.13,true);
+   beam(m.rust,[x,25.6,z+side*.42],P(x,27,side,.6),.24,.24,true);
+  }
+  for(let x=-144;x<144;x+=12){
+   const z0=side*(profile(x,19.2)-1.15),z1=side*(profile(x+12,19.2)-1.15);
+   for(const dy of [0,.32])beam(m.dark,[x,19.2+dy,z0],[x+12,19.2+dy,z1],.09);
+   beam(m.steel,[x,19.2,z0],P(x,19.2,side,.42),.14);
+  }
+ }
  // Partial transverse bulkheads with center openings and overhead girders.
  for(const x of [-90,-20,50,120]){for(const side of [-1,1]){const z=side*(profile(x,22)-4.2);box(inner,x,22,z,.50,15,6.8);box(flange,x,22,z-side*3.5,.8,15,.4);for(const y of [17,22,27])box(flange,x,y,z,.7,.3,7.1);beam(primer,[x,27,z-side*3],[x,31,z-side*6],.65)}box(flange,x,32,0,1.05,.85,profile(x,32)*2-2);box(primer,x,32.6,0,1.6,.35,profile(x,32)*2-2)}
  // Inner bottom and parallel girders sit above the keel supports.
@@ -709,6 +728,24 @@ define('heavy-gantry-detail',()=>{
   }
   for(let k=1;k<steps;k++){const t=k/steps;box(deck,T.MathUtils.lerp(x,nextX,t),y+rise*t-.08,T.MathUtils.lerp(z,nextZ,t),2.0,.16,run/steps+.055)}
  }
+ // Stage 3: connection plates, ribbed motor housings, access enclosures,
+ // and bolted rail-running machinery, kept inside the original portal envelope.
+ for(const side of [-1,1])for(const z of [-13,13]){
+  const x=side*62;
+  for(const dx of [-4.6,4.6])for(const dz of [-4.2,4.2]){
+   box(m.steel,x+dx,3.85,z+dz,.65,.32,.65);
+   cylinder(m.dark,x+dx,4.06,z+dz,.16,.18);
+  }
+  box(m.blue,x,7.1,z,2.3,2.1,2.4);
+  for(let k=-4;k<=4;k++)box(m.steel,x+k*.22,7.1,z+1.23,.075,1.8,.13);
+  beam(m.dark,[x,6.05,z],[x,4.2,z],.20,.20,true);
+  box(m.yellow,x,8.2,z,2.45,.18,2.55);
+ }
+ for(const z of [-9,9])for(let x=-63;x<=63;x+=14){
+  box(rawSteel,x,110,z+2.32,.52,7.5,.18);
+  for(const y of [106.9,113.1])for(const dx of [-.16,.16])box(m.dark,x+dx,y,z+2.46,.15,.18,.16);
+ }
+
  // Power supply bus and protective guard below the main girder.
  for(const z of [-11.5,11.5])for(let x=-63;x<63;x+=7){
   beam(m.wire,[x,104.9,z],[x+7,104.9,z],.14,.14,true);
@@ -1374,6 +1411,87 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  for(const z of [1010,1150])for(let x=-1130;x<=1130;x+=36){
   if(clearFootprint(x,z,5,3,6.3)){box(m.dark,x,5.31,z,4,.16,1.4);box(m.yellow,x,5.42,z,3.6,.025,.25)}
  }
+ // STAGE 3: production-specific buildings, not interchangeable rectangular sheds.
+ // Each kit uses existing packed PBR materials and shared geometry helpers.
+ define('stage3-boiler-house',()=>{
+  const W=46,D=56,H=24;
+  box(m.concrete,0,.35,0,W,.7,D);
+  box(cladding,0,12,0,W-2,23,D-2);
+  box(m.rust,0,2.3,0,W-1,3,D-1);
+  box(roofMetal,0,24,0,W,.55,D);
+  for(const x of [-22,22])for(const z of [-24,-12,0,12,24]){
+   box(m.steel,x,12,z,.6,24,.75);
+   box(m.concrete,x,.6,z,1.6,1.2,1.6);
+   box(m.glass,x*1.006,19,z,.12,3.6,7.2);
+   box(m.steel,x*1.012,19,z,.16,.16,7.3);
+  }
+  for(const x of [-14,0,14]){
+   box(m.dark,x,5,-27.15,9,8,.28);
+   box(m.steel,x,8.9,-27.38,9.4,.42,.45);
+   for(let y=2;y<9;y+=.7)box(m.steel,x,y,-27.35,8.7,.13,.12);
+   box(m.orange,x-4.7,1.25,-27.6,.24,2.5,.24);
+  }
+  for(const x of [-12,12]){
+   cylinder(m.rust,x,31,10,2.2,14);
+   cylinder(m.dark,x,38,10,2.45,.6);
+   for(const y of [26,32,37])cylinder(m.steel,x,y,10,2.35,.34);
+   box(m.steel,x,24.6,10,5.5,1.2,5.5);
+   for(const z of [7.5,12.5])beam(m.steel,[x-3,24.6,z],[x+3,28,z],.38);
+  }
+  for(const x of [-15,0,15]){
+   box(m.dark,x,25.3,-13,8,2.6,5.5);
+   box(m.steel,x,26.8,-13,8.4,.4,5.9);
+   for(let z=-15;z<=-11;z+=.6)box(m.steel,x,25.4,z,8.1,.14,.1);
+  }
+  for(const x of [-17,17]){box(m.light,x,10,-27.7,1.8,.55,.75);beam(m.steel,[x,10.4,-27.5],[x,11,-26.9],.18)}
+ });
+ define('stage3-outfitting-annex',()=>{
+  // Stepped roof heights, side clerestory and a recessed transfer/loading bay.
+  box(m.concrete,0,.3,0,64,.6,38);
+  box(cladding,-9,10,0,44,19,36);
+  box(m.white,22,6.5,0,18,12,36);
+  box(roofMetal,-9,19.7,0,45,.5,37);
+  box(roofMetal,22,12.8,0,19,.5,37);
+  for(const z of [-18,18]){
+   for(const x of [-29,-21,-13,-5,3,11,16,24,30]){
+    box(m.steel,x,x<=11?10:6.3,z,.42,x<=11?19:12,.46);
+    if(x<=11){box(m.glass,x+1.6,16.3,z*1.01,4.8,3.1,.12);box(m.steel,x+1.6,16.3,z*1.017,.12,3.1,.15)}
+   }
+   for(const x of [19,26]){box(m.glass,x,8.2,z*1.01,4.6,2.8,.15);box(m.steel,x,8.2,z*1.017,.14,2.9,.15)}
+  }
+  for(const x of [-24,-10,4]){
+   box(m.dark,x,5,-18.25,9,8.5,.28);
+   for(let y=1.2;y<=9;y+=.55)box(m.steel,x,y,-18.45,8.8,.12,.12);
+   box(m.orange,x,9.5,-18.55,9.5,.32,.5);
+   for(const dx of [-4.6,4.6])box(m.yellow,x+dx,1.25,-18.8,.23,2.5,.23);
+   box(m.light,x,11,-18.5,1.6,.4,.6);
+  }
+  box(m.steel,22,12.4,0,17,.35,4);rail(22,13.55,1.8,17);
+  for(const z of [-12,0,12]){
+   box(m.dark,26,13.4,z,5.6,1.5,4);
+   for(let dx=-2;dx<=2;dx+=.5)box(m.steel,26+dx,14.2,z,.15,.16,3.8);
+  }
+ });
+ define('stage3-electrical-substation',()=>{
+  // Transformer bay: connected bushings, cable bus, cooling fins and plinth.
+  box(m.concrete,0,.3,0,23,.6,16);
+  for(const x of [-6,6]){
+   box(m.dark,x,.85,0,8,.5,8);
+   box(m.blue,x,2.7,0,6.8,3.4,5.4);
+   for(const z of [-3,3])for(let dx=-2.9;dx<=2.9;dx+=.5)box(m.steel,x+dx,2.8,z,.17,2.9,.72);
+   box(m.steel,x,4.45,0,7.1,.3,5.8);
+   for(const dx of [-2,0,2]){
+    cylinder(m.dark,x+dx,5.2,0,.27,1.4);
+    for(let y=4.7;y<5.8;y+=.22)cylinder(m.white,x+dx,y,0,.44,.12);
+    cylinder(m.steel,x+dx,5.98,0,.19,.18);
+    beam(m.wire,[x+dx,6.05,0],[x+dx,7.3,3.6],.12,.12,true);
+   }
+  }
+  for(const x of [-10,0,10])for(const z of [4,7])beam(m.steel,[x,.6,z],[x,7.8,z],.23);
+  for(const z of [4,7])beam(m.steel,[-10,7.8,z],[10,7.8,z],.28);
+  for(const x of [-8,0,8])box(m.dark,x,1.7,-6,2.4,2.2,1.0);
+ });
+
  // REFERENCE STAGES 1–2: replace the previous rectangular placement set,
  // keeping its authored GLB templates and material library. The new civil
  // geography and ordered gates come from one canonical JSON source.
@@ -1519,6 +1637,20 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  });
  for(const [x,z] of [[850,1230],[440,1340]]){hero('reference-offshore-platform',x,0,z,0,1.5);referenceOffshore++;for(const dx of [-33,33])fixturePositions.push([x+dx,28.5,z+27])}
  referenceDistricts.add('offshore');
+ // Stage 3: distinctive utility buildings and service yards placed before infill.
+ // Use the same supported-footprint and main/alternate swept-AABB rejection
+ // as the canonical layout; no hardcoded route changes or remote mesh dependency.
+ const stage3Sites={boiler:0,annex:0,substation:0};
+ for(const [x,z,a] of [[-1160,-720,0],[-745,-820,Math.PI/2],[-470,-980,0],[285,-990,Math.PI/2],[1020,-870,0],[735,440,0],[1175,600,Math.PI/2]]){
+  if(safe('stage3-boiler-house',x,z,a,.85,'utilities')){stage3Sites.boiler++;lamp(x+15,5.25,z+18)}
+ }
+ for(const [x,z,a] of [[-1170,-530,0],[-740,-470,Math.PI/2],[-1130,870,0],[-520,850,0],[75,-1150,0],[1060,-590,0],[760,260,Math.PI/2],[1150,485,0]]){
+  if(safe('stage3-outfitting-annex',x,z,a,.86,'outfitting')){stage3Sites.annex++;}
+ }
+ for(const [x,z,a] of [[-1200,-625,0],[-700,-730,0],[-1220,620,0],[-470,-1180,0],[470,-1170,0],[1180,-740,0],[1170,160,0],[730,590,0],[1170,895,0],[-95,490,0]]){
+  if(safe('stage3-electrical-substation',x,z,a,1,'utilities'))stage3Sites.substation++;
+ }
+
  // Pack each production district with staggered, large-scale buildings and
  // connected service roads. Avoid the centerline and existing model bounds.
  let additionalHalls=0,additionalTanks=0,additionalRacks=0,additionalCranes=0;
@@ -1572,7 +1704,7 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  // Inspect actual hero meshes using a center ray and four radial offsets.
  // This finite sample is not continuous collision certification.
  function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<routePoints.length;i++){const a=routePoints[i],b=routePoints[(i+1)%routePoints.length];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>routePoints.map((a,j)=>intersectsSegment(b,a,routePoints[(j+1)%routePoints.length],radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
- const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes};
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites};
   // Bounded, deterministic ground-contact approximation (not ray-traced AO).
  // Rasterize supported footprints only, so boats and the drydock void do not
  // darken the surrounding pavement. One texture sample, no extra scene pass.
