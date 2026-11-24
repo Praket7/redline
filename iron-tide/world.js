@@ -231,6 +231,28 @@ define('maintenance-bay',()=>{for(const x of [-9,9])for(const z of [-7,7]){box(m
  box(m.blue,0,8.5,0,20,.3,15);for(let x=-8;x<=8;x+=4)box(m.light,x,8.1,0,1.3,.2,.45);box(m.dark,0,1,-5,10,2,1.5);for(let x=-4;x<=4;x+=2)box(m.orange,x,1.2,-4,1.5,1.8,1.2);
 });
 define('breakwater-armour',()=>{const g=new T.IcosahedronGeometry(1,1);for(let i=0;i<7;i++){const a=i*2.399,r=3+(i%3)*1.8;part(g,m.concrete,Math.cos(a)*r,1.2+(i%3)*.6,Math.sin(a)*r,2.5+(i%2),2.1,2.9,new T.Quaternion().setFromAxisAngle(up,a))}});
+// Purpose-built ship silhouettes: lofted longitudinal sections, bridge, coamings,
+// loading booms and deck machinery. No race volume is inferred from this visual mesh.
+define('merchant-vessel',()=>{
+ const length=208, stations=40, sections=[[-4,.28],[-1,.68],[2,.94],[8,1],[11.8,.96]];
+ const hullmat=new T.MeshStandardMaterial({color:0x334d5b,metalness:.26,roughness:.66});
+ const bootmat=new T.MeshStandardMaterial({color:0x722c27,metalness:.2,roughness:.73});
+ const topmat=new T.MeshStandardMaterial({color:0x384144,metalness:.38,roughness:.58});
+ function width(x){const q=x/(length/2);return 16.3*Math.sqrt(Math.max(.0005,1-Math.abs(q)**(q>0?3.8:9)))}
+ function P(i,j,side){const x=-length/2+i*length/stations;return [x,sections[j][0]+(i>stations-5?Math.pow((i-stations+5)/5,2)*2.4:0),side*width(x)*sections[j][1]]}
+ for(let j=0;j<sections.length-1;j++){const p=[],uv=[];for(let i=0;i<stations;i++)for(const side of [-1,1]){const A=P(i,j,side),B=P(i+1,j,side),C=P(i+1,j+1,side),D=P(i,j+1,side);for(const v of (side>0?[A,B,C,A,C,D]:[A,C,B,A,D,C])){p.push(...v);uv.push(v[0]/6,v[1]/6)}}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.computeVertexNormals();part(g,j===0?bootmat:j===1?m.dark:hullmat,0,0,0,1,1,1)}
+ const deckP=[],deckUv=[];for(let i=0;i<stations;i++){const A=P(i,4,-1),B=P(i,4,1),C=P(i+1,4,1),D=P(i+1,4,-1);for(const v of [A,B,C,A,C,D]){deckP.push(...v);deckUv.push(v[0]/6,v[2]/6)}}
+ const dg=new T.BufferGeometry();dg.setAttribute('position',new T.Float32BufferAttribute(deckP,3));dg.setAttribute('uv',new T.Float32BufferAttribute(deckUv,2));dg.computeVertexNormals();part(dg,topmat,0,0,0,1,1,1);
+ for(let i=0;i<stations;i++)for(const side of [-1,1]){const a=P(i,4,side),b=P(i+1,4,side);beam(m.steel,[a[0],a[1]+1,a[2]],[b[0],b[1]+1,b[2]],.12,.12,true);beam(m.steel,a,[a[0],a[1]+1,a[2]],.12)}
+ for(const x of [-42,-10,22,54]){box(m.rust,x,13.2,0,26,2.6,23);box(m.dark,x,14.6,0,25,.3,22);for(let dx=-10;dx<=10;dx+=5)box(m.steel,x+dx,14.85,0,.18,.18,21)}
+ for(let y=15;y<=27;y+=4){box(m.white,-73,y,0,28-(y-15)*.5,3.8,24);for(const z of [-12.1,12.1])for(let x=-83;x<=-63;x+=4)box(m.glass,x,y+.55,z,2.4,1.2,.18)}
+ box(m.white,-73,29,0,31,3,25);box(m.glass,-73,29.2,12.6,28,1.6,.18);box(m.glass,-57.4,29.2,0,.18,1.6,24);
+ box(m.dark,-87,34,0,7,7,8);box(m.rust,-87,37.8,0,8,.7,9);beam(m.steel,[-73,31,0],[-73,48,0],.22);beam(m.steel,[-78,43,0],[-68,43,0],.16);box(m.light,-73,47.9,0,.6,.45,.6);
+ for(const x of [-27,6,38]){cylinder(m.steel,x,17,0,1.35,7);beam(m.orange,[x,20,0],[x+16,33,0],1.1);beam(m.dark,[x+16,33,0],[x+16,16,0],.1,.1,true);box(m.yellow,x+16,15.5,0,1.4,1.2,1.4)}
+ for(const x of [-95,90])for(const z of [-5,5]){cylinder(m.dark,x,13,z,.85,1.3);cylinder(m.steel,x,13.8,z,1.1,.35)}
+});
+place('merchant-vessel',480,0,-550,Math.PI/2);
+place('merchant-vessel',465,0,-1030,Math.PI/2,.72);
 place('heavy-gantry-detail',850,5,50);
 for(const [x,z,a] of [[-1030,1160,.45],[-410,1180,1.1],[340,1175,1.3],[1060,-290,2.8],[1130,-900,3.0],[250,-1050,1.1]])if(clearFootprint(x,z,18,18,75))place('lattice-boom-crane',x,5,z,a);
 for(const [cx,cz] of [[-990,1015],[-760,1015],[-470,1015],[-150,1015],[350,920],[650,735],[1010,870],[960,-255],[685,-620],[1020,-605],[-950,-540],[-820,20],[-960,530],[-615,685]]){
@@ -240,6 +262,24 @@ for(const [cx,cz] of [[-990,1015],[-760,1015],[-470,1015],[-150,1015],[350,920],
 // Container walls in offset groups: close silhouettes without a constant-height grid.
 for(const [cx,cz] of [[430,1020],[540,920],[720,860],[780,710],[950,690],[1050,570]]){
  for(let i=0;i<7;i++){const x=cx+(i-3)*14,z=cz+((i%2)?14:-14);for(let h=0;h<8;h++){if(!clearFootprint(x,z,13,3,5+(h+1)*2.94))break;place('container-'+['rust','blue','green','white'][(i+h)%4],x,5+h*2.94,z,0)}}
+}
+// Flight-facing industrial street walls: elevated maintenance decks and varied sheds.
+define('dock-transfer-hall',()=>{
+ const W=70,D=37,H=24;for(const x of [-W/2,W/2])for(const z of [-D/2,D/2]){box(m.steel,x,H/2,z,1.35,H,1.35);box(m.concrete,x,.55,z,3,1.1,3)}
+ for(const z of [-D/2,D/2]){box(m.blue,0,H-3,z,W,6,.55);for(let x=-W/2+2;x<W/2;x+=4)box(rawSteel,x,H-3,z,.23,5.8,.75);box(m.orange,0,H-6.3,z,W,.55,.7);for(let x=-W/2+3;x<W/2;x+=10)box(m.glass,x,H-2,z,5,1.6,.6)}
+ for(let x=-W/2;x<=W/2;x+=7){for(const z of [-D/2,D/2])beam(rawSteel,[x,H,z],[x,H+6,0],.65);beam(m.steel,[x,H,-D/2],[x,H,D/2],.6);beam(m.steel,[x,H,-D/2],[x,H+6,0],.35)}
+ for(const side of [-1,1]){const a=side*Math.atan2(6,D/2);part(boxGeo,m.blue,0,H+3,side*D/4,W+2,.48,Math.hypot(D/2,6)+1,new T.Quaternion().setFromAxisAngle(V(1,0,0),a))}
+ for(const x of [-27,0,27]){box(m.orange,x,13,0,2,1.5,D-3);box(m.dark,x,12,0,3,1.3,4);beam(m.dark,[x,11.5,0],[x,5.5,0],.1,.1,true);box(m.yellow,x,5,0,1.2,.75,1.2)}
+ for(let x=-27;x<=27;x+=9){box(m.light,x,H-7,-D/2+.6,2,.3,.5);box(m.dark,x,1.1,-D/2+3,6,2,2)}
+});
+for(const [x,z] of [[-1060,1005],[-820,995],[-580,995],[-340,995],[-100,995],[130,1000],[200,1155],[490,1155],[715,1155],[1030,1155]]){
+ if(clearFootprint(x,z,74,41,36)){place('dock-transfer-hall',x,5.25,z);for(let j=-2;j<=2;j++){if(clearFootprint(x+j*12,z+24,12,8,11))place('pipe-bundle',x+j*12,5.28,z+24);pool(x+j*12,5.31,z+20,8)}}
+}
+// Service passage on the central dock sides; retain the wet channel in between.
+for(const x of [340,620])for(let z=-755;z<-360;z+=28){box(m.concrete,x,1.3,z,10,5.4,28);box(deck,x,4.2,z,10,.4,28);if(z%56<-20)place('bollard',x,4.4,z);if(clearFootprint(x,z,10,12,10))place('pallet-load',x,4.42,z+5)}
+for(let x=585;x<910;x+=14)for(const z of [-942,-898]){
+ box(m.steel,x,10.5,z,1.1,3.8,1.2);box(m.rust,x,12.6,z,1.5,.45,2.3);
+ if(x%28===25)box(m.yellow,x,17.1,z,.35,.4,.45);
 }
 // Quay coping, mooring ropes, tidal staining, drain channels and riprap.
 const stain=new T.MeshStandardMaterial({color:0x353b35,roughness:.95,metalness:0}),foam=new T.MeshBasicMaterial({color:0xc3d5d8,transparent:true,opacity:.22,depthWrite:false});
@@ -260,12 +300,12 @@ function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),wate
 waterTile(-9675,0,20650,40000);waterTile(10525,0,18950,40000);waterTile(850,-10375,400,19250);waterTile(850,9825,400,20350);
 // Aircraft gates are free-standing in the air, not arches with ground legs.
 const gates=layout.sectors.flatMap((s,i)=>s.gates.map((p,j)=>({p:V(...p),sector:i,index:i*4+j+1})));
-const guide=new T.Group();guide.name='aerial-route';scene.add(guide);const gateGeo=new T.TorusGeometry(10,.35,8,48);const gateMat=new T.MeshStandardMaterial({color:0xba2119,emissive:0xff2b17,emissiveIntensity:.85,roughness:.44});for(let i=0;i<gates.length;i++){const g=gates[i],next=gates[(i+1)%gates.length],prev=gates[(i+gates.length-1)%gates.length];const tangent=next.p.clone().sub(prev.p).normalize();const mesh=new T.Mesh(gateGeo,gateMat);if(g.sector===3||g.sector===4||g.sector===6)mesh.scale.setScalar(.6);mesh.position.copy(g.p);mesh.quaternion.setFromUnitVectors(V(0,0,1),tangent);mesh.name='CP'+g.index;guide.add(mesh);const edge=new T.Mesh(new T.TorusGeometry(10.5,.19,6,48),new T.MeshStandardMaterial({color:0x2b343b,metalness:.65,roughness:.42}));edge.position.copy(mesh.position);edge.quaternion.copy(mesh.quaternion);edge.scale.copy(mesh.scale);guide.add(edge)}
+const guide=new T.Group();guide.name='aerial-route';scene.add(guide);const gateGeo=new T.TorusGeometry(10,.35,8,48);const edgeGeo=new T.TorusGeometry(10.5,.19,6,48),edgeMat=new T.MeshStandardMaterial({color:0x2b343b,metalness:.65,roughness:.42});const gateMat=new T.MeshStandardMaterial({color:0xd62a25,emissive:0xff3f2c,emissiveIntensity:1.5,roughness:.44});for(let i=0;i<gates.length;i++){const g=gates[i],next=gates[(i+1)%gates.length],prev=gates[(i+gates.length-1)%gates.length];const tangent=next.p.clone().sub(prev.p).normalize();const mesh=new T.Mesh(gateGeo,gateMat);if(g.sector===3||g.sector===4||g.sector===6)mesh.scale.setScalar(.6);mesh.position.copy(g.p);mesh.quaternion.setFromUnitVectors(V(0,0,1),tangent);mesh.name='CP'+g.index;guide.add(mesh);const edge=new T.Mesh(edgeGeo,edgeMat);edge.position.copy(mesh.position);edge.quaternion.copy(mesh.quaternion);edge.scale.copy(mesh.scale);guide.add(edge)}
 const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff6456,transparent:true,opacity:.85}));guide.add(route);
 // Separate asset inspection scene shares the exact merged source models and lighting.
 const assetScene=new T.Scene();assetScene.background=new T.Color(0x303941);assetScene.environment=scene.environment;assetScene.add(new T.HemisphereLight(0xc0d8ed,0x49413c,1.35));const assetSun=new T.DirectionalLight(0xffcf99,3.1);assetSun.position.set(-160,100,80);assetScene.add(assetSun);const assetFloor=new T.Mesh(new T.PlaneGeometry(2000,2000),new T.MeshStandardMaterial({color:0x45494b,roughness:.8}));assetFloor.rotation.x=-Math.PI/2;assetFloor.position.y=-.1;assetScene.add(assetFloor);let inspected=null;const assetCamera=new T.PerspectiveCamera(42,1,.1,4000);
 function assetView(name){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();assetCamera.position.copy(center).add(V(r*1.05,r*.68,r*1.1));assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
-const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1600,1400,1720],[0,20,0]],north:[[1450,1300,-1720],[0,20,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1000,32,1150],[-650,36,1080]],'2-containers':[[340,30,1010],[620,26,850]],'3-crane':[[1000,35,210],[850,100,50]],'4-dive':[[850,137,-280],[850,0,-650]],'5-hull':[[925,27,-920],[600,24,-920]],'6-breakwater':[[350,38,-1260],[-600,30,-1280]],'7-foundry':[[-880,26,-558],[-880,29,-500]],'8-pipes':[[-970,65,320],[-760,32,740]]};
+const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1600,1400,1720],[0,20,0]],north:[[1450,1300,-1720],[0,20,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1000,34,1108],[-650,42,1080]],'2-containers':[[384,25,1000],[620,32,850]],'3-crane':[[1000,35,210],[850,100,50]],'4-dive':[[850,137,-280],[850,0,-650]],'5-hull':[[925,27,-920],[600,24,-920]],'6-breakwater':[[350,30,-1250],[-600,30,-1280]],'7-foundry':[[-880,26,-558],[-880,29,-500]],'8-pipes':[[-970,65,320],[-760,32,740]]};
 function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
 function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
