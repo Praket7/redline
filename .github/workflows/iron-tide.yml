@@ -23,6 +23,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: node --check iron-tide/world.js
       - run: python iron-tide/prepare_textures.py
+      - run: python iron-tide/prepare_models.py
       - run: python iron-tide/package.py
       - run: python tests/iron_tide_capture.py --preview
       - uses: actions/upload-artifact@v4
