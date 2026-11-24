@@ -24,6 +24,15 @@ jobs:
       - run: node --check iron-tide/world.js
       - run: python iron-tide/prepare_textures.py
       - run: python iron-tide/package.py
+      - run: python tests/iron_tide_capture.py --preview
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iron-tide-fast-preview
+          path: |
+            iron-tide-output/*.png
+            iron-tide-output/*.json
+            iron-tide-output/IRON_TIDE.html
+          if-no-files-found: error
       - run: python tests/iron_tide_capture.py
       - uses: actions/upload-artifact@v4
         if: always()

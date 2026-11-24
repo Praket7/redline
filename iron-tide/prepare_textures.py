@@ -14,11 +14,16 @@ def fetch(url):
     return data
 for role, asset in ASSETS.items():
     try:
-        manifest=json.loads(fetch("https://api.polyhaven.com/files/"+asset))
+        try:
+            manifest=json.loads(fetch("https://api.polyhaven.com/files/"+asset))
+            manifest=manifest.get("files",manifest)
+        except Exception as exc:
+            print("Asset manifest unavailable:",asset,exc)
+            manifest={}
         maps={}
         details={}
         for channel in ("diff","nor_gl","rough"):
-            entry=manifest[channel]["1k"]["jpg"]
+            entry=manifest.get(channel,{}).get("1k",{}).get("jpg") or {"url":f"https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/{asset}/{asset}_{channel}_1k.jpg"}
             data=fetch(entry["url"])
             if entry.get("md5") and hashlib.md5(data).hexdigest()!=entry["md5"]:
                 raise ValueError("source hash mismatch")
@@ -35,8 +40,12 @@ for role, asset in ASSETS.items():
         print("Texture fallback:",role,exc)
 try:
     asset="industrial_sunset_02_puresky"
-    manifest=json.loads(fetch("https://api.polyhaven.com/files/"+asset))
-    entry=manifest["hdri"]["1k"]["hdr"]
+    try:
+        manifest=json.loads(fetch("https://api.polyhaven.com/files/"+asset))
+        manifest=manifest.get("files",manifest)
+    except Exception:
+        manifest={}
+    entry=manifest.get("hdri",{}).get("1k",{}).get("hdr") or {"url":f"https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/{asset}_1k.hdr"}
     data=fetch(entry["url"])
     if entry.get("md5") and hashlib.md5(data).hexdigest()!=entry["md5"]:
         raise ValueError("source HDR hash mismatch")

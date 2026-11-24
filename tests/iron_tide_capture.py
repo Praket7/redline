@@ -89,6 +89,11 @@ try:
         # Same-world camera evidence with no visual route overlay.
         page.evaluate("IRON_TIDE.setView('overview'); IRON_TIDE.route(false)")
         capture(page, OUT / "overview-clean.png")
+        if "--preview" in sys.argv:
+            assert not errors, errors
+            (OUT / "preview-report.json").write_text(json.dumps({"views":results,"layout":layout},indent=2))
+            browser.close()
+            raise SystemExit(0)
         page.evaluate("IRON_TIDE.route(true); IRON_TIDE.setView('1-launch')")
         before = page.evaluate("IRON_TIDE.stats().position")
         page.keyboard.down("KeyW"); page.wait_for_timeout(500); page.keyboard.up("KeyW")
