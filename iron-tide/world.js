@@ -11,7 +11,7 @@ function texture(base,kind){
  for(let i=0;i<9000;i++){const a=rnd()*.15;ctx.fillStyle=rnd()>.5?'rgba(255,255,255,'+a+')':'rgba(0,0,0,'+a+')';ctx.fillRect(rnd()*256,rnd()*256,1+rnd()*5,1+rnd()*5)}
  if(kind==='steel'){for(let i=0;i<180;i++){ctx.fillStyle='rgba(74,36,19,'+(rnd()*.24)+')';ctx.fillRect(rnd()*256,rnd()*256,1+rnd()*3,4+rnd()*50)}}
  if(kind==='concrete'){ctx.strokeStyle='#18191b38';for(let i=0;i<12;i++){let x=rnd()*256,y=rnd()*256;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+10,y+23);ctx.lineTo(x+8,y+45);ctx.stroke()}}
- for(let i=0;i<120;i++){const x=rnd()*256,y=rnd()*256,r=4+rnd()*48,g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,kind==='steel'?'rgba(73,28,12,.30)':'rgba(9,15,22,.32)');g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2)}
+ const surfaceSeed=seed;for(let i=0;i<120;i++){const x=rnd()*256,y=rnd()*256,r=4+rnd()*48,g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,kind==='steel'?'rgba(73,28,12,.30)':'rgba(9,15,22,.32)');g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2)}seed=surfaceSeed;
  const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return t
 }
 function relief(kind){const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');const im=ctx.createImageData(128,128);for(let i=0;i<im.data.length;i+=4){const v=Math.floor(110+rnd()*65);im.data[i]=im.data[i+1]=im.data[i+2]=v;im.data[i+3]=255}ctx.putImageData(im,0,0);ctx.strokeStyle='#666';for(let i=0;i<45;i++){let x=rnd()*128,y=rnd()*128;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+rnd()*6,y+8+rnd()*35);ctx.stroke()}const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;return t}
@@ -101,13 +101,30 @@ box(m.concrete,0,2,-1320,2280,5.2,26);box(m.dark,0,5,-1320,2280,.4,18);
 for(let x=-1120;x<1120;x+=100){box(m.yellow,x,5.3,-1320,36,.06,.35);if(x%200===-120)place('light-tower',x,5,-1320)}
 for(const x of [-820,-420,60,650,1020])place('tugboat',x,.5,1270,Math.PI*(rnd()>.5?0:1));
 for(const z of [-1050,-840,-600,-400])place('tugboat',1210,.5,z,Math.PI/2);
+// Ground macro variation is evaluated in world space so large slabs and tiny props
+// no longer share the same apparent UV scale. Preserve the original texture for GLB.
+for(const mat of [m.road,asphalt,apron]){
+ mat.onBeforeCompile=shader=>{
+  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 pavementP=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n pavementP=instanceMatrix*pavementP;\n#endif\n vPavement=(modelMatrix*pavementP).xyz;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=sin(vPavement.x*.035+sin(vPavement.z*.08)*2.0)*cos(vPavement.z*.05);float puddle=smoothstep(.20,.82,wet);roughnessFactor=mix(roughnessFactor,.19,puddle*.72);diffuseColor.rgb*=mix(1.0,.62,puddle);');
+ };
+}
 // Native industrial kit: batched working-port models and practical lighting.
 const warmGlow=new T.MeshBasicMaterial({color:0xffbc73});
 const glowCanvas=document.createElement('canvas');glowCanvas.width=glowCanvas.height=64;const gc=glowCanvas.getContext('2d'),gg=gc.createRadialGradient(32,32,0,32,32,32);gg.addColorStop(0,'rgba(255,165,73,.65)');gg.addColorStop(.35,'rgba(255,132,45,.25)');gg.addColorStop(1,'rgba(255,132,45,0)');gc.fillStyle=gg;gc.fillRect(0,0,64,64);const glowMat=new T.MeshBasicMaterial({map:new T.CanvasTexture(glowCanvas),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,blending:T.AdditiveBlending});const flatGlow=new T.PlaneGeometry(1,1);flatGlow.rotateX(-Math.PI/2);
 function pool(x,y,z,r){part(flatGlow,glowMat,x,y,z,r*2,1,r*2)}
 function lamp(x,y,z){beam(m.dark,[x,y,z],[x,y+12,z],.25);beam(m.steel,[x,y+12,z],[x+2,y+12,z],.19);box(m.dark,x+2,y+11.9,z,1.5,.4,.75);box(warmGlow,x+2,y+11.66,z,1.2,.12,.52);pool(x+2,y+.20,z,13)}
 define('welding-skid',()=>{box(m.dark,0,.22,0,5,.44,2.5);box(m.orange,0,1.3,0,3.8,1.8,2);for(const z of [-1.02,1.02]){for(let x=-1.4;x<1.5;x+=.20)box(m.dark,x,1.45,z,.08,.65,.07);box(m.steel,0,.75,z,3.6,.15,.08)}for(const x of [-1.5,1.5]){box(m.dark,x,2.25,0,.2,.20,1.8);box(m.steel,x,.25,0,.22,.42,2.7)}cylinder(m.dark,1.7,2.45,.5,.12,.6)});
-define('workboat',()=>{for(let i=0;i<24;i++){const x=-57+i*4.9,w=10*Math.sqrt(Math.max(.03,1-(x/63)**6));box(m.rust,x,1,0,5,5,w*2);box(m.dark,x,4,0,5,1,w*2);box(m.blue,x,5,0,5,1,w*1.92)}box(m.white,-35,12,0,23,13,18);box(m.glass,-35,16,9.1,19,3,.25);box(m.glass,-35,16,-9.1,19,3,.25);box(m.dark,-44,22,0,4,10,5);for(let x=-12;x<=35;x+=12){box(m.rust,x,8,0,10,5,16);for(const z of [-8,8])rail(x,11,z,10)}for(const x of [-49,49]){beam(m.steel,[x,6,0],[x,25,0],.3);box(m.light,x,25,0,.7,.6,.7)}});
+define('workboat',()=>{
+ // Closed tapered hull built from cross sections with separately colored boot stripe.
+ const n=32, rows=[[-2.0,.35],[0,.72],[2.2,1],[4.2,1],[5, .96]];
+ function hullPoint(i,j){const x=-61+122*i/n, taper=Math.sqrt(Math.max(.001,1-Math.pow(Math.abs(x)/61,5)));return [x,rows[j][0],rows[j][1]*10*taper]}
+ for(let j=0;j<rows.length-1;j++){const points=[];for(let i=0;i<n;i++){for(const sign of [-1,1]){const p=(a,b)=>{const v=hullPoint(a,b);v[2]*=sign;return v};let A=p(i,j),B=p(i+1,j),C=p(i+1,j+1),D=p(i,j+1);if(sign===1)points.push(...A,...C,...B,...A,...D,...C);else points.push(...A,...B,...C,...A,...C,...D)}}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points,3));geo.setAttribute('uv',new T.Float32BufferAttribute(new Array(points.length/3*2).fill(0),2));geo.computeVertexNormals();part(geo,j<1?m.rust:j===1?m.dark:m.blue,0,0,0,1,1,1)}
+ for(let i=0;i<n;i++){const a=hullPoint(i,4),b=hullPoint(i+1,4);box(m.dark,(a[0]+b[0])/2,5,(0),122/n+.03,.25,(a[2]+b[2]));}
+ box(m.white,-35,12,0,23,13,18);box(m.glass,-35,16,9.1,19,3,.25);box(m.glass,-35,16,-9.1,19,3,.25);box(m.dark,-44,22,0,4,10,5);
+ for(let x=-12;x<=35;x+=12){box(m.rust,x,8,0,10,5,16);for(const z of [-8,8])rail(x,11,z,10)}
+ for(const x of [-49,49]){beam(m.steel,[x,6,0],[x,25,0],.3);box(m.light,x,25,0,.7,.6,.7)}
+});
 define('workshop-kit',()=>{box(m.dark,0,.35,0,10,.7,5);for(const x of [-3,0,3]){box(m.rust,x,1.4,0,2.7,2,2);for(const z of [-1.1,1.1])box(m.steel,x,1.1,z,2.6,.12,.14)}for(let x=-4;x<=4;x+=2){beam(m.steel,[x,.7,-2],[x,.7,2],.23);box(m.yellow,x,2.45,0,.25,.10,1.8)}});
 for(let x=-1100;x<=1080;x+=42){if(clearScenery(x,18,1155))lamp(x,5.15,1155);for(const z of [1060,1100])box(m.steel,x,5.29,z,42,.12,.15);if(clearScenery(x,9,1020))place('welding-skid',x,5.25,1020,Math.PI/2)}
 for(const x of [-950,-600,-240,220,590,1000])place('workboat',x,0,1295,Math.PI*(x>0?1:0));
@@ -122,6 +139,12 @@ for(let x=-1050;x<1100;x+=48){const z=1000;if(clearScenery(x,15,z))place('contai
 for(let x=600;x<=900;x+=14)for(const z of [-950,-890]){box(m.dark,x,32,z,1.7,.5,1.7);box(warmGlow,x,32.4,z,.85,.25,.85);pool(x,8.2,z,8)}
 for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;scene.add(mesh)}
 const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x152c37,roughness:.29,metalness:.55,bumpMap:waterTex,bumpScale:.6});
+// World-position ripples avoid the previous giant repeated bump texture.
+waterMat.bumpMap=null;
+waterMat.onBeforeCompile=shader=>{
+ shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz; float seaA=sin(seaP.x*.44+seaP.y*.22)+.45*sin(seaP.x*1.4-seaP.y*.73);float seaB=cos(seaP.y*.36-seaP.x*.16)+.4*cos(seaP.y*1.1+seaP.x*.88);normal=normalize(normal+mat3(viewMatrix)*vec3(seaA*.17,0.,seaB*.17));').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=sin(vSea.x*.22+vSea.z*.38+sin(vSea.z*.11)*2.0);diffuseColor.rgb*=.85+.15*seaRip;');
+};
 // Four water planes deliberately exclude the excavated basin [650,1050] x [-750,-350].
 function waterTile(x,z,w,d){const water=new T.Mesh(new T.PlaneGeometry(w,d),waterMat);water.rotation.x=-Math.PI/2;water.position.set(x,-.25,z);scene.add(water)}
 waterTile(-9675,0,20650,40000);waterTile(10525,0,18950,40000);waterTile(850,-10375,400,19250);waterTile(850,9825,400,20350);
