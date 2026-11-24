@@ -413,9 +413,9 @@ function updatePortReflection(cam){
 for(const mat of [m.road,asphalt,apron]){
  mat.onBeforeCompile=shader=>{
   shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 pavementP=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n pavementP=instanceMatrix*pavementP;\n#endif\n vPavement=(modelMatrix*pavementP).xyz;');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.045)*.7+wetNoise(vPavement.xz*.19)*.3;float puddle=smoothstep(.50,.78,wet);roughnessFactor=mix(roughnessFactor,.16,puddle*.84);diffuseColor.rgb*=mix(1.0,.58,puddle);');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.045)*.7+wetNoise(vPavement.xz*.19)*.3;float puddle=smoothstep(.55,.82,wet);roughnessFactor=mix(roughnessFactor,.22,puddle*.75);diffuseColor.rgb*=mix(1.0,.68,puddle);');
 
- if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
+ if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')+'\nfloat wet=wetNoise(vPavement.xz*.045)*.7+wetNoise(vPavement.xz*.19)*.3;float puddle=smoothstep(.55,.82,wet);roughnessFactor=mix(roughnessFactor,.22,puddle*.75);diffuseColor.rgb*=mix(1.,.68,puddle);');}
  };
 }
 // Metre-scale concrete projection for large civil slabs and retaining faces.
@@ -488,13 +488,23 @@ for(const z of [410,570,730])for(const x of [-920,-580]){
  pool(x,5.25,z,10)
 }
 // Distant coastline outside the playable footprint gives the port a geographical context.
-const coastMat=new T.MeshStandardMaterial({color:0x353b43,roughness:1,metalness:0});
-const coastGeo=new T.BufferGeometry(),coastPos=[],coastColors=[],coastIndices=[],coastN=160,coastM=32;
-for(let iz=0;iz<=coastM;iz++)for(let ix=0;ix<=coastN;ix++){const x=-6400+ix*80,t=iz/coastM,shore=-2500-170*Math.sin(x*.0007)-90*Math.cos(x*.0025),z=shore-t*2200;
- const ridge=Math.sin(Math.PI*t)**1.6,large=.48+.24*Math.sin(x*.0008)+.13*Math.sin(x*.0019+1),small=.65+.35*smoothNoise(x*.002,z*.002);
- const height=-3+ridge*(70+large*460)*small;coastPos.push(x,height,z);const v=.12+.10*small+.06*ridge;coastColors.push(v*.78,v*.87,v);}
+// Layered coastal terrain: grounded silhouettes and a continuous shore,
+// with low-amplitude fractal relief rather than a smooth featureless ridge.
+const coastMat=new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide});
+function shoreline(x){return -2500-170*Math.sin(x*.0007)-90*Math.cos(x*.0025)-65*Math.sin(x*.009)}
+function coastalHeight(x,z){const t=T.MathUtils.clamp((shoreline(x)-z)/2200,0,1);const ridge=Math.sin(Math.PI*t)**1.35;
+ const large=.48+.24*Math.sin(x*.0008)+.13*Math.sin(x*.0019+1);
+ const detail=.58+.25*smoothNoise(x*.004,z*.004)+.12*smoothNoise(x*.013,z*.013);
+ return -3+ridge*(70+large*460)*detail}
+const coastGeo=new T.BufferGeometry(),coastPos=[],coastColors=[],coastIndices=[],coastN=220,coastM=48;
+for(let iz=0;iz<=coastM;iz++)for(let ix=0;ix<=coastN;ix++){
+ const x=-6600+ix*60,t=iz/coastM,z=shoreline(x)-t*2200,height=coastalHeight(x,z);
+ coastPos.push(x,height,z);const detail=smoothNoise(x*.012,z*.012),grass=smoothNoise(x*.003,z*.003),shore=T.MathUtils.smoothstep(t,.005,.065);
+ const c=new T.Color().setRGB(.044+.025*detail+.012*grass,.055+.034*grass,.055+.021*detail);
+ c.lerp(new T.Color(0x71675a),1-shore);coastColors.push(c.r,c.g,c.b)
+}
 for(let iz=0;iz<coastM;iz++)for(let ix=0;ix<coastN;ix++){const a=iz*(coastN+1)+ix,b=a+1,c=a+coastN+1,d=c+1;coastIndices.push(a,b,c,b,d,c)}
-coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coastGeo.setAttribute('color',new T.Float32BufferAttribute(coastColors,3));coastGeo.setIndex(coastIndices);coastGeo.computeVertexNormals();coastMat.side=T.DoubleSide;coastMat.color.setHex(0xffffff);coastMat.vertexColors=true;part(coastGeo,coastMat,0,0,0,1,1,1);
+coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coastGeo.setAttribute('color',new T.Float32BufferAttribute(coastColors,3));coastGeo.setIndex(coastIndices);coastGeo.computeVertexNormals();part(coastGeo,coastMat,0,0,0,1,1,1);
 // Richer native industrial architecture: each kit has an inspectable/exportable model.
 // Reserve the original gate centerline; reject whole footprint candidates, not just their centers.
 function clearFootprint(x,z,w,d,top){for(const dx of [-w/2,0,w/2])for(const dz of [-d/2,0,d/2])if(!clearScenery(x+dx,top,z+dz))return false;return true}
@@ -963,6 +973,22 @@ for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-uni
   if(newProcessTowers>=16)break;
   if(siteAvailable('fractionation-service-tower',x,z,Math.PI/2,.88)){place('fractionation-service-tower',x,5.25,z,Math.PI/2,.88);newProcessTowers++;pool(x,5.33,z,11)}
  }
+ // Drydock floor detailing: longitudinal drainage and segmented keel tracks.
+ // No protrusions above the existing floor clearance envelope.
+ for(const x of [810,890])for(let z=-730;z<-375;z+=14){box(m.dark,x,-7.92,z,1.15,.13,13.8);for(let dz=-5;dz<=5;dz+=2)box(m.steel,x,-7.83,z+dz,1.05,.06,.12)}
+ for(let z=-728;z<-370;z+=9){for(const x of [820,880])box(m.concrete,x,-7.64,z,4,.5,3.2);if(z%27===-8)for(const x of [805,895])box(m.yellow,x,-7.88,z,.12,.025,8.5)}
+ // Small staged steel handling cells are validated against established geometry.
+ let transferStations=0;
+ define('steel-transfer-station',()=>{
+  for(const x of [-8,8])for(const z of [-4,4]){box(m.concrete,x,.35,z,1.7,.7,1.7);box(m.steel,x,2.7,z,.48,4.8,.48)}
+  for(const z of [-4,4]){beam(m.steel,[-8,5.1,z],[8,5.1,z],.55,.8);for(const x of [-6,0,6])beam(m.dark,[x,1,z],[x+1.5,5,z],.2)}
+  for(const x of [-5,0,5]){box(m.dark,x,.5,0,2.8,1,6);for(let y=0;y<5;y++)box(m.rust,x,1.1+y*.15,0,2.6,.12,5.8)}
+  box(m.orange,0,5.3,0,3,.55,8.8);box(m.dark,0,4.8,0,1.4,.55,1.7);beam(m.dark,[0,4.5,0],[0,2.6,0],.075,.075,true);box(m.yellow,0,2.4,0,1.5,.3,1)
+ });
+ for(const z of [1019,1147,405,705,825])for(let x=-1090;x<160;x+=54){
+  if(transferStations>=12)break;
+  if(siteAvailable('steel-transfer-station',x,z,0,.9)){place('steel-transfer-station',x,5.25,z,0,.9);transferStations++}
+ }
  const worldBatches=[];// Connect the process equipment to supported ground-level headers. These
 // are below the visual racing corridor and leave the gate coordinates intact.
 for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
@@ -978,8 +1004,21 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
  }if(clearFootprint(x,z+67,5,5,19))lamp(x,5.2,z+67)}
  // Distant port skyline on the actual far shoreline, outside the racing boundary.
  // Low silhouettes are intentionally cheaper than detailed playable architecture.
- const horizonMat=new T.MeshStandardMaterial({color:0x414951,roughness:.95,metalness:0});
- for(let i=0;i<42;i++){const x=-2900+i*138,z=-2760+110*Math.sin(i*.73),h=24+58*Math.abs(Math.sin(i*1.83));box(horizonMat,x,h/2,z,80+22*Math.sin(i),h,95);if(i%3===0){box(horizonMat,x,h+12,z,12,24,12);box(m.dark,x,h+24,z,14,2,14)}}
+ // Far-shore buildings form irregular waterfront clusters, seated on terrain.
+ // Baked silhouette materials avoid overexposed white blocks in the HDR light.
+ const horizonMat=new T.MeshBasicMaterial({color:0x363f46}),horizonRoof=new T.MeshBasicMaterial({color:0x272e35}),horizonWindows=new T.MeshBasicMaterial({color:0x77694e});
+ for(let i=0;i<48;i++){
+  const x=-3600+i*148+24*Math.sin(i*2.7),z=shoreline(x)-110-85*Math.abs(Math.sin(i*.73)),ground=coastalHeight(x,z);
+  const w=45+45*Math.abs(Math.sin(i*1.38)),d=36+35*Math.abs(Math.cos(i*.95)),h=14+38*Math.abs(Math.sin(i*1.83));
+  if(i%7===0)continue;box(horizonMat,x,ground+h/2-4,z,w,h+8,d);
+  box(horizonRoof,x,ground+h+.4,z,w+1,1,d+1);
+  if(i%3===0){box(horizonMat,x+w*.25,ground+h+9,z,9,18,10);box(horizonRoof,x+w*.25,ground+h+18,z,10,1,11)}
+  for(let dx=-w*.38;dx<w*.4;dx+=14)if((Math.floor(dx/14)+i)%3===0)box(horizonWindows,x+dx,ground+h*.62,z+d/2+.15,4.5,1.6,.25);
+ }
+ // Distinct far-shore industrial profiles rather than a regular city-block row.
+ for(const cx of [-2460,-1180,1180,2540]){const z=shoreline(cx)-80,y=coastalHeight(cx,z);for(let dx=-50;dx<=50;dx+=50){const x=cx+dx,yy=coastalHeight(x,z);cylinder(horizonMat,x,yy+13,z,17,28);part(sphereGeo,horizonRoof,x,yy+27,z,17,2,17)}
+  for(const dx of [-75,75]){const x=cx+dx,yy=coastalHeight(x,z-60);beam(horizonRoof,[x,yy,z-60],[x,yy+72,z-60],2.8,2.8,true);beam(horizonMat,[x,yy+67,z-60],[x,yy+67,z-5],1.2)}
+ }
  // Short dock-side industrial service piers, connected to existing perimeter slab.
  for(const x of [-1160,1180])for(const z of [220,510,870]){
   const side=Math.sign(x),xx=x+side*13;box(m.concrete,xx,1.65,z,26,6.7,46);box(m.road,xx,5.06,z,24,.08,44);
@@ -1045,7 +1084,7 @@ const filmVertex='varying vec3 vFilm;void main(){vFilm=(modelMatrix*vec4(positio
 const filmNoise='float fh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}';
 function filmMaterial(sea){
  const frag='varying vec3 vFilm;\n'+reflectionCommon+filmNoise+'\nvoid main(){vec3 v=normalize(cameraPosition-vFilm);float f=.025+.975*pow(1.-clamp(v.y,0.,1.),5.);vec2 p=vFilm.xz;float m=fn(p*.044)*.72+fn(p*.20)*.28;vec2 noise=vec2(fn(p*.33),fn(p.yx*.37))-.5;'+
- (sea?'float alpha=clamp(.13+f*.64,0.,.75);vec4 reflected=portSample(vFilm,noise*.013);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb;':'float wet=smoothstep(.46,.72,m);float alpha=wet*clamp(.21+f*.7,0.,.78);vec4 reflected=portSample(vec3(vFilm.x,5.24,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb;')+
+ (sea?'float alpha=clamp(.13+f*.64,0.,.75);vec4 reflected=portSample(vFilm,noise*.013);alpha*=reflected.a*smoothstep(.012,.065,v.y);vec3 col=reflected.rgb*vec3(.88,.94,.96);':'float fine=fn(p*.57);float wet=smoothstep(.54,.81,m*.84+fine*.16);float alpha=wet*clamp(.035+f*.74,0.,.66);vec4 reflected=portSample(vec3(vFilm.x,5.24,vFilm.z),noise*.004);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.80,.82,.80);')+
  '\ngl_FragColor=vec4(col,alpha);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}';
  return new T.ShaderMaterial({uniforms:{uPortReflection:reflUniforms.uPortReflection,uPortProjection:reflUniforms.uPortProjection},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
 }
@@ -1117,5 +1156,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,newWorkCells,newProcessTowers,reflectionPasses,reflectionCalls,reflectionTriangles,fixtureCount:fixturePositions.length,reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,newWorkCells,newProcessTowers,transferStations,reflectionPasses,reflectionCalls,reflectionTriangles,fixtureCount:fixturePositions.length,reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
