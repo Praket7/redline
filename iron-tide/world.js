@@ -4,7 +4,7 @@
 const T=THREE, V=(x,y,z)=>new T.Vector3(x,y,z), layout=window.IRON_TIDE_LAYOUT || await (await fetch('layout.json')).json();
 const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0x777b86,.00012);
 const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.96;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
-const sun=new T.DirectionalLight(0xffb36f,2.85);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0x96acd0,0x54443c,.80));
+const sun=new T.DirectionalLight(0xffb36f,2.85);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0x9eafd1,0x69584a,1.02));
 let seed=89423;function rnd(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
 function texture(base,kind){
  const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,256,256);
@@ -181,7 +181,7 @@ define('ship-rib',()=>{for(const s of [-1,1]){const pts=[[0,1,s*5],[0,3,s*14],[0
 define('ship-hull',()=>{
  const L=350,N=70,Y=[3.5,6,10,15,21,27,32],W=[.40,.61,.79,.91,.97,1,1];
  const outer=m.rust.clone(),inner=m.rust.clone();outer.color.setHex(0xa66e4b);inner.color.setHex(0xbc987b);inner.roughness=.93;outer.roughness=.82;
- const seam=m.dark,flange=m.steel,primer=m.orange;
+ const seam=m.dark,flange=m.steel,primer=m.rust.clone();primer.color.setHex(0x99715e);primer.roughness=.86;primer.metalness=.20;
  function profile(x,y){let k=0;while(k<Y.length-2&&y>Y[k+1])k++;let f=T.MathUtils.clamp((y-Y[k])/(Y[k+1]-Y[k]),0,1);const w=T.MathUtils.lerp(W[k],W[k+1],f);
  // Open cut ends retain a usable passage; elliptical shoulder blends into the parallel midbody.
  const u=Math.max(0,(Math.abs(x)-124)/51),taper=1-.58*u*u;return 32*w*taper}
@@ -218,7 +218,7 @@ define('ship-hull',()=>{
    beam(m.yellow,[x,17.15,z-side*1.55],[x2,17.15,z-side*1.55],.09);
    beam(m.yellow,[x,16.15,z-side*1.55],[x,17.15,z-side*1.55],.08);
    beam(seam,[x+4,15.9,z],[x+4,12,z+side*2],.34);
-   if(x%16===2){box(m.light,x+4,20,z+side,1,.32,.45);box(seam,x+4,20.22,z+side,1.2,.22,.6)}
+   if(x%16===2){box(m.light,x+4,20,z+side,1,.32,.45);box(seam,x+4,20.22,z+side,1.2,.22,.6);beam(flange,[x+4,20.3,z+side],[x+4,20.3,side*(profile(x+4,20.3)-.45)],.15)}
   }
   for(const x of [-124,-64,0,64,124]){
    const z0=side*(profile(x,4)-1.5),z1=side*(profile(x,16)-3.5);
@@ -227,6 +227,30 @@ define('ship-hull',()=>{
    for(let i=0;i<=30;i++){const t=i/30,y=4+t*12.6,z=T.MathUtils.lerp(z0,z1,t);beam(flange,[x-.48,y,z],[x+.48,y,z],.065)}
    for(const t of [0,.33,.66,1]){const y=4+t*12.6,z=T.MathUtils.lerp(z0,z1,t),wall=side*(profile(x,y)-1);beam(seam,[x,y,z],[x,y,wall],.16)}
 
+  }
+ }
+ // Attached service assemblies inside the shell. Each bracket is referenced
+ // to the lofted wall profile, not an independently positioned object.
+ for(const side of [-1,1]){
+  for(let x=-146;x<146;x+=12){
+   const x2=Math.min(x+12,146),y=13.4,z1=side*(profile(x,y)-2.0),z2=side*(profile(x2,y)-2.0);
+   beam(m.dark,[x,y,z1],[x2,y,z2],.24,.24,true);
+   beam(m.steel,[x,y-.7,z1],[x2,y-.7,z2],.10,.10,true);
+   beam(m.steel,[x,y,z1],P(x,y,side,.4),.16);
+   beam(m.rust,[x-.12,y,z1],[x+.12,y,z1],.34,.34,true);
+  }
+  for(const x of [-132,-72,-12,48,108]){
+   const z=side*(profile(x,16)-2.9);
+   box(m.dark,x,16.8,z,2.1,1.3,.85);
+   box(m.steel,x,16.8,z-side*.47,1.8,1.05,.12);
+   box(m.yellow,x+.64,17.05,z-side*.55,.18,.18,.08);
+   // Ventilation duct runs from a fan housing down to the service deck.
+   const ductZ=side*(profile(x,22)-1.55);
+   beam(m.steel,[x,22,ductZ],[x+3,22,ductZ],.48,.48,true);
+   beam(m.steel,[x+3,22,ductZ],[x+3,18.5,z],.48,.48,true);
+   beam(m.dark,[x+2.8,22,ductZ],[x+3.2,22,ductZ],.56,.56,true);
+   box(m.steel,x+3,18.3,z,.95,.55,.95);
+   for(const dx of [-.25,0,.25])box(m.dark,x+3+dx,18,z,.11,.12,.7);
   }
  }
  // Partial transverse bulkheads with center openings and overhead girders.
@@ -1104,6 +1128,73 @@ for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-uni
   const name=fabricationJigs%2?'block-transport-cradle':'curved-panel-jig',angle=(fabricationJigs%3)*Math.PI/2;
   if(siteAvailable(name,x,z,angle,.9)){place(name,x,5.25,z,angle,.9);fabricationJigs++}
  }
+ // Dense gantry-side block assembly stations. The gantry rails and protected
+ // flight line remain clear; buildings must fit on a single real concrete slab.
+ define('gantry-service-hall',()=>{
+  const W=36,D=54,H=27;
+  box(m.concrete,0,.28,0,W,.56,D);
+  for(const x of [-17,17])for(const z of [-26,-13,0,13,26]){
+   box(m.steel,x,H/2,z,.72,H,.72);box(m.concrete,x,.52,z,1.8,1.04,1.8);
+   beam(m.steel,[x,2,z],[x,10,z+((z===26)?-4:4)],.28)
+  }
+  for(const x of [-17,17]){box(cladding,x,18,0,.4,17,54);box(m.steel,x,26.8,0,.65,1,54);
+   for(let z=-24;z<=24;z+=6)box(m.glass,x*1.015,23,z,.12,3.8,4.5);
+   box(m.orange,x*.92,13.7,0,.65,1.2,52);
+   for(let z=-24;z<=24;z+=12)beam(m.steel,[x,11,z],[x*.92,13.7,z],.3);
+  }
+  for(const z of [-26,-13,0,13,26]){
+   beam(m.steel,[-17,27,z],[0,31,z],.48);beam(m.steel,[0,31,z],[17,27,z],.48);beam(m.steel,[-17,27,z],[17,27,z],.42);
+   for(const x of [-11,0,11])beam(m.steel,[x,27,z],[x,31-Math.abs(x)*4/17,z],.20);
+  }
+  for(const side of [-1,1])part(boxGeo,roofMetal,side*9,29,0,Math.hypot(18,4)+.4,.36,55,new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*Math.atan2(4,18)));
+  box(m.orange,0,14.4,-7,32,1.5,1.3);box(m.dark,5,13.4,-7,3,.75,2.2);
+  for(const x of [4.65,5.35])beam(m.dark,[x,13,-7],[x,5.5,-7],.075,.075,true);box(m.yellow,5,5.3,-7,2.1,.45,1.15);
+  for(const x of [-11,11])for(const z of [-18,0,18]){
+   box(m.dark,x,.7,z,4.8,1.4,9);box(m.steel,x,1.5,z,5,.20,9);
+   for(let y=0;y<5;y++)box(m.rust,x,1.65+y*.21,z,4.5,.17,8.7);
+   box(m.light,x,25,z,1.8,.24,.55);
+  }
+ });
+ define('winch-service-skid',()=>{
+  box(m.dark,0,.28,0,9,.56,5);for(const x of [-3,3])box(m.steel,x,.8,0,.75,1,4.5);
+  for(const x of [-2.4,2.4]){box(m.steel,x,1.75,0,.55,2.5,3.3);beam(m.dark,[x-1.0,.6,-1.7],[x,2.4,-1.7],.27)}
+  const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);
+  part(cylGeo,m.steel,0,2.35,0,1.25,4.4,1.25,rot);
+  for(const x of [-2.15,2.15])part(cylGeo,m.dark,x,2.35,0,1.68,.24,1.68,rot);
+  for(let x=-1.95;x<2;x+=.16)part(cylGeo,m.dark,x,2.35,0,1.32,.075,1.32,rot);
+  beam(m.steel,[-3.1,2.35,0],[3.4,2.35,0],.32,.32,true);box(m.blue,3.35,2.35,0,1.9,1.6,1.7);
+  box(m.orange,3.35,3.25,0,1.95,.16,1.75);box(m.steel,-3.4,1.2,1.7,1.25,1.6,1.25);
+  box(m.glass,-3.4,1.7,2.36,.75,.38,.09);
+  beam(m.dark,[0,3.67,0],[0,3.2,2.2],.075,.075,true);
+  beam(m.dark,[0,3.2,2.2],[0,.55,2.2],.075,.075,true);
+ });
+ function craneSite(name,x,z,scale=1){
+  const b=placementBounds.get(name).clone().applyMatrix4(new T.Matrix4().makeScale(scale,scale,scale)).translate(V(x,5.25,z));
+  const c=b.getCenter(V(0,0,0)),v=b.getSize(V(0,0,0));
+  const supported=pavedSlabs.some(([sx,sz,w,d])=>b.min.x>=sx-w/2+3&&b.max.x<=sx+w/2-3&&b.min.z>=sz-d/2+3&&b.max.z<=sz+d/2-3);
+  if(!supported||!openGround(c.x,c.z,v.x+3,v.z+3)||!clearFootprint(c.x,c.z,v.x+6,v.z+6,b.max.y))return false;
+  if([788,912].some(rx=>b.min.x<rx+8&&b.max.x>rx-8&&b.min.z<200&&b.max.z>-300))return false;
+  return !placedSites.some(a=>b.min.x<a.max.x+2&&b.max.x>a.min.x-2&&b.min.z<a.max.z+2&&b.max.z>a.min.z-2&&b.min.y<a.max.y+.3&&b.max.y>a.min.y-.3);
+ }
+ let craneServiceSites=0,winchSites=0;
+ for(const z of [190,130,70,10,-50,-110,-170,-230,-290])for(const x of [548,600,698,742,964,1016,1070,1130]){
+  if(craneServiceSites>=10)break;
+  if(craneSite('gantry-service-hall',x,z,.82)){place('gantry-service-hall',x,5.25,z,0,.82);craneServiceSites++;
+   for(const dx of [-11,11])for(const dz of [-18,18]){fixturePositions.push([x+dx*.82,25.4,z+dz*.82]);pool(x+dx*.82,5.34,z+dz*.82,15)}
+  }
+ }
+ for(const z of [210,150,90,30,-30,-90,-150,-210,-270])for(const x of [575,675,730,965,1035,1125]){
+  if(winchSites>=18)break;
+  if(craneSite('winch-service-skid',x,z)){place('winch-service-skid',x,5.25,z);winchSites++}
+ }
+ // Physically mounted inside-hull work lamps, in actual world coordinates
+ // matching the shell's local catwalk profile. No freestanding light geometry.
+ let hullWorkLights=0;
+ for(let lx=-138;lx<=138;lx+=16)for(const side of [-1,1]){
+  const u=Math.max(0,(Math.abs(lx)-124)/51),w=32*(1-.58*u*u)*(.91+(.97-.91)/6),z=-920+side*(w-3.4);
+  const x=750+lx;box(m.dark,x,24.8,z+side*.55,1.1,.32,.55);box(warmGlow,x,24.60,z+side*.55,.88,.12,.43);
+  fixturePositions.push([x,24.4,z+side*.4]);pool(x,21.18,z,5);hullWorkLights++;
+ }
  const worldBatches=[];// Connect the process equipment to supported ground-level headers. These
 // are below the visual racing corridor and leave the gate coordinates intact.
 for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
@@ -1266,7 +1357,7 @@ function assetView(name,angle=0){const source=templates[name];if(!source)throw E
  `,transparent:true,depthWrite:false,blending:T.AdditiveBlending});
  const fixtureHalos=new T.Points(fixtureGeo,fixtureHaloMat);fixtureHalos.frustumCulled=false;fixtureHalos.renderOrder=5;scene.add(fixtureHalos);
  const practical=Array.from({length:6},()=>{const p=new T.PointLight(0xffb771,0,95,2);scene.add(p);return p});
-function updatePractical(camera){const pos=camera.position;const nearby=fixturePositions.map(p=>({p,d:(p[0]-pos.x)**2+(p[1]-pos.y)**2+(p[2]-pos.z)**2})).sort((a,b)=>a.d-b.d).slice(0,practical.length);for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){light.position.set(...f.p);light.intensity=660}else light.intensity=0}}
+function updatePractical(camera){const pos=camera.position;const nearby=fixturePositions.map(p=>({p,d:(p[0]-pos.x)**2+(p[1]-pos.y)**2+(p[2]-pos.z)**2})).sort((a,b)=>a.d-b.d).slice(0,practical.length);for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){light.position.set(...f.p);light.intensity=950}else light.intensity=0}}
 const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1600,1400,1720],[0,20,0]],north:[[1450,1300,-1720],[0,20,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1000,34,1108],[-650,42,1080]],'2-containers':[[384,25,1000],[620,32,850]],'3-crane':[[1000,35,210],[850,100,50]],'4-dive':[[850,137,-280],[850,0,-650]],'5-hull':[[925,27,-920],[600,24,-920]],'6-breakwater':[[350,34,-1270],[-600,40,-1230]],'7-foundry':[[-880,26,-558],[-880,29,-500]],'8-pipes':[[-970,65,320],[-760,32,740]]};
 function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);fixtureHaloMat.uniforms.uViewportHeight.value=renderer.domElement.height;camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
@@ -1287,5 +1378,5 @@ function assetAudit(){const out={};for(const [name,group] of Object.entries(temp
  for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
  const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
  }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
-window.IRON_TIDE={assetView,assetAudit,reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,newWorkCells,newProcessTowers,transferStations,westernPiers,fabricationJigs,contactFootprints,reflectionPasses,reflectionCalls,reflectionTriangles,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,assetAudit,reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,rtgCount,corridorStacks,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,newWorkCells,newProcessTowers,transferStations,westernPiers,fabricationJigs,contactFootprints,reflectionPasses,reflectionCalls,reflectionTriangles,craneServiceSites,winchSites,hullWorkLights,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:reflUniforms.uRoadReflect.value?'pavement':reflUniforms.uSeaReflect.value?'water':'off',view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:name.startsWith('container-')||name==='ship-hull'?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
