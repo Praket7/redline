@@ -47,7 +47,7 @@ function beam(mat,a,b,w,d=w,round=false){const p=V(...a),r=V(...b),delta=r.clone
 function rail(x,y,z,length,axis='x'){const a=axis==='x'?[x-length/2,y,z]:[x,y,z-length/2],b=axis==='x'?[x+length/2,y,z]:[x,y,z+length/2];beam(m.yellow,a,b,.11);for(let i=0;i<=Math.ceil(length/4);i++){const t=i/Math.ceil(length/4),p=a.map((v,j)=>v+(b[j]-v)*t);beam(m.yellow,[p[0],y-1,p[2]],p,.10)}}
 function define(name,fn){target=[];fn();const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;target=null;}
 // Container stack support footprints: all tiers must be aligned and consecutive.
-const containerSlots=[],stackIndex=new Map();
+const containerSlots=[],stackIndex=new Map(),containerChunks=new Map(),containerLOD=[];
 function reserveContainer(x,y,z,angle,scale){
  const a=Math.abs(Math.cos(angle)),b=Math.abs(Math.sin(angle)),hx=(6.15*a+1.27*b)*scale,hz=(6.15*b+1.27*a)*scale;
  const key=[x.toFixed(3),z.toFixed(3),hx.toFixed(3),hz.toFixed(3)].join(':');
@@ -57,7 +57,7 @@ function reserveContainer(x,y,z,angle,scale){
  for(const q of containerSlots)if(Math.abs(x-q.x)<hx+q.hx+.06&&Math.abs(z-q.z)<hz+q.hz+.06)return false;
  const q={x,z,hx,hz,next:y+2.94*scale};containerSlots.push(q);stackIndex.set(key,q);return true
 }
-function place(name,x,y,z,angle=0,scale=1){if(name.startsWith('container-')&&!reserveContainer(x,y,z,angle,scale))return false;const group=templates[name];const root=new T.Object3D();root.position.set(x,y,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();for(const mesh of group.children){let key=mesh.geometry.uuid+mesh.material.uuid;if(!batches.has(key))batches.set(key,{g:mesh.geometry,mat:mesh.material,matrices:[]});batches.get(key).matrices.push(root.matrix.clone())}}
+function place(name,x,y,z,angle=0,scale=1){if(name.startsWith('container-')&&!reserveContainer(x,y,z,angle,scale))return false;const group=templates[name];const root=new T.Object3D();root.position.set(x,y,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();if(name.startsWith('container-')){const col=name.split('-').pop(),key=[Math.floor(x/600),Math.floor(z/600),col].join(':');if(!containerChunks.has(key))containerChunks.set(key,{col,matrices:[],bounds:new T.Box3()});const chunk=containerChunks.get(key);chunk.matrices.push(root.matrix.clone());chunk.bounds.expandByPoint(V(x-7,y,z-7));chunk.bounds.expandByPoint(V(x+7,y+3,z+7));return true}for(const mesh of group.children){let key=mesh.geometry.uuid+mesh.material.uuid;if(!batches.has(key))batches.set(key,{g:mesh.geometry,mat:mesh.material,matrices:[]});batches.get(key).matrices.push(root.matrix.clone())}}
 for(const col of ['rust','blue','green','white'])define('container-'+col,()=>{box(m[col],0,1.45,0,12.2,2.9,2.44);for(const side of [-1,1]){for(let x=-5.9;x<6;x+=.42)box(m[col],x,1.45,side*1.25,.12,2.62,.10);for(const y of [.1,2.8])box(m.steel,0,y,side*1.24,12.3,.15,.14);for(const x of [-6,6])box(m.steel,x,1.45,side*1.24,.19,2.9,.20)}for(const z of [-.64,.64]){box(m.dark,6.14,1.45,z,.08,2.65,1.12);for(const dz of [-.35,.35])beam(m.steel,[6.23,.18,z+dz],[6.23,2.75,z+dz],.04,.04,true);box(m.steel,6.25,1.22,z,.18,.12,.28)}});
 for(const col of ['rust','blue','green','white'])define('container-far-'+col,()=>{box(m[col],0,1.45,0,12.2,2.9,2.44);for(const s of [-1,1]){for(const y of [.13,2.77])box(m.steel,0,y,s*1.23,12.2,.12,.13);for(const x of [-6,6])box(m.steel,x,1.45,s*1.23,.18,2.9,.2)}});
 define('goliath',()=>{for(const x of [-65,65]){for(const z of [-12,12]){beam(m.orange,[x,4,z],[x*.83,108,z*.68],4.4,5.2);box(m.dark,x,2,z,12,4,8);for(const dx of [-3,3])for(const dz of [-2,2])cylinder(m.rubber,x+dx,1,z+dz,1.2,1.6)}for(let y=12;y<100;y+=17){beam(m.steel,[x*(1-y/650),y,-12+y*.035],[x*(1-(y+17)/650),y+17,12-(y+17)*.035],.65);box(m.steel,x*(1-y/650),y,0,10,.65,25);rail(x*(1-y/650),y+1,12,10)}}for(const z of [-8,8]){box(m.orange,0,109,z,130,6,4);for(let x=-62;x<62;x+=10)beam(m.orange,[x,106,z],[x+10,116,z],.55)}box(m.steel,0,115,0,137,1.3,17);rail(0,116,8,137);rail(0,116,-8,137);box(m.orange,10,119,0,15,5,19);box(m.glass,19,114,9,7,4,5);for(const x of [5,15])beam(m.dark,[x,106,0],[x,65,0],.13,.13,true);box(m.yellow,10,64,0,14,2,5);});
@@ -271,6 +271,25 @@ define('merchant-vessel',()=>{
 place('merchant-vessel',480,0,-550,Math.PI/2);
 place('merchant-vessel',390,0,-1030,Math.PI/2,.72);
 place('heavy-gantry-detail',850,5,50);
+ // Large prefabricated hull sections are intentionally outside the high-altitude
+ // crane route; their cross-sections communicate genuine shipyard scale.
+ define('hull-section-module',()=>{
+  const length=58,half=23,pts=[[0,2],[8,3],[16,10],[21,19],[23,28]];
+  for(const sign of [-1,1])for(let i=0;i<pts.length-1;i++){
+   const [z1,y1]=pts[i],[z2,y2]=pts[i+1],angle=sign*Math.atan2(y2-y1,z2-z1);
+   // Plate normal follows the shell, with longitudinal seams and exposed edges.
+   part(boxGeo,m.rust,0,(y1+y2)/2,sign*(z1+z2)/2,length,.66,Math.hypot(z2-z1,y2-y1),new T.Quaternion().setFromAxisAngle(V(1,0,0),-angle));
+   for(let x=-28;x<=28;x+=7)beam(rawSteel,[x,y1,sign*z1],[x,y2,sign*z2],.78,1.15);
+   beam(m.steel,[-29,y2,sign*z2],[29,y2,sign*z2],.4,.55);
+  }
+  for(let x=-28;x<=28;x+=7){box(m.dark,x,2,0,1.1,1.5,15);beam(m.steel,[x,3,-8],[x,3,8],.62);for(const side of [-1,1]){beam(m.orange,[x,5,side*11],[x,20,side*21],.75);box(m.steel,x,27,side*22,1.2,.45,2.1)}}
+  for(const x of [-23,0,23])for(const z of [-7,7]){box(m.concrete,x,.5,z,5,1,4);box(m.dark,x,1.25,z,4.6,.5,3.4)}
+ });
+ for(const [x,z,a] of [[658,45,0],[664,-80,Math.PI/2],[1060,-75,Math.PI/2],[1100,70,0]])if(clearFootprint(x,z,60,50,36))place('hull-section-module',x,5.1,z,a);
+ for(const [x,z,a] of [[625,-185,.2],[1090,-190,2.9],[565,185,1.3]])if(clearFootprint(x,z,20,20,80))place('lattice-boom-crane',x,5,z,a,.85);
+ // Fabrication storage halls beside the high climb.
+ for(const [x,z] of [[1100,120],[625,115],[1130,230],[595,-200]])if(clearFootprint(x,z,80,100,32))place('cargo-shed',x,5.2,z);
+ 
  // Rail-mounted drydock gantry on raised concrete runway strips.
  for(const x of [788,912]){box(m.concrete,x,-1.5,-535,15,13,350);box(m.steel,x,5.15,-535,1.3,.3,350);for(let z=-702;z<-365;z+=9)box(m.dark,x,5.31,z,3,.22,.65)}
  place('heavy-gantry-detail',850,5.5,-535);
@@ -334,6 +353,17 @@ for(const x of [-1178,1178])for(let z=125;z<1200;z+=25){box(stain,x,1.5,z,.15,1.
 for(const x of [655,1045])for(let z=-734;z<-365;z+=15){box(stain,x+(x<850?5.1:-5.1),-4.5,z,.12,4,14.8);box(rawSteel,x+(x<850?6:-6),-2,z,.55,.5,14.8);box(m.dark,x+(x<850?5.2:-5.2),-2.2,z,.25,1.1,1.1)}
 for(const [x,z] of [[-900,1270],[-420,1270],[60,1270],[650,1270],[1020,1270]]){beam(m.dark,[x-12,3,z-4],[x-18,5.5,1195],.12,.12,true);beam(m.dark,[x+12,3,z-4],[x+18,5.5,1195],.12,.12,true)}
 for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh)}
+// Build container LODs in spatial chunks. Every container keeps the exact same
+// transform and color when changing mesh detail. Low models cast the static shadow.
+for(const chunk of containerChunks.values()){
+ const variants={high:[],low:[]};
+ for(const [lod,key] of [['high','container-'+chunk.col],['low','container-far-'+chunk.col]]){
+  for(const model of templates[key].children){const mesh=new T.InstancedMesh(model.geometry,model.material,chunk.matrices.length);mesh.frustumCulled=false;for(let i=0;i<chunk.matrices.length;i++)mesh.setMatrixAt(i,chunk.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=lod==='low';mesh.receiveShadow=true;mesh.visible=lod==='low';scene.add(mesh);variants[lod].push(mesh)}
+ }
+ containerLOD.push({bounds:chunk.bounds,center:chunk.bounds.getCenter(V(0,0,0)),high:variants.high,low:variants.low});
+}
+const lodFrustum=new T.Frustum(),lodMatrix=new T.Matrix4();let lodInitialized=false;
+function updateContainerLOD(cam){cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true}
 const waterTex=texture('#888888','steel');waterTex.repeat.set(70,70);const waterMat=new T.MeshStandardMaterial({color:0x203b49,roughness:.36,metalness:.28,bumpMap:waterTex,bumpScale:.6});
 // World-position ripples avoid the previous giant repeated bump texture.
 waterMat.bumpMap=null;
@@ -359,7 +389,7 @@ const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera
 function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
 function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
 function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
-function render(){if(active!==assetCamera)updatePractical(active);renderer.render(active===assetCamera?assetScene:scene,active);document.getElementById('readout').textContent=mode.toUpperCase()+' / '+active.position.toArray().map(Math.round).join(' · ')+' m'}
+function render(){if(active!==assetCamera){updatePractical(active);updateContainerLOD(active)}renderer.render(active===assetCamera?assetScene:scene,active);document.getElementById('readout').textContent=mode.toUpperCase()+' / '+active.position.toArray().map(Math.round).join(' · ')+' m'}
 const lengths=gates.map((g,i)=>g.p.distanceTo(gates[(i+1)%gates.length].p)),total=lengths.reduce((a,b)=>a+b,0);
 function coursePoint(s){s=((s%total)+total)%total;let i=0;while(s>=lengths[i]&&i<lengths.length-1){s-=lengths[i++]};return gates[i].p.clone().lerp(gates[(i+1)%gates.length].p,s/lengths[i])}
 function sampleCourse(s){active=camera;mode='course';camera.position.copy(coursePoint(s));camera.lookAt(coursePoint(s+28));angles()}
@@ -368,5 +398,5 @@ addEventListener('resize',()=>{resize();assetCamera.aspect=innerWidth/innerHeigh
 for(const id of Object.keys(presets)){const b=document.createElement('button');b.dataset.view=id;b.textContent=id; b.onclick=()=>setView(id);document.getElementById('views').append(b)}
 document.getElementById('tour').onclick=()=>{tour=!tour;if(tour){dist=0;sampleCourse(0)}};document.getElementById('route').onclick=()=>{guide.visible=!guide.visible;render()};document.getElementById('capture').onclick=()=>{render();const a=document.createElement('a');a.download='iron-tide-'+mode+'.png';a.href=renderer.domElement.toDataURL('image/png');a.click()};
 renderer.shadowMap.needsUpdate=true;resize();setView('overview');requestAnimationFrame(tick);
-window.IRON_TIDE={assetView,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
+window.IRON_TIDE={assetView,projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v)},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerLOD.length,photoMaterials:loadedMaterials.slice(),skySource,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=new Uint8Array(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:256,onlyVisible:true})}catch(e){reject(e)}})}};
 })().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
