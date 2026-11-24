@@ -62,7 +62,7 @@ const box=(mat,x,y,z,w,h,d)=>part(boxGeo,mat,x,y,z,w,h,d);
 const cylinder=(mat,x,y,z,r,h)=>part(cylGeo,mat,x,y,z,r,h,r);
 function beam(mat,a,b,w,d=w,round=false){const p=V(...a),r=V(...b),delta=r.clone().sub(p);q.setFromUnitVectors(up,delta.clone().normalize());const c=p.add(r).multiplyScalar(.5);return part(round?cylGeo:boxGeo,mat,c.x,c.y,c.z,w,delta.length(),d,q)}
 function rail(x,y,z,length,axis='x'){const a=axis==='x'?[x-length/2,y,z]:[x,y,z-length/2],b=axis==='x'?[x+length/2,y,z]:[x,y,z+length/2];beam(m.yellow,a,b,.11);for(let i=0;i<=Math.ceil(length/4);i++){const t=i/Math.ceil(length/4),p=a.map((v,j)=>v+(b[j]-v)*t);beam(m.yellow,[p[0],y-1,p[2]],p,.10)}}
-function define(name,fn){target=[];fn();const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;target=null;}
+function define(name,fn){target=[];fn();const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map&&!mesh.geometry.userData.keepUV){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;target=null;}
 // Container stack support footprints: all tiers must be aligned and consecutive.
 const containerSlots=[],stackIndex=new Map(),containerChunks=new Map(),containerLOD=[];
 function reserveContainer(x,y,z,angle,scale){
@@ -95,51 +95,61 @@ define('warehouse',()=>{const w=112,d=160,h=49;for(const x of [-w/2,w/2]){box(m.
 define('pipe-rack',()=>{for(const z of [-9,9]){for(const x of [-35,0,35]){box(m.steel,x,17,z,1.8,34,1.8);beam(m.dark,[x,8,z],[x,28,-z],.6)}for(const y of [14,29])beam(m.steel,[-38,y,z],[38,y,z],1.5)}for(let i=0;i<4;i++){const y=30+i*2.7;beam(i%2?m.rust:m.steel,[-40,y,-5+i*3.3],[40,y,-5+i*3.3],1.05,1.05,true);for(let x=-35;x<=35;x+=10)beam(m.dark,[x-.45,y,-5+i*3.3],[x+.45,y,-5+i*3.3],1.18,1.18,true)}box(m.steel,0,39,8,76,.5,3);rail(0,40,9.5,76);});
 define('tank',()=>{cylinder(m.white,0,17,0,15,34);part(sphereGeo,m.steel,0,34,0,15,3,15);for(let y=2;y<34;y+=5){const ring=new T.TorusGeometry(15.1,.14,5,48);part(ring,m.steel,0,y,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2))}for(const z of [-.4,.4])beam(m.orange,[15.4,0,z],[15.4,34,z],.1);for(let y=1;y<34;y+=.6)beam(m.orange,[15.4,y,-.4],[15.4,y,.4],.065);});
 define('ship-rib',()=>{for(const s of [-1,1]){const pts=[[0,1,s*5],[0,3,s*14],[0,9,s*25],[0,18,s*31],[0,34,s*32]];for(let i=0;i<pts.length-1;i++)beam(m.rust,pts[i],pts[i+1],1.5,1.1);box(m.steel,0,34,s*32,1.6,.8,3);beam(m.dark,[0,8,s*24],[0,18,s*31],.8)}box(m.steel,0,1,0,1.8,1.2,12)});
+// Open-ended fabrication stage, rather than a falsely completed navigable ship.
+// Transverse web frames intersect longitudinal shell stiffeners; all access decks
+// and brackets are attached to the same lofted shell coordinate system.
 define('ship-hull',()=>{
- // Open-ended unfinished midbody, not a complete ship with an implausible hole in its bow.
- // Shell plating, double bottom, longitudinals and web frames use the same loft.
- const L=350,N=70,levels=[[3.8,.36],[6,.58],[10,.78],[15,.91],[21,.98],[27,1],[32,1]];
- const shellPaint=m.rust.clone();shellPaint.color.multiplyScalar(.84);shellPaint.roughness=.88;
- const inside=m.steel.clone();inside.color.setHex(0x8f7770);inside.roughness=.91;
- function section(x,k,side,inset=0){const [y,w]=levels[k],u=Math.min(1,(175-Math.abs(x))/62),t=.76+.24*u*u*(3-2*u);return [x,y,side*(32*w*t-inset)]}
- function panel(j,side,inset,reverse,mat){
-  const p=[],uv=[],idx=[];
-  for(let i=0;i<=N;i++)for(let k=j;k<=j+1;k++){const v=section(-175+i*L/N,k,side,inset);p.push(...v);uv.push(v[0]/6,v[1]/6)}
-  for(let i=0;i<N;i++){const k=2*i;if((side>0)!==reverse)idx.push(k,k+2,k+3,k,k+3,k+1);else idx.push(k,k+3,k+2,k,k+1,k+3)}
-  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();part(g,mat,0,0,0,1,1,1)
+ const L=350,N=70,Y=[3.5,6,10,15,21,27,32],W=[.40,.61,.79,.91,.97,1,1];
+ const outer=m.rust.clone(),inner=m.rust.clone();outer.color.setHex(0xa66e4b);inner.color.setHex(0xbc987b);inner.roughness=.93;outer.roughness=.82;
+ const seam=m.dark,flange=m.steel,primer=m.orange;
+ function profile(x,y){let k=0;while(k<Y.length-2&&y>Y[k+1])k++;let f=T.MathUtils.clamp((y-Y[k])/(Y[k+1]-Y[k]),0,1);const w=T.MathUtils.lerp(W[k],W[k+1],f);
+ // Open cut ends retain a usable passage; elliptical shoulder blends into the parallel midbody.
+ const u=Math.max(0,(Math.abs(x)-124)/51),taper=1-.58*u*u;return 32*w*taper}
+ function P(x,y,side,offset=0){return [x,y,side*(profile(x,y)-offset)]}
+ for(const side of [-1,1])for(const isInner of [false,true]){
+  const verts=[],uv=[],indices=[];for(let j=0;j<Y.length;j++)for(let i=0;i<=N;i++){const x=-L/2+i*L/N,y=Y[j],p=P(x,y,side,isInner?.38:0);verts.push(...p);uv.push(x/12,y/8)}
+  for(let j=0;j<Y.length-1;j++)for(let i=0;i<N;i++){const a=j*(N+1)+i,b=a+1,c=b+N+1,d=a+N+1;if((side>0)!==isInner)indices.push(a,b,c,a,c,d);else indices.push(a,c,b,a,d,c)}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();g.userData.keepUV=true;part(g,isInner?inner:outer,0,0,0,1,1,1);
  }
  for(const side of [-1,1]){
-  for(let j=0;j<levels.length-1;j++){panel(j,side,0,false,j===0?m.dark:shellPaint);panel(j,side,.34,true,inside)}
-  for(let i=0;i<N;i++){const x=-175+i*L/N,b=x+L/N;beam(m.steel,section(x,6,side,.16),section(b,6,side,.16),.38,.75)}
-  // Web frames and intermediate light stiffeners are connected to shell skin.
-  for(let x=-168;x<=168;x+=8){const web=(Math.round((x+168)/8)%3===0),th=web?.9:.3;
-   for(let j=0;j<levels.length-1;j++){const A=section(x,j,side,.55),B=section(x,j+1,side,.55);beam(web?m.rust:m.steel,A,B,th,web?.85:.38);
-    if(web){const ai=section(x,j,side,2.25),bi=section(x,j+1,side,2.25);beam(m.dark,ai,bi,.2,.6);beam(m.steel,A,ai,.28);beam(m.steel,B,bi,.28)}}
+  // Continuous longitudinal stiffeners, top edge and shell plate seams.
+  for(const y of [7,12,17,22,27,31.6])for(let x=-174;x<174;x+=8){
+   const x2=Math.min(174,x+8),a=P(x,y,side,.45),b=P(x2,y,side,.45);beam(y===31.6?flange:primer,a,b,y===31.6?.7:.28,y===31.6?1:.42);
   }
-  for(let j=1;j<6;j++)for(let i=0;i<N;i+=2)beam(m.steel,section(-175+i*L/N,j,side,.55),section(-175+Math.min(N,i+2)*L/N,j,side,.55),.24,.38);
-  for(let x=-150;x<=150;x+=12){const z=section(x,6,side,1)[2];box(m.steel,x,32.6,z,3,.4,2.1);box(m.yellow,x,33,z,.17,.6,.65)}
- }
- // Low floor and longitudinals below the 19 m local racing centerline.
- box(m.dark,0,3.0,0,348,.8,40);
- for(let x=-172;x<174;x+=8){box(m.steel,x,4,0,.7,1.35,43);if(Math.round((x+172)/8)%3===0)box(m.rust,x,4.7,0,1.1,.28,44)}
- for(const z of [-18,-12,-6,0,6,12,18])box(m.steel,0,4.8,z,346,.7,.42);
- for(const side of [-1,1])for(let x=-153;x<154;x+=24){const z=side*25;box(m.orange,x,13,z,.7,17,1.6);box(m.steel,x,21.4,z,3.5,.3,3.2)}
- // Partial transverse bulkheads: broad central construction openings remain.
- // Side webs join shell, double bottom and upper transverse girder. Large
- // openings are deliberate visual racing corridors, not real bulkhead design.
- for(const x of [-112,-32,48,120]){
-  for(const side of [-1,1]){
-   box(inside,x,17.1,side*23,.55,23.8,10.2);
-   box(m.steel,x,17.1,side*17.7,1.15,23.8,.68);
-   for(const y of [7,12,17,22,27])box(m.steel,x, y,side*23,1.0,.34,10.6);
-   beam(m.rust,[x,5.4,side*15.8],[x,10.6,side*18.5],1.1);
-   beam(m.steel,[x,27.5,side*18],[x,31,side*14],.9);
-   box(m.light,x+.45,25.7,side*16.8,.18,.55,.75);
+  for(let x=-165;x<=165;x+=10){
+   for(let j=0;j<Y.length-1;j++){const y=Y[j],y2=Y[j+1];beam(seam,P(x,y,side,-.05),P(x,y2,side,-.05),.075,.09);}
   }
-  box(m.steel,x,30.9,0,.9,1.15,35.2);
-  box(m.rust,x,31.6,0,1.55,.3,36);
+  // Deep web frames: web and cap flange both follow the inner shell.
+  for(let x=-155;x<=155;x+=10){
+   for(let j=0;j<Y.length-1;j++){
+    const y=Y[j],y2=Y[j+1],a=P(x,y,side,1.15),b=P(x,y2,side,1.15);
+    beam(primer,a,b,.55,1.55);beam(flange,P(x,y,side,2.05),P(x,y2,side,2.05),.75,.18);
+   }
+   if(x%20===5){
+    // Real gussets are triangular plates, not rectangular floating blocks.
+    const a=P(x,16,side,2.05),b=P(x,20,side,2.05),c=P(x,16,side,5.1),p=[...a,...b,...c,...a,...c,...b];
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute([0,0,0,1,1,0,0,0,1,0,0,1],2));g.computeVertexNormals();part(g,primer,0,0,0,1,1,1);
+   }
+  }
+  // Narrow work platforms follow the side, leaving a wide, clear central route.
+  for(let x=-142;x<142;x+=8){
+   const x2=Math.min(142,x+8),z=side*(profile(x+4,16)-3.4);
+   box(flange,x+4,16,z,8,.28,3.4);
+   beam(m.yellow,[x,17.15,z-side*1.55],[x2,17.15,z-side*1.55],.09);
+   beam(m.yellow,[x,16.15,z-side*1.55],[x,17.15,z-side*1.55],.08);
+   beam(seam,[x+4,15.9,z],[x+4,12,z+side*2],.34);
+   if(x%16===2){box(m.light,x+4,20,z+side,1,.32,.45);box(seam,x+4,20.22,z+side,1.2,.22,.6)}
+  }
+  for(const x of [-124,-64,0,64,124]){
+   const z=side*(profile(x,16)-3.5);for(const dx of [-.48,.48])beam(flange,[x+dx,4,z],[x+dx,17.5,z],.10);
+   for(let y=4.5;y<=17;y+=.45)beam(flange,[x-.48,y,z],[x+.48,y,z],.065);
+  }
  }
-
+ // Inner bottom and parallel girders sit above the keel supports.
+ for(let x=-174;x<174;x+=6){const z=Math.min(profile(x,4),profile(x+6,4))-.5;box(m.dark,x+3,3.1,0,6,.55,2*z);for(const side of [-1,1])box(flange,x+3,3.55,side*z*.58,6,.32,.42)}
+ for(let x=-165;x<=165;x+=10){const z=profile(x,4)-.8;box(flange,x,3.75,0,.42,.85,z*2)}
+ // Temporary top-edge handrails and suspended side cables are attached to plating.
+ for(const side of [-1,1])for(let x=-165;x<165;x+=5){const a=P(x,32,side,.5),b=P(x+5,32,side,.5);beam(m.yellow,[a[0],33,a[2]],[b[0],33,b[2]],.08);beam(flange,a,[a[0],33,a[2]],.10)}
 });
 define('bollard',()=>{cylinder(m.dark,0,.55,0,1.2,1.1);cylinder(m.steel,0,1.3,0,.65,1.5);cylinder(m.dark,0,2.1,0,1,.32)});
 define('caisson',()=>{box(m.concrete,0,5,0,18,12,17);box(m.dark,0,11.2,0,20,1.4,19);for(const x of [-5,5])beam(m.steel,[x,11.8,-5],[x,14,-5],.5)});
@@ -318,6 +328,11 @@ define('heavy-gantry-detail',()=>{
  box(m.dark,19,114,12,6,4.5,4);box(m.glass,19,114.35,14.05,5.45,2.9,.15);for(const x of [17,19,21])box(m.steel,x,114.35,14.16,.12,2.95,.12);for(const x of [15.95,22.05])box(m.glass,x,114.35,12,.12,2.9,3.55);box(m.orange,19,116.38,12,6.5,.45,4.6);box(m.steel,19,111.4,12,7,.4,5);rail(19,112.55,14.45,7);
  for(const x of [2,14])for(const z of [-3,3])beam(m.dark,[x,113,z],[x,64,z],.12,.12,true);
  box(m.yellow,8,63,0,15,2.8,7);box(m.dark,8,61.1,0,11,.6,4);
+ // Cable sheaves, lifting shackles, trolley wheel housings and access platforms.
+ for(const x of [1,15])for(const z of [-5.5,5.5]){part(cylGeo,m.dark,x,114,z,1.4,.6,1.4,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));box(rawSteel,x,116,z,3.6,2.2,1.1)}
+ for(const x of [-53,53])for(const z of [-9,9]){box(rawSteel,x,103.6,z,8,.65,8);rail(x,104.7,z+3.5,8);beam(m.steel,[x-3,103.2,z],[x,98,z],.48);}
+ for(const z of [-6,6]){box(m.steel,8,62.9,z,16,.45,.55);for(const x of [1,15])beam(m.dark,[x,63.2,z],[x,60.8,z],.16,.16,true)}
+ 
  for(const x of [-54,54])for(const z of [-10,10])box(m.light,x,104,z,2,.5,2);
  // Upper trolley motors, drum shafts, cable reeving, access platforms and service hoist.
  for(const z of [-7,7]){box(m.steel,8,121.4,z,13,.6,3);beam(m.dark,[2,122.8,z],[14,122.8,z],1.1,1.1,true);for(const x of [2.6,13.4])beam(m.steel,[x-.24,122.8,z],[x+.24,122.8,z],1.35,1.35,true);for(const x of [0,16])box(m.dark,x,122.2,z,3.5,2.6,3.5)}
@@ -366,6 +381,12 @@ define('merchant-vessel',()=>{
 });
 place('merchant-vessel',480,0,-550,Math.PI/2);
 place('merchant-vessel',390,0,-1030,Math.PI/2,.72);
+ // Full-size vessels occupy true water berths, not concrete aprons.
+ place('merchant-vessel',-1050,0,1232);
+ place('merchant-vessel',-150,0,1232,Math.PI);
+ // Shipyard shore power and mooring points connect vessel to quay.
+ for(const cx of [-1050,-150])for(const dx of [-76,76]){beam(m.dark,[cx+dx,12,1222],[cx+dx*1.12,5.7,1193],.16,.16,true);place('bollard',cx+dx*1.12,5.15,1193);}
+
 place('heavy-gantry-detail',850,5,50);for(const x of [788,912]){box(m.concrete,x,5.22,50,9,.42,290);for(const off of [-3.8,3.8])box(m.steel,x+off,5.56,50,.22,.32,290)}
  // Large prefabricated hull sections are intentionally outside the high-altitude
  // crane route; their cross-sections communicate genuine shipyard scale.
@@ -616,6 +637,45 @@ for(let x=-1160;x<=1160;x+=25){box(stain,x,1.2,1200.05,24.8,1.5,.16);box(rawStee
 for(const x of [-1178,1178])for(let z=125;z<1200;z+=25){box(stain,x,1.5,z,.15,1.8,24.8);box(rawSteel,x,5.25,z,.25,.12,24.5)}
 for(const x of [655,1045])for(let z=-734;z<-365;z+=15){box(stain,x+(x<850?5.1:-5.1),-4.5,z,.12,4,14.8);box(rawSteel,x+(x<850?6:-6),-2,z,.55,.5,14.8);box(m.dark,x+(x<850?5.2:-5.2),-2.2,z,.25,1.1,1.1)}
 for(const [x,z] of [[-900,1270],[-420,1270],[60,1270],[650,1270],[1020,1270]]){beam(m.dark,[x-12,3,z-4],[x-18,5.5,1195],.12,.12,true);beam(m.dark,[x+12,3,z-4],[x+18,5.5,1195],.12,.12,true)}
+// Hero close-range equipment with believable mechanical assemblies and shared
+// material slots. All modules are exported as native GLB assets.
+define('process-manifold',()=>{
+ const fl=m.steel,pipe=m.green,base=m.dark;
+ for(const x of [-7,7])for(const z of [-3,3]){box(m.concrete,x,.25,z,2,.5,2);box(fl,x,2,z,.35,3.5,.35)}
+ for(const z of [-3,3])beam(fl,[-8,3.6,z],[8,3.6,z],.38);
+ for(const z of [-2.2,0,2.2]){
+  beam(pipe,[-8,4.1,z],[8,4.1,z],.62,.62,true);
+  for(const x of [-6,-2,2,6]){
+   beam(fl,[x-.20,4.1,z],[x+.20,4.1,z],.79,.79,true);
+   for(let i=0;i<8;i++){const a=i*Math.PI/4;beam(base,[x-.26,4.1+.71*Math.cos(a),z+.71*Math.sin(a)],[x+.26,4.1+.71*Math.cos(a),z+.71*Math.sin(a)],.07,.07,true)}
+  }
+  cylinder(m.rust,0,4.65,z,.78,1.5);cylinder(fl,0,5.6,z,.33,.4);cylinder(base,0,6.1,z,.12,.8);
+  const wheel=new T.TorusGeometry(.64,.065,6,20);part(wheel,m.yellow,0,6.6,z,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+  for(const a of [0,Math.PI/3,2*Math.PI/3])beam(m.yellow,[-.56*Math.cos(a),6.6,z-.56*Math.sin(a)],[.56*Math.cos(a),6.6,z+.56*Math.sin(a)],.065);
+ }
+ box(fl,7,1.3,0,2.4,2.2,2.1);box(m.glass,7,1.7,1.1,1.1,.55,.12);box(m.yellow,7,2.55,0,2.6,.3,2.3);
+});
+define('hydraulic-power-unit',()=>{
+ box(m.dark,0,.22,0,5.8,.44,3.2);box(m.steel,-.7,.95,0,3.4,1.4,2.6);box(m.yellow,-.7,1.76,0,3.5,.18,2.7);
+ beam(m.blue,[1,1.05,0],[2.5,1.05,0],.62,.62,true);for(let x=1;x<2.5;x+=.18)beam(m.steel,[x,1.05,0],[x+.06,1.05,0],.67,.67,true);
+ for(const z of [-.7,.7]){beam(m.dark,[-1,1.9,z],[-1,2.7,z],.10,.10,true);beam(m.dark,[-1,2.7,z],[1.65,2.7,z],.10,.10,true);beam(m.dark,[1.65,2.7,z],[1.65,1.55,z],.10,.10,true);cylinder(m.steel,-1,1.9,z,.18,.22)}
+ for(const x of [-2,2])box(m.steel,x,.55,0,.28,.30,3.1);
+});
+define('quay-fender',()=>{
+ box(m.steel,0,2,0,.4,4,3);for(const y of [1,3]){for(const z of [-1,1])beam(m.steel,[-.28,y,z],[.28,y,z],.12,.12,true)}
+ for(const z of [-.9,.9])beam(m.rubber,[.3,.2,z],[1.4,3.8,z],.62);
+ box(m.rubber,1.5,2,0,.65,3.8,2.75);
+});
+define('fabrication-rack',()=>{
+ for(const x of [-6,6])for(const z of [-2.8,2.8]){box(m.steel,x,2.5,z,.38,5,.38);box(m.dark,x,.17,z,.8,.34,.8)}
+ for(const y of [1,2.8,4.5])for(const z of [-2.8,2.8])beam(m.orange,[-6,y,z],[6,y,z],.32);
+ for(const z of [-2.8,2.8])beam(m.steel,[-6,.3,z],[6,5,z],.16);
+ for(let y=1.2;y<5;y+=1.8)for(let z=-2.1;z<=2.1;z+=.8)box(m.steel,0,y,z,11.6,.26,.65);
+});
+for(const z of [390,550,690,790])for(const x of [-1010,-610])if(clearFootprint(x,z,18,9,14)){place('process-manifold',x,5.25,z,Math.PI/2);place('hydraulic-power-unit',x+10,5.25,z+10)}
+for(const center of [-650,-450,-170,100])for(const x of [-920,-840])for(const dz of [-48,12,54]){const z=center+dz;if(clearFootprint(x,z,13,7,11)){place('fabrication-rack',x,5.25,z,Math.PI/2);place('hydraulic-power-unit',x,5.25,z+9)}}
+for(let x=-1150;x<1150;x+=22)place('quay-fender',x,0,1200.4,-Math.PI/2);
+for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-unit',x,-7.8,z);
 for(const [key,b] of batches){const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;for(let i=0;i<b.matrices.length;i++)mesh.setMatrixAt(i,b.matrices[i]);mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh)}
 // Build container LODs in spatial chunks. Every container keeps the exact same
 // transform and color when changing mesh detail. Low models cast the static shadow.
