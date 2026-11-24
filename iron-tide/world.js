@@ -1898,6 +1898,187 @@ for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
   for(let y=3.2;y<28;y+=.48)beam(m.steel,[-2.9,y,-.4],[-2.9,y,.4],.065);
   box(m.light,1.7,28.9,3.6,.75,.25,.42);box(m.dark,1.7,29.12,3.6,.9,.18,.55);
  });
+
+// Stage 3 landmark architecture. Each asset represents a different part of
+// actual shipyard production, rather than recoloring one generic warehouse.
+define('stage3-block-assembly-hall',()=>{
+ const W=92,D=132,H=42;
+ box(m.concrete,0,.35,0,W,.7,D);
+ // Six tied portal frames: base pedestals, verticals, haunches and roof trusses.
+ for(const z of [-63,-42,-21,0,21,42,63]){
+  for(const side of [-1,1]){
+   const x=side*44;
+   box(m.concrete,x,1,z,3.6,2,3.8);box(m.steel,x,H/2,z,1.25,H,1.15);
+   beam(m.steel,[x,H,z],[side*30,H+17,z],1.2,1.4);
+   beam(m.steel,[x,11,z],[side*43,H-1,z],.42);
+   for(const y of [10,22,34])beam(m.steel,[x,y,z],[x-side*4,y+4,z],.30);
+  }
+  beam(m.steel,[-30,H+17,z],[30,H+17,z],1.05);
+  beam(m.dark,[-42,H-4,z],[42,H-4,z],.60);
+  for(let x=-30;x<30;x+=10){beam(m.steel,[x,H-4,z],[x+10,H+17,z],.55);}
+  // Crane runway girders and walking decks are carried by the portal legs.
+  for(const x of [-37,37]){box(m.orange,x,H-6,z,3.2,1.2,20);box(m.dark,x,H-5,z,2.6,.5,19.8);}
+ }
+ // Continuous roof: two broad pitches, vented ridge and large translucent bays.
+ for(const side of [-1,1]){
+  const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*Math.atan2(17,44));
+  part(boxGeo,m.roof,side*22,H+8.5,0,Math.hypot(44,17),.5,D+2,rot);
+  for(let z=-59;z<65;z+=5){beam(m.steel,[0,H+17.5,z],[side*44,H+.5,z],.10,.18);}
+  for(const zz of [-47,-5,39]){
+   const x=side*22,y=H+17*(1-22/44);
+   box(m.dark,x,y+.45,zz,8,1.4,17);box(m.glass,x,y+.55,zz,6.8,1.0,15.4);
+   for(let dz=-7;dz<=7;dz+=3.5)box(m.steel,x,y+.64,zz+dz,7,.1,.15);
+  }
+  box(m.blue,side*44,H*.56,0,.6,H*.70,D);
+  for(let z=-60;z<65;z+=10){box(m.steel,side*44.4,H*.56,z,.18,H*.7,.28);
+   box(m.glass,side*44.55,H*.79,z,.13,3.2,7);
+  }
+  // High wall-mounted supply/return headers, each anchored to columns.
+  for(const y of [15.0,17.2,18.7]){
+   for(let z=-62;z<62;z+=15)beam(y===17.2?m.orange:m.steel,[side*41.3,y,z],[side*41.3,y,z+15],.24,.24,true);
+   for(const z of [-42,0,42])beam(m.steel,[side*41.3,y,z],[side*44,y,z],.21);
+  }
+ }
+ box(m.dark,0,H+18,0,5,1.2,D);for(let z=-62;z<=62;z+=5)box(m.steel,0,H+19.4,z,5.4,.25,.30);
+ // Two independently seated block fabrication lines, leaving an open center.
+ for(const x of [-25,25]){
+  box(m.concrete,x,.25,0,20,.5,D-14);
+  for(let z=-56;z<=56;z+=8){
+   for(const dx of [-7,7]){box(m.steel,x+dx,.55,z,.8,1.0,4.1);box(m.dark,x+dx,1.18,z,1.3,.35,4.4)}
+   box(m.rust,x,2.0,z,17,.26,4.4);
+   if(z%16===-8){for(const side of [-1,1])beam(m.steel,[x+side*7,1.7,z],[x+side*7,5.8,z],.22);
+    beam(m.steel,[x-7,5.8,z],[x+7,5.8,z],.25)}
+  }
+ }
+ for(const z of [-58,58]){
+  for(const x of [-42,42])box(m.yellow,x,1.0,z,.24,2,.24);
+  for(const x of [-37,37]){box(m.dark,x,24,z,.65,3,4.5);box(m.glass,x,24,z*.99,.14,2.1,3.0)}
+ }
+ // Trolley and its suspended hook attach to the actual runway beams.
+ box(m.orange,0,H-3,-18,18,2.2,8);for(const z of [-22,-14])for(const x of [-8,8]){cylinder(m.dark,x,H-1.6,z,.9,.6);}
+ beam(m.wire,[0,H-3.8,-18],[0,12,-18],.11,.11,true);
+ box(m.yellow,0,11.8,-18,1.7,2.1,1.7);
+});
+define('stage3-ship-lift-portal',()=>{
+ const W=116,D=36,H=94;
+ // Real bridge-gantry legs; A-shaped at the top with paired rail bogies.
+ for(const side of [-1,1])for(const z of [-12,12]){
+  const x=side*W/2;
+  box(m.concrete,x,.4,z,13,.8,16);
+  box(m.dark,x,2,z,15,3.4,12);
+  for(const dx of [-4,4])for(const dz of [-3.5,3.5]){
+   part(cylGeo,m.rubber,x+dx,1,z+dz,1.3,.90,1.3,new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2));
+   box(m.steel,x+dx,2.5,z+dz,1.4,.5,1.5);
+  }
+  beam(m.orange,[x,3,z],[side*47,H,z*.8],5,4.8);
+  for(const y of [17,32,47,62,77]){
+   const xx=side*(W/2-(W/2-47)*(y-3)/(H-3));
+   box(m.steel,xx,y,z*.94,6,.8,6);
+   beam(m.dark,[xx-2.2,y,z*.94-2],[xx+2.2,y+15,z*.84+2],.46);
+  }
+  for(let y=6;y<H-3;y+=2)for(const dz of [-.3,.3]){
+   const xx=side*(W/2-(W/2-47)*(y-3)/(H-3))-side*3;
+   if(y%4<2)beam(m.steel,[xx,y,z*.9+dz],[xx,y+2,z*.9+dz],.12,.12,true);
+  }
+ }
+ for(const z of [-10,10]){
+  box(m.orange,0,H+2,z,130,7.3,4.6);
+  box(m.dark,0,H-3.9,z,128,.8,4.8);
+  for(let x=-62;x<=62;x+=7){beam(m.steel,[x,H-3,z],[x+7,H+6,z],.48);beam(m.steel,[x+7,H-3,z],[x,H+6,z],.32)}
+  box(m.steel,0,H+6.1,z,130,.4,4);
+  rail(0,H+7.4,z+2.1,127);
+ }
+ for(const x of [-61,61])box(m.steel,x,H+2,0,2.5,2.5,24);
+ // Two independent lift trolleys, clear of the raced-through gantry span.
+ for(const x of [-19,26]){
+  box(m.orange,x,H+8,0,12,4.4,22);
+  for(const z of [-10,10]){for(const dx of [-4,4])cylinder(m.dark,x+dx,H+5.4,z,1.3,.65);
+   beam(m.wire,[x,H+5,z],[x,27,z],.12,.12,true);}
+  box(m.dark,x,26,0,14,1.4,18);
+  for(const z of [-6,6])box(m.yellow,x,24.5,z,3,2.7,3);
+ }
+ // A lateral crane cabin, with proper pilasters and a supported balcony.
+ box(m.steel,65,H-5,9,7,6,8);box(m.dark,65,H-4.8,13.1,5.8,4.3,.18);
+ for(const x of [62.4,65,67.6])box(m.glass,x,H-4.5,13.3,2.1,3.5,.15);
+ box(m.steel,65,H-8.4,13,9,.4,3);
+ for(const x of [61.2,68.8])beam(m.steel,[x,H-8.2,13],[x,H-4,9],.24);
+ rail(65,H-7.25,14.5,9);
+ for(const x of [-58,58])for(const z of [-12,12]){
+  box(m.yellow,x,4.4,z,1.2,.27,4);
+  for(const dx of [-.45,.45])box(m.dark,x+dx,4.45,z,.13,.20,4.1);
+ }
+});
+define('stage3-process-plant',()=>{
+ // Multiple elevations and non-repeating orthogonal pipe paths expose
+ // the silhouette of an industrial cooling/refining facility.
+ const W=76,D=90,H=42;
+ box(m.concrete,0,.28,0,W,.56,D);
+ for(const x of [-32,0,32])for(const z of [-39,0,39]){
+  box(m.steel,x,H/2,z,.9,H,.95);
+  box(m.concrete,x,.7,z,2.2,1.4,2.2);
+ }
+ for(const y of [12,24,38]){
+  box(m.dark,0,y,0,W-5,.5,D-4);
+  for(const z of [-41,41]){rail(0,y+1.2,z,W-5);}
+  for(const x of [-35,35])rail(x,y+1.2,0,D-5,'z');
+  for(let x=-31;x<=31;x+=10)for(const z of [-35,0,35])box(m.steel,x,y-.4,z,1,.25,5);
+ }
+ for(const [x,z,r,hh] of [[-21,-24,6,38],[20,12,8,30],[1,-28,4.3,46]]){
+  box(m.concrete,x,.4,z,r*2.6,.8,r*2.6);
+  cylinder(m.steel,x,hh/2+.8,z,r,hh);
+  for(let y=5;y<hh;y+=4){cylinder(m.rust,x,y,z,r+.15,.18);for(const dx of [-r*.9,r*.9])box(m.steel,x+dx,y+.8,z,.3,1.6,.4);}
+  part(sphereGeo,m.dark,x,hh+.8,z,r,.8,r);
+  for(const dx of [-r/2,r/2])for(let y=6;y<hh-2;y+=.65)beam(m.steel,[x+dx,y,z+r*.8],[x+dx,y+.32,z+r*.8],.075);
+ }
+ // Structured line groups connect feed tanks, elevated process modules, pumps.
+ for(const y of [9,15,28])for(const z of [-18,-12,-5,8,18,27]){
+  for(let x=-31;x<32;x+=9)beam(y===15?m.orange:m.steel,[x,y,z],[x+9,y,z],.25,.25,true);
+  for(const x of [-25,0,25]){box(m.steel,x,y-.7,z,1.1,.4,.8);beam(m.dark,[x,y-2.1,z],[x,y,z],.14);}
+ }
+ for(const [x,z,h] of [[29,31,18],[-27,26,29],[-4,32,36]]){
+  box(m.dark,x,1,z,6,2,6);box(m.blue,x,h/2,z,4.8,h,4.8);
+  for(let y=4;y<h;y+=3.6)box(m.steel,x,y,z,5.1,.34,5.1);
+  for(const side of [-1,1])for(let y=3;y<h;y+=6)beam(m.steel,[x+side*2.6,y,z],[x+side*2.6,y+6,z],.20);
+  box(m.rust,x,h+1,z,6,.8,6);box(m.light,x,h-.8,z+3,.8,.3,.5);
+ }
+});
+define('stage3-repair-barge',()=>{
+ // Lofted rounded pontoon hull: visible flare, inset deck and curved ends,
+ // rather than a rectangular crate placed in the sea.
+ const n=34,L=106,W=21,verts=[],uv=[],idx=[];
+ const levels=[[0,0.48,0.48],[1.2,.86,.88],[3.8,1,1],[6.0,.95,.93]];
+ for(const [y,wx,wz] of levels)for(let i=0;i<=n;i++){const ang=i/n*Math.PI*2;
+  const x=Math.cos(ang)*L/2*wx,z=Math.sin(ang)*W/2*wz;
+  verts.push(x,y,z);uv.push((x+L/2)/10,y/5);
+ }
+ for(let j=0;j<levels.length-1;j++)for(let i=0;i<n;i++){
+  const a=j*(n+1)+i,b=a+n+1;idx.push(a,b,a+1,a+1,b,b+1);
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));
+ g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.userData.keepUV=true;
+ const hullMaterial=m.rust.clone();hullMaterial.side=T.DoubleSide;part(g,hullMaterial,0,0,0,1,1,1);
+ box(m.dark,0,6.05,0,L-7,.35,W-3);
+ for(const side of [-1,1]){
+  for(let x=-44;x<=44;x+=7){
+   beam(m.steel,[x,6.3,side*8.8],[x,7.25,side*8.8],.14);
+   if(x<44)beam(m.steel,[x,7.25,side*8.8],[x+7,7.25,side*8.8],.11);
+  }
+  for(const x of [-42,42])cylinder(m.dark,x,7.0,side*7,1.1,1.2);
+ }
+ for(const x of [-26,0,26]){box(m.rust,x,7.8,0,18,2.7,11);box(m.dark,x,9.35,0,18.4,.45,11.4);
+  for(const z of [-5,5])box(m.steel,x,10.1,z,16.6,1.15,.25)}
+ box(m.blue,-34,12.5,0,19,11,12);box(m.dark,-34,18.4,0,19.7,.7,12.6);
+ for(const x of [-40,-34,-28])box(m.glass,x,14,6.15,4.4,2.5,.14);
+ // Mounted pedestal lift with boom, cable and hook landing above the deck.
+ cylinder(m.steel,26,8.0,0,3.5,3.5);cylinder(m.dark,26,10,0,2.2,.9);
+ beam(m.orange,[26,10.4,0],[29,27,0],1.4);
+ beam(m.orange,[29,27,0],[59,39,0],1.1);
+ beam(m.steel,[29,27,0],[59,39,0],.45);
+ beam(m.wire,[59,39,0],[59,17,0],.10,.10,true);
+ box(m.yellow,59,16.5,0,1.2,1.3,1.1);
+ for(const x of [15,30])for(const z of [-4,4])box(m.dark,x,9,z,5,4,4);
+});
+
  // REFERENCE STAGES 1–2: replace the previous rectangular placement set,
  // keeping its authored GLB templates and material library. The new civil
  // geography and ordered gates come from one canonical JSON source.
