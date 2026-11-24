@@ -607,8 +607,22 @@ define('heavy-gantry-detail',()=>{
  // Paired portal legs with substantial box sections, base bogies and a real trolley walkway.
  for(const x of [-62,62]){for(const z of [-13,13]){
   beam(m.orange,[x,3,z],[x*.85,106,z*.65],5.6,6.2);
-  box(m.dark,x,1.5,z,15,3,10);
-  for(const dx of [-5,-1.7,1.7,5])for(const dz of [-3.8,3.8]){const q=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);part(cylGeo,m.steel,x+dx,1.2,z+dz,1.18,.82,1.18,q);part(cylGeo,m.dark,x+dx+.43,1.2,z+dz,1.28,.15,1.28,q);part(cylGeo,m.dark,x+dx-.43,1.2,z+dz,1.28,.15,1.28,q)}
+  // Rail-running bogie frame is elevated above the wheels. Axles run in X;
+  // wheel treads align with the pair of longitudinal Z rails at +/-3.8 m.
+  box(m.dark,x,3.22,z,12.5,.95,10.5);
+  for(const dx of [-3.8,3.8]){
+   box(m.steel,x+dx,2.98,z,1.4,.62,9.6);
+   for(const dz of [-3.3,-1.1,1.1,3.3]){
+    const wheelRot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2),wy=1.90;
+    part(cylGeo,m.steel,x+dx,wy,z+dz,1.18,.82,1.18,wheelRot);
+    for(const rim of [-.43,.43])part(cylGeo,m.dark,x+dx+rim,wy,z+dz,1.24,.15,1.24,wheelRot);
+    beam(m.steel,[x+dx-.78,wy,z+dz],[x+dx+.78,wy,z+dz],.24,.24,true);
+    for(const h of [-.73,.73]){box(m.dark,x+dx+h,2.18,z+dz,.32,1.12,1.25);box(m.steel,x+dx+h,2.72,z+dz,.48,.24,1.5)}
+   }
+   box(m.blue,x+dx,2.78,z-4.55,1.55,.90,1.30);box(m.dark,x+dx,2.8,z+4.9,1.65,.55,.7);
+  }
+  for(const dx of [-5.1,5.1]){box(m.yellow,x+dx,3.78,z,.12,.15,9.4);for(const dz of [-4.5,4.5])beam(m.steel,[x+dx,3.55,z+dz],[x+dx,4.65,z+dz],.10)}
+  beam(m.steel,[x-5,4.65,z-4.5],[x-5,4.65,z+4.5],.10);
   for(let y=13;y<=100;y+=15){const px=x*(1-y/700);box(rawSteel,px,y,z*.8,7,.65,7);for(const off of [-2.4,2.4])box(m.dark,px+off,y+.45,z*.8,.35,.3,6)}
  }
  for(let y=8;y<100;y+=14){const px=x*(1-y/700),px2=x*(1-(y+14)/700);beam(m.orange,[px,y,-12],[px2,y+14,12],1.5);beam(rawSteel,[px,y,12],[px2,y+14,-12],.65);}
@@ -698,7 +712,10 @@ place('merchant-vessel',390,0,-1030,Math.PI/2,.72);
  // Shipyard shore power and mooring points connect vessel to quay.
  for(const cx of [-1050,-150])for(const dx of [-76,76]){beam(m.dark,[cx+dx,12,1222],[cx+dx*1.12,5.7,1193],.16,.16,true);place('bollard',cx+dx*1.12,5.15,1193);}
 
-place('heavy-gantry-detail',850,5,50);for(const x of [788,912]){box(m.concrete,x,5.22,50,9,.42,290);for(const off of [-3.8,3.8])box(m.steel,x+off,5.56,50,.22,.32,290)}
+place('heavy-gantry-detail',850,5,50);for(const x of [788,912]){box(m.concrete,x,5.22,50,9,.42,290);for(const off of [-3.8,3.8]){
+  box(m.steel,x+off,5.56,50,.22,.32,290);
+  for(let z=-92;z<195;z+=3.5)box(m.dark,x+off,5.46,z,1.0,.1,.4);
+ }}
  // Large prefabricated hull sections are intentionally outside the high-altitude
  // crane route; their cross-sections communicate genuine shipyard scale.
  define('hull-section-module',()=>{
@@ -719,7 +736,7 @@ place('heavy-gantry-detail',850,5,50);for(const x of [788,912]){box(m.concrete,x
  for(const [x,z] of [[1100,120],[625,115],[1130,230],[595,-200]])if(clearFootprint(x,z,80,100,32))place('cargo-shed',x,5.2,z);
  
  // Rail-mounted drydock gantry on raised concrete runway strips.
- for(const x of [788,912]){box(m.concrete,x,-1.5,-535,15,13,350);box(m.steel,x,5.15,-535,1.3,.3,350);for(let z=-702;z<-365;z+=9)box(m.dark,x,5.31,z,3,.22,.65)}
+ for(const x of [788,912]){box(m.concrete,x,-1.5,-535,15,13,350);box(m.concrete,x,5.42,-535,10,.84,350);for(const off of [-3.8,3.8]){box(m.steel,x+off,6.06,-535,.22,.32,350);for(let z=-702;z<-365;z+=3.5)box(m.dark,x+off,5.95,z,1.0,.10,.4)}}
  place('heavy-gantry-detail',850,5.5,-535);
  define('dock-transfer-portal',()=>{
   for(const z of [-48,48]){box(m.concrete,0,1.25,z,12,2.5,10);for(const x of [-4.5,4.5]){box(m.orange,x,32,z,3,64,3);for(let y=8;y<60;y+=10)beam(m.steel,[x,y,z-2],[x,y+10,z+2],.65)}box(m.steel,0,63,z,12,2,9)}
