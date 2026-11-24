@@ -91,7 +91,107 @@ const box=(mat,x,y,z,w,h,d)=>part(boxGeo,mat,x,y,z,w,h,d);
 const cylinder=(mat,x,y,z,r,h)=>part(cylGeo,mat,x,y,z,r,h,r);
 function beam(mat,a,b,w,d=w,round=false){const p=V(...a),r=V(...b),delta=r.clone().sub(p);q.setFromUnitVectors(up,delta.clone().normalize());const c=p.add(r).multiplyScalar(.5);return part(round?cylGeo:boxGeo,mat,c.x,c.y,c.z,w,delta.length(),d,q)}
 function rail(x,y,z,length,axis='x'){const a=axis==='x'?[x-length/2,y,z]:[x,y,z-length/2],b=axis==='x'?[x+length/2,y,z]:[x,y,z+length/2];beam(m.yellow,a,b,.11);for(let i=0;i<=Math.ceil(length/4);i++){const t=i/Math.ceil(length/4),p=a.map((v,j)=>v+(b[j]-v)*t);beam(m.yellow,[p[0],y-1,p[2]],p,.10)}}
-function define(name,fn){target=[];fn();const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map&&!mesh.geometry.userData.keepUV){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;placementBounds.set(name,new T.Box3().setFromObject(group));target=null;}
+
+// Stage 3 architectural grammar: shared structural design rules, not arbitrary
+// bolt scattering. Dimensions describe actual kit envelopes in metres. All
+// additions are attached to walls, roof structure, or foundations and are
+// baked into the same GLB source as the underlying industrial building.
+const architectureSpec={
+ 'warehouse':{w:112,d:160,h:49,pitch:12,open:true,seed:1},
+ 'cargo-shed':{w:65,d:100,h:24,pitch:5.8,seed:2},
+ 'plate-processing-hall':{w:76,d:116,h:28,pitch:6,seed:3},
+ 'coating-shop':{w:74,d:100,h:26,pitch:0,seed:4},
+ 'outfit-workshop':{w:62,d:88,h:19,pitch:0,seed:5},
+ 'stage3-boiler-house':{w:46,d:56,h:24,pitch:0,seed:6},
+ 'stage3-outfitting-annex':{w:64,d:38,h:19,pitch:0,seed:7}
+};
+function enrichBuildingArchitecture(name){
+ const a=architectureSpec[name];if(!a)return;
+ const {w,d,h,pitch,open,seed:style}=a,wet=m.dark,frame=m.steel,paint=m.door,roof=m.roof;
+ // Two different facade languages. Loading entrances are recessed into the
+ // existing shells; secondary structure projects only fractions of a metre.
+ for(const side of [-1,1]){
+  const x=side*(w*.5+.15);
+  for(let z=-d*.5+7;z<d*.5-5;z+=style%2?15:19){
+   const z2=Math.min(d*.5-2,z+12),height=h*.73;
+   box(frame,x,height*.5,z,.25,height,.34);
+   box(wet,x+side*.19,height*.57,z2,.14,2.3,5.1);
+   box(m.glass,x+side*.30,height*.60,z2,.12,1.60,4.35);
+   for(const offset of [-2.12,2.12])box(frame,x+side*.39,height*.60,z2+offset,.12,1.75,.14);
+   box(frame,x+side*.4,height*.60,z2, .12,.12,4.48);
+   // Roof gutter, clear drops and concrete splash shoes share connections.
+   const eave=h+(pitch? .15:0);
+   if(Math.abs(z+ d*.5-7)<.01||Math.abs(z-(d*.5-7))<10){
+    beam(wet,[x+side*.45,eave,z],[x+side*.45,.62,z],.20,.20,true);
+    box(frame,x+side*.45,.52,z,.65,.6,.6);
+    box(frame,x+side*.45,eave,z,.55,.5,.7);
+   }
+  }
+  // Substantial horizontal girts and braced portal bays stop the wall looking
+  // like a single texture-mapped rectangle.
+  for(const y of [h*.16,h*.45,h*.76])box(frame,x,y,0,.32,.23,d-3);
+  for(const z of [-d*.37,d*.37]){
+   beam(frame,[x,h*.15,z-5],[x,h*.72,z+5],.20);
+   box(wet,x,h*.12,z,1.25,.8,1.3);
+  }
+ }
+ if(!open){
+  for(const side of [-1,1]){
+   const z=side*(d*.5+.22);
+   const rows=style%2?[-w*.24,w*.24]:[-w*.30,0,w*.30];
+   for(const x of rows){
+    // Door frames and awning trusses have real side brackets.
+    box(wet,x,5.5,z,Math.min(12,w/4),10.2,.27);
+    box(paint,x,5.25,z+side*.18,Math.min(11.5,w/4-.5),9.7,.11);
+    for(let y=1.5;y<10;y+=.78)box(frame,x,y,z+side*.29,Math.min(11,w/4-1),.07,.10);
+    const canopyZ=z+side*2.7;
+    box(roof,x,12.1,canopyZ,Math.min(13,w/3),.25,5.7);
+    for(const dx of [-5.3,5.3]){
+     if(Math.abs(x+dx)>w*.5-1)continue;
+     beam(frame,[x+dx,10.1,z],[x+dx,12.1,canopyZ+side*1.9],.17);
+    }
+    box(m.light,x,11.65,z+side*1.4,1.4,.23,.42);
+   }
+  }
+ }
+ // Long continuous ridge daylighting and roof-mounted service modules have
+ // explicit supporting curb/flashing, glazing and linked ventilation ducts.
+ if(pitch){
+  for(const z of [-d*.25,d*.18]){
+   const len=Math.min(d*.28,42);
+   box(wet,0,h+pitch+.3,z,8,.65,len);
+   for(const side of [-1,1]){
+    box(m.glass,side*3.85,h+pitch+2.5,z,.16,3.5,len-.8);
+    for(let zz=z-len/2+2;zz<z+len/2;zz+=4.8)box(frame,side*4.05,h+pitch+2.45,zz,.17,3.7,.23);
+   }
+   box(roof,0,h+pitch+4.4,z,9.2,.3,len+.6);
+   for(const x of [-3,3])for(const zz of [z-len*.46,z+len*.46])box(frame,x,h+pitch+.7,zz,.28,.65,.32);
+  }
+ }else{
+  // Flat-roof variants break up one level with two asymmetric superstructures.
+  for(const [x,z,xx,dd,hh] of [[-w*.19,-d*.17,w*.25,d*.22,4.6],[w*.21,d*.23,w*.19,d*.15,2.9]]){
+   box(wet,x,h+.28,z,xx+1,.55,dd+1);
+   box(roof,x,h+hh,z,xx,.35,dd);
+   for(const side of [-1,1]){
+    box(paint,x,h+hh*.51,z+side*dd/2,xx,hh-.35,.26);
+    for(let dx=-xx*.4;dx<xx*.4;dx+=1.15)box(frame,x+dx,h+hh*.51,z+side*(dd/2+.16),.09,hh-.7,.10);
+   }
+   for(const dx of [-xx*.43,xx*.43])for(const zz of [-dd*.42,dd*.42])box(frame,x+dx,h+hh*.5,z+zz,.24,hh,.24);
+  }
+ }
+ // Roof maintenance paths, drainage sumps and staggered mechanical cabinets.
+ for(let j=0;j<3;j++){
+  const z=-d*.27+j*d*.21,x=(j%2?-.25:.22)*w;
+  const roofY=h+(pitch?(pitch*(1-Math.abs(x)/(w*.5))):0);
+  box(frame,x,roofY+.35,z,5.2,.24,3.4);
+  box(wet,x,roofY+1.15,z,4,1.4,2.8);
+  for(const off of [-1.6,1.6])box(paint,x+off,roofY+1.2,z+1.5,.55,1.15,.10);
+  for(let zz=z-1.0;zz<=z+1.0;zz+=.55)box(frame,x,roofY+1.96,zz,4.2,.09,.17);
+  for(const dx of [-2.2,2.2])beam(frame,[x+dx,roofY+.26,z],[x+dx,roofY+.8,z],.18);
+ }
+}
+
+function define(name,fn){target=[];fn();enrichBuildingArchitecture(name);const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map&&!mesh.geometry.userData.keepUV){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;placementBounds.set(name,new T.Box3().setFromObject(group));target=null;}
 // Container stack support footprints: all tiers must be aligned and consecutive.
 const containerSlots=[],stackIndex=new Map(),containerChunks=new Map(),containerLOD=[];
 function reserveContainer(x,y,z,angle,scale){
