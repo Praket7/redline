@@ -2544,7 +2544,8 @@ define('stage3-repair-barge',()=>{
    for(const t0 of [t,end])for(let j=0;j<4;j++){
     const h=[5.09,3.7,1.45,-.55][j]+(j===0?0:shoreNoise(t0*2+j,edge.salt)*.31);
     shorelineGeo.positions.push(...shorePoint(edge,t0,profile[j],h));
-    const v=shorePalette[(Math.floor(t/10)+j+edge.salt)%shorePalette.length];
+    const paletteIndex=((Math.floor(t/10)+j+edge.salt)%shorePalette.length+shorePalette.length)%shorePalette.length;
+    const v=shorePalette[paletteIndex];
     const m=.85+.19*shoreNoise(t0*1.3+j,edge.salt+5);
     shorelineGeo.colors.push(v[0]*m,v[1]*m,v[2]*m);
    }
