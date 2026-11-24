@@ -7,6 +7,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "iron-tide-output"
 OUT.mkdir(exist_ok=True)
 (OUT / "glb").mkdir(exist_ok=True)
+def capture(page, path):
+    # Canvas is rendered synchronously by the camera API; read its actual framebuffer
+    # rather than waiting for Playwright compositor stability on software WebGL.
+    encoded = page.evaluate("document.querySelector('canvas').toDataURL('image/png').split(',')[1]")
+    path.write_bytes(base64.b64decode(encoded))
+
 server = subprocess.Popen([sys.executable, "-m", "http.server", "8765", "--bind", "127.0.0.1"], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 try:
     import urllib.request
@@ -41,7 +47,7 @@ try:
             # A real rendered canvas screenshot, not an illustration.
             page.wait_for_timeout(250)
             path = OUT / (view + ".png")
-            page.locator("canvas").screenshot(path=str(path), timeout=90000)
+            capture(page, path)
             with Image.open(path) as im:
                 assert im.size == (1440,900)
                 assert max(ImageStat.Stat(im.convert("RGB")).stddev) > 8, "blank/flat screenshot: " + view
@@ -73,7 +79,7 @@ try:
             board.save(OUT / "top-annotated.png")
         # Same-world camera evidence with no visual route overlay.
         page.evaluate("IRON_TIDE.setView('overview'); IRON_TIDE.route(false)")
-        page.locator("canvas").screenshot(path=str(OUT / "overview-clean.png"), timeout=90000)
+        capture(page, OUT / "overview-clean.png")
         page.evaluate("IRON_TIDE.route(true); IRON_TIDE.setView('1-launch')")
         before = page.evaluate("IRON_TIDE.stats().position")
         page.keyboard.down("KeyW"); page.wait_for_timeout(500); page.keyboard.up("KeyW")
@@ -81,13 +87,13 @@ try:
         assert math.dist(before,after) > .1, (before,after)
         for frac in [0,.2,.4,.6,.8]:
             page.evaluate("(f) => IRON_TIDE.course(IRON_TIDE.stats().lapMeters*f)", frac)
-            page.locator("canvas").screenshot(path=str(OUT / ("flight-%02d.png" % (frac*100))), timeout=90000)
+            capture(page, OUT / ("flight-%02d.png" % (frac*100)))
         assets = page.evaluate("IRON_TIDE.stats().assets")
         (OUT / "assets").mkdir(exist_ok=True)
         for name in assets:
             page.evaluate("(n) => IRON_TIDE.assetView(n)", name)
             path = OUT / "assets" / (name + ".png")
-            page.locator("canvas").screenshot(path=str(path), timeout=90000)
+            capture(page, path)
             with Image.open(path) as im:
                 assert max(ImageStat.Stat(im.convert("RGB")).stddev) > 4, "flat asset: " + name
         exported = {}
