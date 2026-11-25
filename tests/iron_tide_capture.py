@@ -39,6 +39,7 @@ try:
         page.goto("http://127.0.0.1:8765/iron-tide/", wait_until="load", timeout=90000)
         page.wait_for_function("window.IRON_TIDE || document.getElementById('error').style.display === 'block'", timeout=90000)
         assert page.evaluate("Boolean(window.IRON_TIDE)"), page.locator("#error").inner_text()
+        page.evaluate("IRON_TIDE.animateWater(false); IRON_TIDE.waterTime(0)")
         audit = page.evaluate("IRON_TIDE.assetAudit()")
         required = {"ship-hull", "heavy-gantry-detail", "rtg-crane", "quay-container-crane", "propeller", "container-rust", "terminal-tractor", "cargo-trailer"}
         required.update({"reference-sky-bridge","reference-offshore-platform","plate-processing-hall","coating-shop","outfit-workshop","process-manifold","hydraulic-power-unit","tank","steel-transfer-station","curved-panel-jig","block-transport-cradle","gantry-service-hall","winch-service-skid"})
@@ -138,6 +139,24 @@ try:
             reflection_report[view]={"plane":expected,"mean_rgb_difference":mean,"passes":st["reflectionPasses"]}
         page.evaluate("IRON_TIDE.reflections(true)")
         (OUT / "reflection-audit.json").write_text(json.dumps(reflection_report,indent=2))
+        # Water geometry must actually move and must not recapture static reflections.
+        page.evaluate("IRON_TIDE.setView('9-offshore'); IRON_TIDE.waterTime(0)")
+        capture(page,OUT/"water-motion-0.png")
+        before=page.evaluate("IRON_TIDE.stats()")
+        page.evaluate("IRON_TIDE.waterTime(2)")
+        capture(page,OUT/"water-motion-2.png")
+        after=page.evaluate("IRON_TIDE.stats()")
+        water=page.evaluate("IRON_TIDE.waterAudit()")
+        assert water["triangles"] > 10000 and water["quayWallMeters"] > 1000 and water["reflectionInWater"], water
+        assert before["reflectionPasses"] == after["reflectionPasses"], (before,after)
+        with Image.open(OUT/"water-motion-0.png") as a, Image.open(OUT/"water-motion-2.png") as b:
+            water["mean_rgb_motion"]=sum(ImageStat.Stat(ImageChops.difference(a.convert("RGB"),b.convert("RGB"))).mean)/3
+        assert water["mean_rgb_motion"] > .02, water
+        (OUT/"water-audit.json").write_text(json.dumps(water,indent=2))
+        page.evaluate("IRON_TIDE.waterTime(0)")
+        for detail in ["quayBasin","waterline"]:
+            page.evaluate("(id) => IRON_TIDE.detailView(id)",detail)
+            capture(page,OUT/("detail-"+detail+".png"))
         # Verify actual framebuffer contribution of the new baked yard lighting.
         page.evaluate("IRON_TIDE.detailView('yardLight'); IRON_TIDE.bakedLights(true)")
         capture(page,OUT/"yard-light-on.png")

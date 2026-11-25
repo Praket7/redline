@@ -20,4 +20,8 @@ assert marker in html
 html=html.replace(marker,script("window.IRON_TIDE_LAYOUT="+(folder/"layout.json").read_text()+";")+script((folder/"world.js").read_text()))
 out=root/"iron-tide-output"
 out.mkdir(exist_ok=True)
-(out/"IRON_TIDE.html").write_text(html)
+from offline_pack import pack_html
+import json
+packed,audit=pack_html(html,folder/"jpeg_repack.c")
+(out/"IRON_TIDE.html").write_text(packed)
+(out/"package-audit.json").write_text(json.dumps(audit,indent=2))

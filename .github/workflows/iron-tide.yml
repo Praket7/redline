@@ -27,6 +27,7 @@ jobs:
       - run: node --check iron-tide/world.js
       - run: python iron-tide/prepare_textures.py
       - run: python iron-tide/prepare_models.py
+      - run: sudo apt-get install -y libjpeg-dev
       - run: python iron-tide/package.py
       # Full run includes every preview check and screenshot; do not render them twice.
       - run: python tests/iron_tide_capture.py
