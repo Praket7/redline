@@ -95,6 +95,7 @@ try:
             evidence = ref["macroEvidence"]
             assert all(evidence[k] for k in ("hall","lift","plant","barge")), evidence
             assert stats["bakedLightPools"] > 20 and stats["contactFootprints"] > 100 and stats["freightStamps"] > 100, stats
+            assert ref["shoreHall"] and ref["quayService"] >= 10, ref
             foreground = ref["foregroundWork"]
             assert sum(foreground.values()) >= 4 and sum(v > 0 for v in foreground.values()) >= 2, foreground
             assert stats["sharedRailBatches"] > 0, stats
