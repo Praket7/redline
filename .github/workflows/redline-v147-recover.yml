@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   recover:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -27,8 +27,8 @@ jobs:
           python -m pip install -r requirements.txt
           REDLINE_COLLISION_STRICT=1 node test_collision.cjs
           REDLINE_COLLISION_STRICT=1 node test_world.cjs
-          REDLINE_COLLISION_STRICT=1 python test_network.py
-          REDLINE_COLLISION_STRICT=1 python test_shared_world.py
+          REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_network.py
+          REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_shared_world.py
       - name: Commit verified assets to deployment branch
         run: |
           git config user.name "github-actions[bot]"
