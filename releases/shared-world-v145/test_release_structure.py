@@ -3,7 +3,7 @@ from pathlib import Path
 import hashlib
 from patch_v139_single_world import patch
 root=Path(__file__).parent
-original=(root/'../redline139/REDLINE_v139_DEPLOY/index.html').read_text()
+original=(root/'original/REDLINE_v139_DEPLOY/index.html').read_text()
 client=(root/'site/shared_world_client.js').read_text()
 html=(root/'site/index.html').read_text()
 assert html == patch(original,client), 'generated game differs from source-plus-patch'
