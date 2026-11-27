@@ -18,9 +18,13 @@ jobs:
       - name: Recover verified original and bake both maps
         working-directory: releases/shared-world-v147
         run: |
-          python -m pip install playwright==1.52.0
-          python -m playwright install --with-deps chromium
-          python recover_bakes.py
+          if [ ! -f authority/collision_exports/grand.f32.gz ] || [ ! -f authority/collision_exports/iron.f32.gz ]; then
+            python -m pip install playwright==1.52.0
+            python -m playwright install --with-deps chromium
+            python recover_bakes.py
+          fi
+          echo '836bbd9b886168699661fe14b9452cd0693c24f54e2db2fe96cab9575e4198eb  original/index.html' | sha256sum -c
+          echo '4d8115faea7575e2cef2a27a3fa76d0d8d66d44e65ba67c6acd24d1ec2f4022a  original/iron-tide.pack' | sha256sum -c
       - name: Verify complete server
         working-directory: releases/shared-world-v147/authority
         run: |
@@ -29,6 +33,7 @@ jobs:
           REDLINE_COLLISION_STRICT=1 node test_world.cjs
           REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_network.py
           REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_shared_world.py
+          REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_readiness.py
       - name: Commit verified assets to deployment branch
         run: |
           git config user.name "github-actions[bot]"
@@ -36,5 +41,6 @@ jobs:
           git add -f releases/shared-world-v147/original releases/shared-world-v147/authority/collision_exports
           if ! git diff --cached --quiet; then
             git commit -m "REDLINE v147 exact Vercel source and baked collision archives"
+            git pull --rebase origin v147-render-authority
             git push origin HEAD:v147-render-authority
           fi

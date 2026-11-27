@@ -21,6 +21,32 @@ function createRedlineSharedWorld(){
    if(!/\/ws\/?$/.test(p.pathname))throw Error('The authority endpoint must end with /ws.');
    return p.toString();
  };
+ // Render Free may take a minute to wake. Do not create an offline world or
+ // reject a valid player just because the container is still starting.
+ let warmPromise=null;
+ async function ensureAuthority(){
+   const endpoint=new URL(validURL());
+   endpoint.protocol=endpoint.protocol==='wss:'?'https:':'http:';
+   endpoint.pathname='/health';endpoint.search='';endpoint.hash='';
+   if(warmPromise)return warmPromise;
+   warmPromise=(async()=>{
+     const deadline=performance.now()+110000;
+     state.status='WAKING SERVER';
+     while(performance.now()<deadline){
+       const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),14000);
+       try{
+         const r=await fetch(endpoint,{cache:'no-store',signal:controller.signal});
+         if(r.ok){const h=await r.json();if(h.ok===true&&h.protocol===145&&h.version===147&&
+           (endpoint.hostname==='localhost'||endpoint.hostname==='127.0.0.1'||h.authenticated===true)&&
+           Object.entries(window.REDLINE_COLLISION_HASHES||{}).every(([k,v])=>h.maps?.[k]===v)){
+           state.status='SERVER READY';return true;}}
+       }catch(_){}finally{clearTimeout(timer);}
+       await new Promise(r=>setTimeout(r,1800));
+     }
+     state.status='SERVER UNAVAILABLE';throw Error('The shared-world server did not become ready. Retry in a moment; solo mode remains available.');
+   })();
+   try{return await warmPromise;}finally{warmPromise=null;}
+ }
  const send=(op,extra={})=>{
    if(!state.ws||state.ws.readyState!==WebSocket.OPEN||state.ws.bufferedAmount>64000)return false;
    state.ws.send(JSON.stringify({op,...extra}));return true;
@@ -34,6 +60,7 @@ function createRedlineSharedWorld(){
  }
  async function connect(credentials,view,name,model){
    const url=validURL();
+   await ensureAuthority();
    const resuming=state.enabled&&state.racing&&state.id===credentials.id;
    disconnect();state.enabled=true;if(!resuming){state.racing=false;state.world=null;state.snapshots=[];state.eventsSeen.clear();state.tick=-1;outcomeShown=false;}state.course=view.course==='iron'?'iron':'grand';
    if(!resuming)state.members=[];state.id=credentials.id;state.roomStart=view.started_at||state.roomStart||null;
@@ -43,14 +70,14 @@ function createRedlineSharedWorld(){
    const token=persisted?.room===credentials.code&&persisted?.id===credentials.id?persisted.token:null;
    await new Promise((resolve,reject)=>{
      const ws=new WebSocket(url);state.ws=ws;
-     const timer=setTimeout(()=>{if(ws.readyState!==WebSocket.CLOSED)ws.close();reject(Error('Shared-world gateway handshake timed out'));},9000);
+     const timer=setTimeout(()=>{if(ws.readyState!==WebSocket.CLOSED)ws.close();reject(Error('Shared-world gateway handshake timed out'));},15000);
      let joined=false;
      ws.onopen=()=>ws.send(JSON.stringify({op:'join',room:credentials.code,course:state.course,
        id:credentials.id,secret:credentials.secret,model,name,token}));
      ws.onmessage=e=>{
        let m;try{m=JSON.parse(e.data);}catch{return;}
        if(m.type==='error'){
-         state.status='REJECTED';if(!joined){clearTimeout(timer);reject(Error(m.message||'Gateway rejected membership'));}else console.warn('[ONE WORLD]',m.message);return;
+         state.status='REJECTED';if(!joined){clearTimeout(timer);reject(Error(m.message||'Gateway rejected membership'));}else {console.warn('[ONE WORLD]',m.message);state.status='REJECTED';if(state.host&&!state.racing){const el=document.getElementById('rlOnlineState');if(el)el.textContent=m.message||'Start rejected';}}return;
        }
        if(m.type==='joined'){
          if(m.protocol!==145||m.id!==credentials.id||m.course!==state.course){clearTimeout(timer);reject(Error('Authority protocol/identity mismatch'));ws.close();return;}
@@ -223,7 +250,7 @@ function createRedlineSharedWorld(){
    try{redlineUI.frame(dt);}catch(e){if(!state.hudWarn){state.hudWarn=true;console.warn('[ONE WORLD HUD]',e);}}
    if(!IRON)positionStableSun(st.p);sky.position.copy(cam.position);
  }
- return Object.assign(state,{connect,close,update,enterRace,bindRemote,queueAbility,start,setModel,showStatus,validURL,
+ return Object.assign(state,{connect,close,update,enterRace,bindRemote,queueAbility,start,setModel,showStatus,validURL,ensureAuthority,
    get enabled(){return state.enabled;},get racing(){return state.racing;},sampled,disconnect,
    get startRemaining(){return state.startTick==null?null:Math.max(0,(state.startTick-state.tick)/60);},
    minimap:()=>state.members.filter(p=>p.id!==state.id).map(p=>{const v=sampled(p.id);return v?{id:p.id,x:v.p[0],z:v.p[2],stale:!p.online,color:'#4edcec'}:null}).filter(Boolean),

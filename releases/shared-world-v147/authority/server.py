@@ -179,6 +179,23 @@ class Gateway:
             if response.status!=200:raise RuntimeError('database authority lease unavailable')
             return value is True
 
+    def origin_allowed(self, req):
+        origin=req.headers.get('Origin')
+        allowed=os.environ.get('REDLINE_ALLOWED_ORIGINS','https://redlin3.vercel.app').split(',')
+        return origin is None or origin in allowed
+
+    async def start_metadata(self, msg, room):
+        if not self.production:return
+        fresh=await self.authenticate(msg)
+        connected={pid for pid,v in room['players'].items() if v.get('ws') and not v['ws'].closed}
+        if fresh['host']!=msg['id'] or fresh['stage']!='lobby':raise ValueError('host or lobby state changed')
+        if connected!={str(x['id']) for x in fresh['players']} or not all(x.get('ready') for x in fresh['players']):
+            raise ValueError('All room pilots must be ready and connected')
+        async with self.http.post(self.supabase_url+'/rest/v1/rpc/redline_start_room',
+            json={'p_code':msg['room'],'p_id':msg['id'],'p_secret':msg['secret']},
+            headers={'apikey':self.supabase_key,'Content-Type':'application/json'}) as response:
+            if response.status!=200:raise ValueError('Supabase rejected race start; refresh ready status and retry')
+
     async def authenticate(self, join):
         code = join['room']
         if not self.production:
@@ -212,9 +229,7 @@ class Gateway:
         if not self.proc or self.proc.returncode is not None or not self.maps or (self.reader_task and self.reader_task.done()):
             raise web.HTTPServiceUnavailable(text='authority not ready')
         if self.production and not self.db_ready: raise web.HTTPServiceUnavailable(text='database authority unavailable')
-        origin=req.headers.get('Origin')
-        allowed=os.environ.get('REDLINE_ALLOWED_ORIGINS','https://redlin3.vercel.app').split(',')
-        if self.production and origin is not None and origin not in allowed: raise web.HTTPForbidden(text='origin not allowed')
+        if self.production and not self.origin_allowed(req): raise web.HTTPForbidden(text='origin not allowed')
         await ws.prepare(req)
         code = None; p = None; writer = None
         async def write(q):
@@ -299,10 +314,15 @@ class Gateway:
                     p['model']=model_choice
                 elif data.get('op')=='start':
                     async with self.lock:
-                        if room['host'] != p['id']: raise ValueError('host only')
+                        if room['host'] != p['id']:
+                            await ws.send_json({'type':'error','message':'host only'}); continue
                         if not room['started']:
                             online=sum(1 for v in room['players'].values() if v.get('ws') and not v['ws'].closed)
-                            if online<2: raise ValueError('two connected players required')
+                            if online<2:
+                                await ws.send_json({'type':'error','message':'two connected players required'}); continue
+                            try: await self.start_metadata(msg,room)
+                            except (ValueError,RuntimeError,asyncio.TimeoutError):
+                                await ws.send_json({'type':'error','message':'All room pilots must be ready and connected; retry start.'}); continue
                             await self.command({'op':'start','room':code},True)
                             room['started']=True
                             await ws.send_json({'type':'started','world':room['world']})
@@ -338,7 +358,10 @@ def create_app():
     app.router.add_get('/ws',gateway.socket)
     async def health(_):
         ok=bool(gateway.proc is not None and gateway.proc.returncode is None and gateway.maps is not None and gateway.reader_task and not gateway.reader_task.done() and (not gateway.production or gateway.db_ready))
-        return web.json_response({'ok':ok,'rooms':len(gateway.rooms),'version':147,'protocol':145,'maps':gateway.maps,'authenticated':gateway.production and gateway.db_ready},status=200 if ok else 503)
+        headers={'Cache-Control':'no-store'}
+        if _.headers.get('Origin') and gateway.origin_allowed(_):
+            headers.update({'Access-Control-Allow-Origin':_.headers['Origin'],'Vary':'Origin'})
+        return web.json_response({'ok':ok,'rooms':len(gateway.rooms),'version':147,'protocol':145,'maps':gateway.maps,'authenticated':gateway.production and gateway.db_ready},status=200 if ok else 503,headers=headers)
     app.router.add_get('/health',health)
     app.router.add_get('/',lambda _:web.json_response({'service':'REDLINE shared authority','version':147}))
     return app

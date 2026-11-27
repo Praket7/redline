@@ -23,9 +23,9 @@ def patch(source, client):
     one(' async function join(){\n  if(partyBusy||rankBusy)return;partyBusy=true;',
         " async function join(){\n  if(partyBusy||rankBusy)return;partyBusy=true;")
     one(' async function create(){\n  if(partyBusy||rankBusy)return;partyBusy=true;\n  try{',
-        ' async function create(){\n  if(partyBusy||rankBusy)return;partyBusy=true;\n  try{SHARED.validURL();')
+        ' async function create(){\n  if(partyBusy||rankBusy)return;partyBusy=true;\n  try{await SHARED.ensureAuthority();')
     one(' async function join(){\n  if(partyBusy||rankBusy)return;partyBusy=true;\n  try{',
-        ' async function join(){\n  if(partyBusy||rankBusy)return;partyBusy=true;\n  try{SHARED.validURL();')
+        ' async function join(){\n  if(partyBusy||rankBusy)return;partyBusy=true;\n  try{await SHARED.ensureAuthority();')
     one("connect();redlineUI.go('lobby');setStatus('LOBBY');selectJoinedModel().then(()=>poll().catch(()=>{}));",
         "await SHARED.connect(cred,room,name,redlineActiveAirframe());redlineUI.go('lobby');setStatus('LOBBY');selectJoinedModel().then(()=>poll().catch(()=>{}));",2)
     one("   if(room.stage==='lobby'){connect();redlineUI.go('lobby');",
@@ -37,7 +37,7 @@ def patch(source, client):
     one(" async function poll(){\n  if(!cred||leaving||roomPollBusy)return;",
         " async function poll(){\n  if(SHARED.enabled&&SHARED.racing)return room;\n  if(!cred||leaving||roomPollBusy)return;")
     one("  try{setStatus('ARMING');const t=Date.now();const d=await rpc('redline_start_room',secrets());setClock(d,t,Date.now());updateRoom(d);setStatus('COUNTDOWN');}",
-        "  try{setStatus('ARMING');if(!SHARED.connected)throw Error('Every player must connect to the shared authority first.');const t=Date.now();const d=await rpc('redline_start_room',secrets());setClock(d,t,Date.now());updateRoom(d);SHARED.start();setStatus('COUNTDOWN');}")
+        "  try{setStatus('ARMING');if(!SHARED.connected)throw Error('Every player must connect to the shared authority first.');SHARED.start();setStatus('START REQUESTED');}")
     one(' async function leave(silent=false){\n  if(!cred)return;',
         ' async function leave(silent=false){\n  SHARED.close();\n  if(!cred)return;')
     one(' function prepareRace(view,resumeState=null){',
