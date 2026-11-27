@@ -1,0 +1,48 @@
+name: Frost Vein standalone browser QA
+on:
+  push:
+    branches: [feature/frost-vein]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --prefix /tmp/frost-qa playwright
+      - run: /tmp/frost-qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Run exact-head WebGL smoke test
+        run: |
+          mkdir -p frost-evidence
+          cat > /tmp/frost-qa/test.cjs <<'JS'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          (async()=>{
+            const b=await chromium.launch({headless:true,args:['--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--js-flags=--max-old-space-size=4096']});
+            const p=await b.newPage({viewport:{width:1100,height:680}});
+            const errors=[];p.on('pageerror',e=>errors.push(String(e)));
+            try{
+              await p.setContent(fs.readFileSync('frost-vein/index.html','utf8'),{timeout:240000});
+              await p.waitForFunction(()=>window.FROST&&FROST.stats().frameMs.length>1,{},{timeout:240000});
+              const report=await p.evaluate(()=>({stats:FROST.stats(),audit:FROST.audit(),gates:FROST.seed.sectors.flatMap(s=>s.gates).length}));
+              fs.writeFileSync('frost-evidence/report.json',JSON.stringify({...report,errors},null,2));
+              if(report.gates!==40||report.audit.length!==5||report.audit.some(a=>a.issues.length)||report.stats.glError||errors.length)throw Error(JSON.stringify({report,errors}));
+              for(let i=0;i<10;i++){await p.evaluate(i=>FROST.sector(i),i);await p.screenshot({path:'frost-evidence/sector-'+(i+1)+'.png',timeout:120000});}
+              await p.evaluate(()=>{FROST.start();FROST.input('w',true);FROST.advance(1);FROST.input('w',false)});
+              const state=await p.evaluate(()=>FROST.stats());
+              if(state.mode!=='fly'||state.glError||errors.length)throw Error('Flight smoke failed: '+JSON.stringify({state,errors}));
+              fs.writeFileSync('frost-evidence/flight.json',JSON.stringify(state,null,2));
+            }finally{await b.close()}
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          JS
+          node /tmp/frost-qa/test.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frost-vein-browser-evidence
+          path: frost-evidence/
