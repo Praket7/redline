@@ -38,8 +38,13 @@ class Gateway:
 
     async def launch(self, app):
         self.http = ClientSession(timeout=ClientTimeout(total=8))
+        worker_env = dict(os.environ)
+        # Production cannot silently run a different physical world merely
+        # because a collider asset was omitted from the authority image.
+        if self.production:
+            worker_env['REDLINE_COLLISION_STRICT'] = '1'
         self.proc = await asyncio.create_subprocess_exec(
-            'node', str(ROOT / 'worker.cjs'), stdin=asyncio.subprocess.PIPE,
+            'node', str(ROOT / 'worker.cjs'), env=worker_env, stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, limit=2*1024*1024)
         self.reader_task = asyncio.create_task(self.reader())
         self.sweeper_task = asyncio.create_task(self.sweep())

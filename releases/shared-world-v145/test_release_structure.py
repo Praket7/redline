@@ -30,10 +30,16 @@ verify('redlineUI.config.bots=0' in client,'no parallel client AI simulation')
 verify('redline_authority_claim_v145' in (root/'authority/server.py').read_text(),'single authority lease claim')
 verify('redline_authority_heartbeat_v145' in (root/'authority/server.py').read_text(),'lease heartbeat')
 verify('redline_authority_matches_v140' in (root/'authority/server.py').read_text(),'result ledger adapter')
-original_pack=(root/'../redline139/REDLINE_v139_DEPLOY/iron-tide.pack').read_bytes()
+original_pack=(root/'original/REDLINE_v139_DEPLOY/iron-tide.pack').read_bytes()
 pack=(root/'site/iron-tide.pack').read_bytes()
 verify(hashlib.sha256(original_pack).digest()==hashlib.sha256(pack).digest(),'binary course preserved')
 verify('REDLINE_MODEL_TEMPLATE' in html,'original aircraft assets preserved')
 verify('createIronCollisions' in html,'original Iron render collision source preserved')
 verify('CLIFF_COLLIDER' in html,'original Grand render collision source preserved')
-print({'integration_static_assertions':checks,'original_source_sha256':hashlib.sha256(original.encode()).hexdigest(),'patched_html_sha256':hashlib.sha256(html.encode()).hexdigest(),'source_colliders_exported_to_server':False,'browser_3d_verified':False})
+for course, expected in [('grand',281300),('iron',2836700)]:
+ import json
+ path=root/'authority/collision_exports'
+ meta=json.loads((path/(course+'.json')).read_text())
+ verify(meta['course']==course and meta['float32_triangles']==expected,course+' extracted source triangle count')
+ verify((path/(course+'.f32.gz')).is_file(),course+' packaged collision binary')
+print({'integration_static_assertions':checks,'original_source_sha256':hashlib.sha256(original.encode()).hexdigest(),'patched_html_sha256':hashlib.sha256(html.encode()).hexdigest(),'source_colliders_exported_to_server':True,'browser_3d_verified':False})
