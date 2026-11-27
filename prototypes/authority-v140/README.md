@@ -59,3 +59,20 @@ This interface is NOT currently installed as the active gameplay loop in v139. D
 - Supabase WebSocket handling: https://supabase.com/docs/guides/functions/websockets
 
 Do not mark stages 142 or 143 complete until the original v139 environment runs in a real WebGL renderer with extracted collision meshes and separate physical clients.
+
+
+### v139 source patch and collision capture
+
+The latest v139 standalone HTML was recovered from the user's project files (SHA-256 `95e70d59772cf1698fc431ae605eba610da0f51d08aa0386e6aa2bd12f057f8d`). It is **not** the older v78 source found on the GitHub main branch. No replacement of that 43 MB original is committed.
+
+```bash
+python patch_v139.py path/to/REDLINE_v139_SHARED_WORLD.html --output REDLINE_v139_v144_LAB.html
+```
+
+This creates a modified **copy**. It adds `REDLINE_V142_SAVE()` to extract the exact visible collision-triangle sources after Grand Gorge or Iron Tide has initialized, and the opt-in `REDLINE_V144_ATTACH({url,room,course,model,name})` shared-world lab adapter, whose peers use cloned original craft templates when available. The local engine's solo/competitive score path remains untouched. Neither command runs automatically. The generated file requires working WebGL and a secured browser context for SHA-256 exports.
+
+The exporter must be run on both courses. Check the exported hash and source revision before placing each downloaded file at `collision_exports/{course}.json`. Dynamic collider owners, heightfields, water and exact movement parity still require explicit examination; a triangle export alone is **not** a collision-certification result.
+
+### Supabase schema review
+
+A non-disruptive migration named `redline_authority_runtime_lifecycle_v141` was applied to the existing REDLINE Multiplayer project on 2026-11-27. The new, initially empty `public.redline_authority_runtime_v141` records server-owned world IDs, course/revision, lifecycle state, host identity and heartbeat/expiry. RLS is enabled, anon/authenticated table privileges are revoked, and service_role has CRUD. No production race was started and no result was inserted. The migration is mirrored under `supabase/migrations/`. Until a persistent authenticated authority host consumes it, it is metadata infrastructure only.

@@ -33,3 +33,5 @@ jobs:
         run: python test_network.py
       - name: Gateway lifecycle and identity
         run: python test_gateway.py
+      - name: v139 HTML patcher structural safeguards
+        run: python test_patch_v139.py
