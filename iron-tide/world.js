@@ -1038,7 +1038,7 @@ m.concrete.onBeforeCompile=shader=>{
 };
 m.concrete.customProgramCacheKey=()=> 'iron-tide-civil-v2';
 // Native industrial kit: batched working-port models and practical lighting.
-const fixturePositions=[];const warmGlow=new T.MeshBasicMaterial({color:0xffc285,toneMapped:false});
+const fixturePositions=[];const warmGlow=new T.MeshBasicMaterial({color:0xffc285,toneMapped:true});warmGlow.color.multiplyScalar(3.6);
 const glowCanvas=document.createElement('canvas');glowCanvas.width=glowCanvas.height=64;const gc=glowCanvas.getContext('2d'),gg=gc.createRadialGradient(32,32,0,32,32,32);gg.addColorStop(0,'rgba(255,165,73,.65)');gg.addColorStop(.35,'rgba(255,132,45,.25)');gg.addColorStop(1,'rgba(255,132,45,0)');gc.fillStyle=gg;gc.fillRect(0,0,64,64);const glowMat=new T.MeshBasicMaterial({map:new T.CanvasTexture(glowCanvas),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,blending:T.AdditiveBlending});const flatGlow=new T.PlaneGeometry(1,1);flatGlow.rotateX(-Math.PI/2);
 function pool(x,y,z,r){
   // On the main apron, light is painted into an irradiance atlas. Keep the
@@ -1139,14 +1139,14 @@ const gantryPaint=m.orange.clone();
  const ctx=c.getContext('2d');ctx.drawImage(source,0,0,512,512);
  const image=ctx.getImageData(0,0,512,512),px=image.data;
  for(let i=0;i<px.length;i+=4){const r=px[i],g=px[i+1],b=px[i+2],lum=(r*.2126+g*.7152+b*.0722-95);
-  px[i]=Math.max(0,Math.min(255,164+lum*.22));px[i+1]=Math.max(0,Math.min(255,76+lum*.18));px[i+2]=Math.max(0,Math.min(255,39+lum*.14))}
+  px[i]=Math.max(0,Math.min(255,150+lum*.48));px[i+1]=Math.max(0,Math.min(255,64+lum*.34));px[i+2]=Math.max(0,Math.min(255,33+lum*.24))}
  ctx.putImageData(image,0,0);
  let wearSeed=19021;const wearRand=()=>{wearSeed=(Math.imul(wearSeed,1664525)+1013904223)>>>0;return wearSeed/4294967296};
  for(let i=0;i<85;i++){const x=wearRand()*512,y=wearRand()*512,w=1+wearRand()*3,h=1+wearRand()*5;ctx.fillStyle='rgba(56,46,40,.68)';ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(198,137,91,.52)';ctx.fillRect(x+w,y,w*.4,h);const len=8+wearRand()*50,g=ctx.createLinearGradient(x,y+h,x,y+h+len);g.addColorStop(0,'rgba(84,35,21,.36)');g.addColorStop(1,'rgba(84,35,21,0)');ctx.fillStyle=g;ctx.fillRect(x,y+h,w*.66,len)}
  const tex=new T.CanvasTexture(c);tex.encoding=T.sRGBEncoding;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
- gantryPaint.map=tex;gantryPaint.roughness=1;gantryPaint.roughnessMap=weatherRoughness(256,256,9137,.71);gantryPaint.metalness=.08;gantryPaint.normalScale=new T.Vector2(.095,.095);gantryPaint.envMapIntensity=.74;
+ gantryPaint.map=tex;gantryPaint.roughness=1;gantryPaint.roughnessMap=weatherRoughness(256,256,9137,.71);gantryPaint.metalness=.08;gantryPaint.normalScale=new T.Vector2(.24,.24);gantryPaint.envMapIntensity=.74;
 }
-weatheredIndustrialPBR(gantryPaint,.66,'gantry-coating');
+weatheredIndustrialPBR(gantryPaint,.94,'gantry-coating');
 define('heavy-gantry-detail',()=>{
  // Paired portal legs with substantial box sections, base bogies and a real trolley walkway.
  for(const x of [-62,62]){for(const z of [-13,13]){
@@ -2515,6 +2515,44 @@ define('stage3-ship-lift-portal',()=>{
   rail(0,H+7.4,z+2.1,127);
  }
  for(const x of [-61,61])box(m.steel,x,H+2,0,2.5,2.5,24);
+ // Full-size access stair towers: staggered flights connect bogie walkways
+ // to the bridge. Treads, stringers and handrails share landings.
+ for(const side of [-1,1]){
+  const legX=y=>side*(58-11*(y-5)/89);
+  for(let k=0;k<11;k++){
+   const ya=5+k*8,yb=ya+8,za=k%2?8:-8,zb=-za;
+   const xa=legX(ya)-side*2.4,xb=legX(yb)-side*2.4;
+   for(let n=0;n<=32;n++){const t=n/32;box(m.steel,xa+(xb-xa)*t,ya+8*t,za+(zb-za)*t,2.05,.13,.52);}
+   for(const dx of [-1.03,1.03]){
+    beam(m.dark,[xa+dx,ya-.18,za],[xb+dx,yb-.18,zb],.23,.32);
+    beam(m.yellow,[xa+dx,ya+1.08,za],[xb+dx,yb+1.08,zb],.095);
+    beam(m.steel,[xa+dx,ya+.52,za],[xb+dx,yb+.52,zb],.08);
+    for(let n=0;n<=8;n++){const t=n/8,x=xa+(xb-xa)*t+dx,y=ya+8*t,z=za+(zb-za)*t;beam(m.yellow,[x,y,z],[x,y+1.08,z],.095);}
+   }
+   box(m.steel,xb,yb,zb,3.1,.24,2.0);
+   beam(m.steel,[xb,yb-.18,zb],[legX(yb),yb-.18,Math.sign(zb)*12*(1-.2*(yb-5)/89)],.35,.38);
+   beam(m.steel,[xb,yb-.18,zb],[legX(yb-2.5),yb-2.5,Math.sign(zb)*12*(1-.2*(yb-7.5)/89)],.23);
+   rail(xb,yb+1.1,zb+Math.sign(zb)*.95,3.0);
+  }
+  const x=side*58;
+  box(gantryPaint,x,4.85,0,7.8,.55,8.4);
+  for(const z of [-4,4])rail(x,6.16,z,7.5);
+  for(const z of [-6.2,6.2]){
+   box(m.dark,x,6.15,z,3.1,2.1,2.1);box(gantryPaint,x,7.28,z,3.35,.17,2.3);
+   for(let d=-1.2;d<=1.2;d+=.30)box(m.steel,x+d,6.3,z+1.11,.10,1.3,.08);
+   beam(m.wire,[x,5.5,z],[x-side*2.6,8.8,z],.14,.14,true);
+  }
+  for(const y of [8,24,40,56,72])for(const z of [-10,10]){
+   const xx=legX(y)-side*3.1;
+   box(m.dark,xx,y+.18,z,.8,.65,.95);box(warmGlow,xx-side*.45,y,z,.11,.42,.74);
+   beam(m.steel,[xx,y+.3,z],[legX(y),y+.3,z],.15);
+  }
+ }
+ // Cable festoons have sagging spans with both ends anchored to the track.
+ for(const z of [-10,10])for(let x=-49;x<46;x+=19){
+  const y=H-4.3;let last=[x,y,z];
+  for(let i=1;i<=14;i++){const t=i/14,next=[x+19*t,y-5.4*4*t*(1-t),z];beam(m.wire,last,next,.10,.10,true);last=next;}
+ }
  // Two independent lift trolleys, clear of the raced-through gantry span.
  for(const x of [-19,26]){
   box(gantryPaint,x,H+8,0,12,4.4,22);
@@ -2864,6 +2902,15 @@ define('stage3-repair-barge',()=>{
  // Stage 3 macro-composition comes BEFORE generic infill: bespoke production
  // buildings and prominent lift equipment take precedence over shed grids.
  // Every terrestrial candidate uses the same land, 3D route, and overlap tests.
+ function registerLiftFixtures(site){
+  const {x,z,angle,scale}=site,c=Math.cos(angle),s=Math.sin(angle);
+  for(const side of [-1,1])for(const y of [8,24,40,56,72])for(const lz of [-10,10]){
+   const lx=side*(58-11*(y-5)/89-3.56),xx=x+scale*(lx*c+lz*s),zz=z+scale*(-lx*s+lz*c);
+   fixturePositions.push([xx,5.25+y*scale,zz]);
+   if(y===8)pool(xx,5.32,zz,12*scale+6);
+  }
+ }
+ if(frontLift)registerLiftFixtures(frontLift);
  const macroSites={assemblyHalls:0,shipLifts:frontLift?1:0,processPlants:0,repairBarges:0};
  const macroEvidence={hall:[],lift:frontLift?[frontLift]:[],plant:[],barge:[]};
  for(const [x,z,a,scale] of [
@@ -2889,7 +2936,7 @@ define('stage3-repair-barge',()=>{
  ]){
   if(macroSites.shipLifts>=2)break;
   if(safe('stage3-ship-lift-portal',x,z,a,scale,'heavy-lifting')){
-   macroSites.shipLifts++;macroEvidence.lift.push({x,z,angle:a,scale});fixturePositions.push([x,5.25+scale*102,z]);pool(x,5.3,z,23);
+   macroSites.shipLifts++;registerLiftFixtures({x,z,angle:a,scale});macroEvidence.lift.push({x,z,angle:a,scale});fixturePositions.push([x,5.25+scale*102,z]);pool(x,5.3,z,23);
   }
  }
  for(const [x,z,a,scale] of [
@@ -3242,7 +3289,7 @@ const filmVertex='varying vec3 vFilm;void main(){vFilm=(modelMatrix*vec4(positio
 const filmNoise='float fh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}';
 function filmMaterial(sea){
  const frag='varying vec3 vFilm;\n'+reflectionCommon+filmNoise+(sea?'uniform float uSeaTime;'+seaWaves:'')+'\nvoid main(){vec3 v=normalize(cameraPosition-vFilm);float f=.025+.975*pow(1.-clamp(v.y,0.,1.),5.);vec2 p=vFilm.xz;float m=fn(p*.044)*.72+fn(p*.20)*.28;vec2 noise=vec2(fn(p*.33),fn(p.yx*.37))-.5;'+
- (sea?'float alpha=clamp(.018+f*.64,0.,.66);vec2 swell=seaSlope(p,uSeaTime);vec4 reflected=portSample(vFilm,noise*.006+swell*.058);float crest=smoothstep(.27,.78,fn(vec2(p.x*.20,p.y*.78))*.64+fn(p*.91)*.36);alpha*=reflected.a*smoothstep(.012,.065,v.y)*mix(.44,1.,crest);vec3 col=reflected.rgb*vec3(.82,.91,.95);float lum=dot(col,vec3(.2126,.7152,.0722));col/=1.+max(0.,lum-.09)*3.4;':'float fine=fn(p*.57);float wet=smoothstep(.45,.63,m*.78+fine*.22);float alpha=wet*clamp(.045+f*.82,0.,.86);vec4 reflected=portSample(vec3(vFilm.x,5.14,vFilm.z),noise*.0018);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.98,.99,.99);')+
+ (sea?'float alpha=clamp(.018+f*.64,0.,.66);vec2 swell=seaSlope(p,uSeaTime);vec4 reflected=portSample(vFilm,noise*.006+swell*.058);float crest=smoothstep(.27,.78,fn(vec2(p.x*.20,p.y*.78))*.64+fn(p*.91)*.36);alpha*=reflected.a*smoothstep(.012,.065,v.y)*mix(.44,1.,crest);vec3 col=reflected.rgb*vec3(.82,.91,.95);float lum=dot(col,vec3(.2126,.7152,.0722));col/=1.+max(0.,lum-.09)*3.4;':'float fine=fn(p*.57);float wet=smoothstep(.45,.63,m*.78+fine*.22);float alpha=wet*clamp(.075+f*.88,0.,.91);vec4 reflected=portSample(vec3(vFilm.x,5.14,vFilm.z),noise*.0018);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.98,.99,.99);')+
  '\ngl_FragColor=vec4(col,alpha);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}';
  return new T.ShaderMaterial({uniforms:{uPortReflection:reflectionPlanes[sea?'sea':'road'].map,uPortProjection:reflectionPlanes[sea?'sea':'road'].projection,uSeaTime:seaTime},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
 }
@@ -3306,7 +3353,7 @@ function updatePractical(camera){
  for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){
   light.position.set(...f.p);const [x,y,z]=f.p,insideHull=Math.abs(x-850)<32&&z>-305&&z<75&&y<15;
   // Tight hull fixtures need less output than tall exterior floodlights.
-  light.intensity=f.gate?2450:insideHull?390:840;light.distance=f.gate?85:insideHull?35:98;light.color.setHex(f.gate?0xff2719:insideHull?0xffaa64:0xffb771);
+  light.intensity=f.gate?2450:insideHull?390:1280;light.distance=f.gate?85:insideHull?35:98;light.color.setHex(f.gate?0xff2719:insideHull?0xffaa64:0xffb771);
  }else light.intensity=0}
 }
 // Localized water-vapor plumes, anchored to actual boiler stack outlets.
