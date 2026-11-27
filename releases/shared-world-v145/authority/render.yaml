@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: redline-shared-authority
+    runtime: docker
+    rootDir: releases/shared-world-v145/authority
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: REDLINE_REQUIRE_AUTH
+        value: '1'
+      - key: SUPABASE_URL
+        value: https://gudzbisvhrvmduvbtcrh.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
