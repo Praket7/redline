@@ -31,7 +31,7 @@ class World{
  for(const [p,c] of active)if(p.finished===null&&c.shield&&this.tick>=p.shieldReady){p.shieldUntil=this.tick+2*HZ;p.shieldReady=this.tick+8*HZ;this.emit('shield',{id:p.id});}
  for(const [p,c] of active)if(p.finished===null)this.combat(p,c);
  // Shared aircraft separation. No client can decide a different outcome.
- const ps=active.map(x=>x[0]);for(let i=0;i<ps.length;i++)for(let j=i+1;j<ps.length;j++){const a=ps[i],b=ps[j],d=sub(pos(a.f),pos(b.f)),n=Math.hypot(...d);if(n<4){if(n<=0.001){d[0]=a.id.localeCompare(b.id)<0?-1:1;n=1;}const k=(4-n)/2/n;for(const [idx,key] of ['x','y','z'].entries()){a.f[key]+=d[idx]*k;b.f[key]-=d[idx]*k;}a.f.speed*=.85;b.f.speed*=.85;}}
+ const ps=active.map(x=>x[0]);for(let i=0;i<ps.length;i++)for(let j=i+1;j<ps.length;j++){const a=ps[i],b=ps[j],d=sub(pos(a.f),pos(b.f));let n=Math.hypot(...d);if(n<4){if(n<=0.001){d[0]=a.id.localeCompare(b.id)<0?-1:1;n=1;}const k=(4-n)/2/n;for(const [idx,key] of ['x','y','z'].entries()){a.f[key]+=d[idx]*k;b.f[key]-=d[idx]*k;}a.f.speed*=.85;b.f.speed*=.85;}}
  }
  snapshot(){return {world:this.id,room:this.room,course:this.course,revision:this.route.revision,collisionVerified:!!this.collider,tick:this.tick,startTick:this.startTick,players:[...this.players.values()].map(p=>({id:p.id,model:p.model,name:p.name,slot:p.slot,p:pos(p.f),yaw:p.f.yaw,pitch:p.f.pitch,roll:p.f.roll,speed:p.f.speed,energy:p.f.energy,v:[p.f.vx,p.f.vy,p.f.vz],turnRate:p.f.turnRate,steerFiltered:p.f.steerFiltered,strafeSpeed:p.f.strafeSpeed,bankVelocity:p.f.bankVelocity,boostLocked:p.f.boostLocked,shield:this.tick<p.shieldUntil,ammo:p.ammo,gates:p.gates,finished:p.finished,ack:p.seq,connected:p.connected})),finish:this.finish,events:this.events};}
 }
