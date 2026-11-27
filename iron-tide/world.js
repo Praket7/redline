@@ -1,0 +1,3508 @@
+/* IRON TIDE independent camera lab; Three r128. Original procedural assets. */
+(async function(){
+'use strict';
+const T=THREE, V=(x,y,z)=>new T.Vector3(x,y,z), layout=window.IRON_TIDE_LAYOUT || await (await fetch('layout.json')).json();
+const scene=new T.Scene();scene.background=new T.Color(0xb1a9a2);scene.fog=new T.FogExp2(0x777f8c,.00012);
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.87;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;document.body.prepend(renderer.domElement);
+const sun=new T.DirectionalLight(0xffa65c,2.45);sun.position.set(-1600,720,800);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-1850,right:1850,top:1850,bottom:-1850,near:10,far:5200});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.00025;sun.shadow.normalBias=1.1;scene.add(sun,new T.HemisphereLight(0x9cb4d4,0x665345,.78));
+// Integrated marine aerosol: a shallow moist boundary layer and weaker
+// far-distance airlight. The built-in scene fog remains the density control.
+// All fog-capable built-in materials (including instancing) share the model.
+const fogVertPars=T.ShaderChunk.fog_pars_vertex,fogFragPars=T.ShaderChunk.fog_pars_fragment;
+T.ShaderChunk.fog_pars_vertex=fogVertPars+'\n#if defined(USE_FOG) && defined(FOG_EXP2)\nvarying vec3 vHarborFogWorld;\n#endif';
+T.ShaderChunk.fog_pars_fragment=fogFragPars+'\n#if defined(USE_FOG) && defined(FOG_EXP2)\nvarying vec3 vHarborFogWorld;\n#endif';
+T.ShaderChunk.fog_vertex=T.ShaderChunk.fog_vertex+'\n#if defined(USE_FOG) && defined(FOG_EXP2)\nvec4 harborFogLocal=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\nharborFogLocal=instanceMatrix*harborFogLocal;\n#endif\nvHarborFogWorld=(modelMatrix*harborFogLocal).xyz;\n#endif';
+T.ShaderChunk.fog_fragment=T.ShaderChunk.fog_fragment.replace('float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDepth * fogDepth );',
+ 'vec3 hfCam=-vec3(dot(viewMatrix[0].xyz,viewMatrix[3].xyz),dot(viewMatrix[1].xyz,viewMatrix[3].xyz),dot(viewMatrix[2].xyz,viewMatrix[3].xyz));float hfLength=length(vHarborFogWorld-hfCam);float hf0=max(hfCam.y,0.0);float hf1=max(vHarborFogWorld.y,0.0);float hfDelta=(hf1-hf0)/65.0;float hfIntegral=abs(hfDelta)<0.001?exp(-hf0/65.0):(exp(-hf0/65.0)-exp(-hf1/65.0))/hfDelta;float fogFactor=1.0-exp(-fogDensity*hfLength*(0.62+3.85*hfIntegral));');
+let seed=89423;function rnd(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
+function texture(base,kind){
+ const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,256,256);
+ for(let i=0;i<9000;i++){const a=rnd()*.15;ctx.fillStyle=rnd()>.5?'rgba(255,255,255,'+a+')':'rgba(0,0,0,'+a+')';ctx.fillRect(rnd()*256,rnd()*256,1+rnd()*5,1+rnd()*5)}
+ if(kind==='steel'){for(let i=0;i<180;i++){ctx.fillStyle='rgba(74,36,19,'+(rnd()*.24)+')';ctx.fillRect(rnd()*256,rnd()*256,1+rnd()*3,4+rnd()*50)}}
+ if(kind==='concrete'){ctx.strokeStyle='#18191b38';for(let i=0;i<12;i++){let x=rnd()*256,y=rnd()*256;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+10,y+23);ctx.lineTo(x+8,y+45);ctx.stroke()}}
+ const surfaceSeed=seed;for(let i=0;i<120;i++){const x=rnd()*256,y=rnd()*256,r=4+rnd()*48,g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,kind==='steel'?'rgba(73,28,12,.30)':'rgba(9,15,22,.32)');g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2)}seed=surfaceSeed;
+ const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return t
+}
+function relief(kind){const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');const im=ctx.createImageData(128,128);for(let i=0;i<im.data.length;i+=4){const v=Math.floor(110+rnd()*65);im.data[i]=im.data[i+1]=im.data[i+2]=v;im.data[i+3]=255}ctx.putImageData(im,0,0);ctx.strokeStyle='#666';for(let i=0;i<45;i++){let x=rnd()*128,y=rnd()*128;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+rnd()*6,y+8+rnd()*35);ctx.stroke()}const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;return t}
+function normalFromHeight(height,strength){const src=height.image,n=src.width,p=src.getContext('2d').getImageData(0,0,n,n).data,c=document.createElement('canvas');c.width=c.height=n;const ctx=c.getContext('2d'),im=ctx.createImageData(n,n),get=(x,y)=>p[(((y+n)%n)*n+(x+n)%n)*4]/255;for(let y=0;y<n;y++)for(let x=0;x<n;x++){const dx=(get(x-1,y)-get(x+1,y))*strength,dy=(get(x,y+1)-get(x,y-1))*strength,len=Math.hypot(dx,dy,1),i=(y*n+x)*4;im.data[i]=(dx/len*.5+.5)*255;im.data[i+1]=(dy/len*.5+.5)*255;im.data[i+2]=(1/len*.5+.5)*255;im.data[i+3]=255}ctx.putImageData(im,0,0);const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;return t}
+const material=(color,metalness,roughness,kind)=>{const r=relief(kind);return new T.MeshStandardMaterial({color:0xffffff,map:texture(color,kind),metalness,roughness,roughnessMap:r,normalMap:normalFromHeight(r,kind==='steel'?.65:1),normalScale:new T.Vector2(.7,.7)})};
+const m={concrete:material('#625d57',0,.71,'concrete'),road:material('#55575a',0,.58,'concrete'),rust:material('#945641',.32,.71,'steel'),orange:material('#cb7b37',.25,.59,'steel'),steel:material('#818d95',.55,.51,'steel'),dark:material('#343c3d',.45,.74,'steel'),blue:material('#365a68',.45,.65,'steel'),green:material('#566355',.4,.7,'steel'),white:material('#b5b5a9',.3,.63,'steel'),rubber:new T.MeshStandardMaterial({color:0x202527,roughness:.9}),yellow:new T.MeshStandardMaterial({color:0xdba448,roughness:.65}),glass:new T.MeshStandardMaterial({color:0x365464,metalness:.4,roughness:.22}),light:new T.MeshStandardMaterial({color:0xffc78b,emissive:0xffa34a,emissiveIntensity:2}),red:new T.MeshStandardMaterial({color:0xff5350,emissive:0xff302b,emissiveIntensity:2})};
+// Photographic CC0 maps, packed as data URIs at build time. Use CanvasTexture so
+// GLTFExporter serializes the same maps; no runtime network requests.
+m.door=material('#52616a',.18,.78,'steel');m.roof=material('#64686b',.36,.76,'steel');
+const texturePack=window.IRON_TIDE_TEXTURES||{},loadedMaterials=[];
+async function photoMap(uri,srgb){const im=new Image();await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=()=>reject(Error('packed texture could not decode'));im.src=uri});const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());if(srgb)t.encoding=T.sRGBEncoding;return t}
+for(const [key,mat] of [['concrete',m.concrete],['asphalt',m.road],['rust',m.rust],['paint',m.orange],['steel',m.steel],['door',m.door],['roof',m.roof]]){const pack=texturePack[key];if(!pack)continue;const [diff,nor,rough]=await Promise.all([photoMap(pack.diff,true),photoMap(pack.nor_gl,false),photoMap(pack.rough,false)]);mat.map.dispose();mat.normalMap.dispose();mat.roughnessMap.dispose();mat.map=diff;mat.normalMap=nor;mat.roughnessMap=rough;mat.normalScale.set(.55,.55);mat.roughness=1;mat.needsUpdate=true;loadedMaterials.push(key)}
+// Preserve photographic structure while grade-matching the red oxide, painted
+// steel and rain-darkened asphalt palette. Paint/corrosion is not bare metal.
+if(loadedMaterials.includes('asphalt'))m.road.color.setHex(0x92918b);
+if(loadedMaterials.includes('concrete'))m.concrete.color.setHex(0xbab1a5);
+if(loadedMaterials.includes('rust'))m.rust.color.setHex(0xc27d51);
+if(loadedMaterials.includes('paint'))m.orange.color.setHex(0xedaa69);
+if(loadedMaterials.includes('steel'))m.steel.color.setHex(0xb4b9b8);
+for(const mat of Object.values(m))if(mat.isMeshStandardMaterial)mat.envMapIntensity=.72;
+// Rebuild the albedo for intact paint over worn steel using the photographic map
+// as a corrosion mask, rather than making every crane and container entirely rust.
+function coat(mat,hex,wear){const src=mat.map.image;const c=document.createElement('canvas');c.width=c.height=Math.min(1024,src.width);const ctx=c.getContext('2d');ctx.drawImage(src,0,0,c.width,c.height);const image=ctx.getImageData(0,0,c.width,c.height),rgb=[(hex>>16)&255,(hex>>8)&255,hex&255];
+ const W=c.width;for(let y=0;y<W;y++)for(let x=0;x<W;x++){const i=(y*W+x)*4,r=image.data[i],g=image.data[i+1],b=image.data[i+2],lum=(r+g+b)/765;
+ const oxide=T.MathUtils.clamp((r-b)/90+.18,0,1),patch=smoothCoat(x/W,y/W),exposed=Math.min(.83,wear*(.12+oxide*.68)*patch);
+ const shade=.77+.37*lum;for(let k=0;k<3;k++){const base=rgb[k]*shade,metal=[r,g,b][k]*.77;image.data[i+k]=Math.round(base*(1-exposed)+metal*exposed)}}
+ ctx.putImageData(image,0,0);const map=new T.CanvasTexture(c);map.wrapS=map.wrapT=T.RepeatWrapping;map.encoding=T.sRGBEncoding;map.anisotropy=mat.map.anisotropy;mat.map=map;mat.color.setHex(0xffffff);mat.metalness=.07;mat.roughness=.78;mat.normalScale.set(.28,.28);mat.needsUpdate=true}
+function smoothCoat(x,y){const v=.5+.25*Math.sin(x*31.416+Math.sin(y*12.566)*1.8)+.15*Math.cos(y*25.133+Math.sin(x*18.85));return T.MathUtils.clamp(v,0,1)}
+coat(m.orange,0xc96a2c,.63);coat(m.blue,0x3f6170,.45);coat(m.green,0x586d58,.39);coat(m.white,0xb9b5a5,.36);
+ // Painted machinery is not bare, uniformly corroded steel. Preserve subtle
+ // real photographic wear while using a much lower normal amplitude.
+ if(loadedMaterials.includes('steel')){m.dark.map=m.steel.map;m.dark.normalMap=m.steel.normalMap;m.dark.roughnessMap=m.steel.roughnessMap;}
+ coat(m.dark,0x3d4448,.28);m.dark.metalness=.15;m.dark.roughness=.95;m.dark.normalScale.set(.16,.16);
+ // Keep painted shutters and galvanized roof panels distinct from severe rust.
+ if(loadedMaterials.includes('door')){m.door.color.setHex(0xc9d0d2);m.door.normalScale.set(.18,.18);m.door.metalness=.12;m.door.roughness=.88;}else{coat(m.door,0x586369,.12);m.door.normalScale.set(.12,.12);}
+ if(loadedMaterials.includes('roof')){m.roof.color.setHex(0x888c8b);m.roof.normalScale.set(.25,.25);m.roof.metalness=.32;m.roof.roughness=.88;}
+ coat(m.steel,0x777f80,.19);m.steel.metalness=.42;m.steel.roughness=.86;m.steel.normalScale.set(.18,.18);
+ m.glass.color.setHex(0x182a35);m.glass.metalness=.0;m.glass.roughness=.33;m.glass.envMapIntensity=.42;
+ m.wire=new T.MeshStandardMaterial({color:0x535960,metalness:.72,roughness:.43,envMapIntensity:.85});
+
+// World-metre corrosion and protective-coating roughness: the generator keeps
+// photographed tileable PBR inputs, while broad salt spray, rust runs and weld
+// heat discoloration are determined by actual world orientation/height.
+// No textures are reinterpreted as physically metallic when painted.
+function weatheredIndustrialPBR(mat,amount,key){
+ const previous=mat.onBeforeCompile;
+ mat.onBeforeCompile=shader=>{
+  if(previous)previous(shader);
+  shader.uniforms.uIndustrialWear={value:amount};
+  shader.vertexShader=shader.vertexShader
+   .replace('#include <common>','#include <common>\nvarying vec3 vIndustrialWorld;')
+   .replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 industrialP=vec4(transformed,1.);\n#ifdef USE_INSTANCING\nindustrialP=instanceMatrix*industrialP;\n#endif\nvIndustrialWorld=(modelMatrix*industrialP).xyz;');
+  shader.fragmentShader=shader.fragmentShader
+   .replace('#include <common>','#include <common>\nvarying vec3 vIndustrialWorld;\nuniform float uIndustrialWear;\nfloat iHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}\nfloat iNoise(vec2 p){vec2 k=floor(p),q=fract(p);q=q*q*(3.-2.*q);return mix(mix(iHash(k),iHash(k+vec2(1.,0.)),q.x),mix(iHash(k+vec2(0.,1.)),iHash(k+vec2(1.,1.)),q.x),q.y);}')
+   .replace('#include <color_fragment>','#include <color_fragment>\nvec3 iN=normalize(cross(dFdx(vIndustrialWorld),dFdy(vIndustrialWorld)));float iVertical=1.-abs(iN.y);float iCoast=iNoise(vIndustrialWorld.xz*.037)*.65+iNoise(vIndustrialWorld.xz*.19)*.35;float iRunoff=smoothstep(.66,.88,iNoise(vIndustrialWorld.xz*.23+.13))*iVertical*(1.-smoothstep(2.,43.,vIndustrialWorld.y));float iCorrosion=clamp((smoothstep(.59,.88,iCoast)*.65+iRunoff*.85)*uIndustrialWear,0.,.84);float iSoot=smoothstep(.55,.86,iNoise(vIndustrialWorld.xz*.11+vIndustrialWorld.yy*.028))*iVertical*uIndustrialWear*.32;diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.26,.085,.042),iCorrosion*.52);diffuseColor.rgb*=1.-iSoot;')
+   .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.95,iCorrosion*.44);');
+ };
+ mat.customProgramCacheKey=()=> 'iron3-weather-'+key;
+}
+for(const [mat,weight,key] of [[m.orange,.45,'crane'],[m.blue,.35,'blue'],[m.green,.35,'green'],[m.white,.22,'white'],[m.dark,.33,'coated-steel'],[m.door,.23,'shutters'],[m.roof,.16,'roof']]){
+ weatheredIndustrialPBR(mat,weight,key);
+}
+
+// World ground maps tile at approximately industrial pavement scale instead of stretching.
+for(const mat of [m.road,m.concrete]){mat.map.repeat.set(mat===m.road?12:1,mat===m.road?12:1);mat.normalMap.repeat.copy(mat.map.repeat);mat.roughnessMap.repeat.copy(mat.map.repeat);mat.normalScale.set(.2,.2)}
+const asphalt=new T.MeshStandardMaterial({color:0x393b3d,roughness:.86});const apron=new T.MeshStandardMaterial({color:0x464744,roughness:.88});const tar=new T.MeshStandardMaterial({color:0x282b2b,roughness:.9});
+const env=document.createElement('canvas');env.width=512;env.height=256;const e=env.getContext('2d'),grad=e.createLinearGradient(0,0,0,256);grad.addColorStop(0,'#182a49');grad.addColorStop(.45,'#af8677');grad.addColorStop(.52,'#f0ad76');grad.addColorStop(.65,'#4b4b56');grad.addColorStop(1,'#171b23');e.fillStyle=grad;e.fillRect(0,0,512,256);
+// Layered seeded cloud silhouettes in the same equirectangular sky used for reflections.
+for(let layer=0;layer<3;layer++)for(let i=0;i<85;i++){const x=rnd()*512,y=45+rnd()*65,rx=8+rnd()*32,ry=2+rnd()*8;e.fillStyle=layer===0?'rgba(28,36,57,.32)':layer===1?'rgba(72,70,91,.28)':'rgba(248,161,102,.18)';e.beginPath();e.ellipse(x,y,rx,ry,0,0,Math.PI*2);e.fill()}
+let glow=e.createRadialGradient(120,95,1,120,95,60);glow.addColorStop(0,'#fff3d2');glow.addColorStop(1,'#fff3d200');e.fillStyle=glow;e.fillRect(0,0,512,256);// Fractal cloud opacity painted onto the equirectangular sky (not screen-space art).
+const skySeed=seed, cloudNoise=(x,y)=>{const k=Math.sin(x*127.1+y*311.7)*43758.5453123;return k-Math.floor(k)};
+function smoothNoise(x,y){let i=Math.floor(x),j=Math.floor(y),u=x-i,v=y-j;u=u*u*(3-2*u);v=v*v*(3-2*v);const a=cloudNoise(i,j),b=cloudNoise(i+1,j),c=cloudNoise(i,j+1),d=cloudNoise(i+1,j+1);return (a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v}
+const skyPixels=e.getImageData(0,0,512,256);
+for(let y=12;y<128;y++)for(let x=0;x<512;x++){let u=x/512*7,v=y/256*10,n=0,a=.5;for(let o=0;o<5;o++){n+=a*smoothNoise(u,v);u*=2;v*=2;a*=.5}const opacity=T.MathUtils.clamp((n-.36)*1.8,0,.65)*Math.sin(y/128*Math.PI),i=(y*512+x)*4;const edge=T.MathUtils.clamp((y-65)/55,0,1),cloud=[38+edge*100,47+edge*39,65+edge*20];for(let k=0;k<3;k++)skyPixels.data[i+k]=skyPixels.data[i+k]*(1-opacity)+cloud[k]*opacity}
+e.putImageData(skyPixels,0,0);seed=skySeed;
+let envTex=new T.CanvasTexture(env),skySource='procedural';envTex.mapping=T.EquirectangularReflectionMapping;envTex.encoding=T.sRGBEncoding;
+if(texturePack.sky?.hdr&&T.RGBELoader){const sky=new T.RGBELoader().setDataType(T.FloatType);envTex=await sky.loadAsync(texturePack.sky.hdr);const pixels=envTex.image.data,stride=pixels.length/(envTex.image.width*envTex.image.height);if(stride!==3&&stride!==4)throw Error('Unexpected HDR pixel stride '+stride);// Locate the brightest compact source in the original linear HDR image.
+ // RGBELoader r128 flips Y on upload; equirectUv uses atan(z,x) and asin(y).
+ // A small elevation floor stabilizes the kilometre-scale shadow projection.
+ let peak=-Infinity,peakIndex=0,average=0;
+ for(let i=0;i<pixels.length;i+=stride){const lum=.2126*pixels[i]+.7152*pixels[i+1]+.0722*pixels[i+2];average+=lum;if(lum>peak){peak=lum;peakIndex=i/stride}}
+ average/=pixels.length/stride;
+ if(peak>Math.max(30,average*30)){
+  const w=envTex.image.width,h=envTex.image.height;
+  // Align the coastal sunset to the launch quay's northwest vista.
+  const oldPhi=((peakIndex%w+.5)/w-.5)*Math.PI*2,targetPhi=-2.12;
+  const shift=((Math.round((targetPhi-oldPhi)*w/(Math.PI*2))%w)+w)%w;
+  if(shift){const row=w*stride,temp=new pixels.constructor(row);for(let y=0;y<h;y++){const off=y*row;temp.set(pixels.subarray(off,off+row));pixels.set(temp.subarray((w-shift)*stride),off);pixels.set(temp.subarray(0,(w-shift)*stride),off+shift*stride)}}
+  peakIndex=Math.floor(peakIndex/w)*w+(peakIndex%w+shift)%w;
+  const phi=((peakIndex%w+.5)/w-.5)*Math.PI*2;
+  const oldElev=(.5-(Math.floor(peakIndex/w)+.5)/h)*Math.PI,elev=.168;
+  // Rotate the captured environment about its local horizontal tangent.
+  // This retains photographed cloud radiance and moves the solar disk and
+  // directional light together above the near mountain skyline.
+  const delta=elev-oldElev,ax=-Math.sin(phi),az=Math.cos(phi),cs=Math.cos(-delta),sn=Math.sin(-delta),src=pixels.slice();
+  for(let yy=0;yy<h;yy++){
+   const el=(.5-(yy+.5)/h)*Math.PI,cy=Math.cos(el),vy=Math.sin(el);
+   for(let xx=0;xx<w;xx++){
+    const ph=((xx+.5)/w-.5)*Math.PI*2,vx=Math.cos(ph)*cy,vz=Math.sin(ph)*cy,dot=ax*vx+az*vz;
+    const rx=vx*cs-az*vy*sn+ax*dot*(1-cs),ry=vy*cs+(az*vx-ax*vz)*sn,rz=vz*cs+ax*vy*sn+az*dot*(1-cs);
+    const u=(Math.atan2(rz,rx)/(2*Math.PI)+.5)*w-.5,v=(.5-Math.asin(T.MathUtils.clamp(ry,-1,1))/Math.PI)*h-.5;
+    const ix=Math.floor(u),iy=Math.floor(v),fx=u-ix,fy=v-iy;
+    const p00=(T.MathUtils.clamp(iy,0,h-1)*w+(ix+w)%w)*stride,p01=(T.MathUtils.clamp(iy,0,h-1)*w+(ix+1+w)%w)*stride;
+    const p10=(T.MathUtils.clamp(iy+1,0,h-1)*w+(ix+w)%w)*stride,p11=(T.MathUtils.clamp(iy+1,0,h-1)*w+(ix+1+w)%w)*stride;
+    const dst=(yy*w+xx)*stride;
+    for(let k=0;k<stride;k++)pixels[dst+k]=(src[p00+k]*(1-fx)+src[p01+k]*fx)*(1-fy)+(src[p10+k]*(1-fx)+src[p11+k]*fx)*fy;
+   }
+  }
+  sun.position.set(Math.cos(phi)*Math.cos(elev),Math.sin(elev),Math.sin(phi)*Math.cos(elev)).multiplyScalar(2300);
+  sun.intensity=3.55;sun.color.setHex(0xffb071);sun.shadow.normalBias=.55;
+ }
+ // Modulate the photographed HDR radiance with a periodic, world-direction
+ // cloud layer. Preserve the solar disk and its matching directional light.
+ const sw=envTex.image.width,sh=envTex.image.height,solar=sun.position.clone().normalize();
+ for(let yy=0;yy<sh;yy++){
+  const el=(.5-(yy+.5)/sh)*Math.PI,sy=Math.sin(el),cy=Math.cos(el);
+  for(let xx=0;xx<sw;xx++){
+   const i=(yy*sw+xx)*stride,ph=((xx+.5)/sw-.5)*Math.PI*2,sx=Math.cos(ph)*cy,sz=Math.sin(ph)*cy;
+   const lit=Math.max(0,sx*solar.x+sy*solar.y+sz*solar.z),disk=Math.pow(lit,1350);
+   const u=sx/(Math.max(.12,sy)+.33)*3.5+19,v=sz/(Math.max(.12,sy)+.33)*3.5-7;
+   let n=0,a=.53,f=1;for(let k=0;k<5;k++){n+=a*smoothNoise(u*f,v*f);f*=2.07;a*=.51;}
+   const cover=T.MathUtils.smoothstep(n,.37,.68)*T.MathUtils.smoothstep(sy,.015,.18)*(1-disk);
+   const opacity=.46*cover,edge=Math.max(0,1-Math.abs(n-.44)*9)*cover*Math.pow(lit,5);
+   pixels[i]=pixels[i]*(1-opacity*.83)+edge*.20;pixels[i+1]=pixels[i+1]*(1-opacity*.93)+edge*.16;pixels[i+2]=pixels[i+2]*(1-opacity*.70)+edge*.10;
+   pixels[i]*=.31;pixels[i+1]*=.27;pixels[i+2]*=.25;
+  }
+ }envTex.needsUpdate=true;envTex.mapping=T.EquirectangularReflectionMapping;skySource='industrial_sunset_02_puresky';}
+const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(envTex).texture;scene.background=envTex;pmrem.dispose();
+const boxGeo=new T.BoxGeometry(1,1,1),cylGeo=new T.CylinderGeometry(1,1,1,12),sphereGeo=new T.SphereGeometry(1,12,8);const q=new T.Quaternion(),up=V(0,1,0);
+const templates={},placementBounds=new Map(),placedSites=[];let target=null;const batches=new Map();
+const shellAudits={};
+function auditShells(name,parts){
+ const groups=new Map(),v=V(0,0,0);
+ for(const mesh of parts){
+  const tag=mesh.geometry.userData.structuralShell;if(!tag)continue;
+  if(!groups.has(tag))groups.set(tag,{edges:new Map(),faces:0,degenerate:0});
+  const g=groups.get(tag),p=mesh.geometry.attributes.position,index=mesh.geometry.index;
+  const ids=[];for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).applyMatrix4(mesh.matrix);ids.push([v.x,v.y,v.z].map(x=>Math.round(x*1e5)).join(','))}
+  for(let i=0;i<(index?index.count:p.count);i+=3){
+   const a=ids[index?index.getX(i):i],b=ids[index?index.getX(i+1):i+1],c=ids[index?index.getX(i+2):i+2];
+   g.faces++;if(a===b||b===c||a===c){g.degenerate++;continue}
+   for(const [x,y] of [[a,b],[b,c],[c,a]]){
+    const forward=x<y,key=forward?x+'|'+y:y+'|'+x,e=g.edges.get(key)||[0,0];e[0]++;e[1]+=forward?1:-1;g.edges.set(key,e);
+   }
+  }
+ }
+ if(groups.size){
+  shellAudits[name]={};for(const [tag,g] of groups){const es=[...g.edges.values()];shellAudits[name][tag]={faces:g.faces,degenerate:g.degenerate,boundaryEdges:es.filter(e=>e[0]===1).length,nonmanifoldEdges:es.filter(e=>e[0]>2).length,windingConflicts:es.filter(e=>e[0]===2&&e[1]!==0).length}}
+ }
+}
+
+function part(g,mat,x,y,z,sx,sy,sz,rot){const mesh=new T.Mesh(g,mat);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);if(rot)mesh.quaternion.copy(rot);mesh.updateMatrix();if(target){target.push(mesh)}else{const key=g.uuid+mat.uuid;if(!batches.has(key))batches.set(key,{g,mat,matrices:[]});batches.get(key).matrices.push(mesh.matrix.clone())}return mesh}
+const box=(mat,x,y,z,w,h,d)=>part(boxGeo,mat,x,y,z,w,h,d);
+const cylinder=(mat,x,y,z,r,h)=>part(cylGeo,mat,x,y,z,r,h,r);
+function beam(mat,a,b,w,d=w,round=false){const p=V(...a),r=V(...b),delta=r.clone().sub(p);q.setFromUnitVectors(up,delta.clone().normalize());const c=p.add(r).multiplyScalar(.5);return part(round?cylGeo:boxGeo,mat,c.x,c.y,c.z,w,delta.length(),d,q)}
+function rail(x,y,z,length,axis='x'){const a=axis==='x'?[x-length/2,y,z]:[x,y,z-length/2],b=axis==='x'?[x+length/2,y,z]:[x,y,z+length/2];beam(m.yellow,a,b,.11);for(let i=0;i<=Math.ceil(length/4);i++){const t=i/Math.ceil(length/4),p=a.map((v,j)=>v+(b[j]-v)*t);beam(m.yellow,[p[0],y-1,p[2]],p,.10)}}
+
+// Stage 3 architectural grammar: shared structural design rules, not arbitrary
+// bolt scattering. Dimensions describe actual kit envelopes in metres. All
+// additions are attached to walls, roof structure, or foundations and are
+// baked into the same GLB source as the underlying industrial building.
+const architectureSpec={
+ 'warehouse':{w:112,d:160,h:49,pitch:12,open:true,seed:1},
+ 'cargo-shed':{w:65,d:100,h:24,pitch:5.8,seed:2},
+ 'plate-processing-hall':{w:76,d:116,h:28,pitch:6,seed:3},
+ 'coating-shop':{w:74,d:100,h:26,pitch:0,seed:4},
+ 'outfit-workshop':{w:62,d:88,h:19,pitch:0,seed:5},
+ 'stage3-boiler-house':{w:46,d:56,h:24,pitch:0,seed:6},
+ 'stage3-outfitting-annex':{w:64,d:38,h:19,pitch:0,seed:7}
+};
+function enrichBuildingArchitecture(name){
+ const a=architectureSpec[name];if(!a||name==='outfit-workshop'||name==='stage3-outfitting-annex'||name==='stage3-boiler-house')return;
+ const {w,d,h,pitch,open,seed:style}=a,wet=m.dark,frame=m.steel,paint=m.door,roof=m.roof;
+ // Two different facade languages. Loading entrances are recessed into the
+ // existing shells; secondary structure projects only fractions of a metre.
+ for(const side of [-1,1]){
+  const x=side*(w*.5+.15);
+  for(let z=-d*.5+7;z<d*.5-5;z+=style%2?15:19){
+   const z2=Math.min(d*.5-2,z+12),height=h*.73;
+   box(frame,x,height*.5,z,.25,height,.34);
+   box(wet,x+side*.19,height*.57,z2,.14,2.3,5.1);
+   box(m.glass,x+side*.30,height*.60,z2,.12,1.60,4.35);
+   for(const offset of [-2.12,2.12])box(frame,x+side*.39,height*.60,z2+offset,.12,1.75,.14);
+   box(frame,x+side*.4,height*.60,z2, .12,.12,4.48);
+   // Roof gutter, clear drops and concrete splash shoes share connections.
+   const eave=h+(pitch? .15:0);
+   if(Math.abs(z+ d*.5-7)<.01||Math.abs(z-(d*.5-7))<10){
+    beam(wet,[x+side*.45,eave,z],[x+side*.45,.62,z],.20,.20,true);
+    box(frame,x+side*.45,.52,z,.65,.6,.6);
+    box(frame,x+side*.45,eave,z,.55,.5,.7);
+   }
+  }
+  // Substantial horizontal girts and braced portal bays stop the wall looking
+  // like a single texture-mapped rectangle.
+  for(const y of [h*.16,h*.45,h*.76])box(frame,x,y,0,.32,.23,d-3);
+  for(const z of [-d*.37,d*.37]){
+   beam(frame,[x,h*.15,z-5],[x,h*.72,z+5],.20);
+   box(wet,x,h*.12,z,1.25,.8,1.3);
+  }
+ }
+ if(!open){
+  for(const side of [-1,1]){
+   const z=side*(d*.5+.22);
+   const rows=style%2?[-w*.24,w*.24]:[-w*.30,0,w*.30];
+   for(const x of rows){
+    // Door frames and awning trusses have real side brackets.
+    box(wet,x,5.5,z,Math.min(12,w/4),10.2,.27);
+    box(paint,x,5.25,z+side*.18,Math.min(11.5,w/4-.5),9.7,.11);
+    for(let y=1.5;y<10;y+=.78)box(frame,x,y,z+side*.29,Math.min(11,w/4-1),.07,.10);
+    const canopyZ=z+side*2.7;
+    box(roof,x,12.1,canopyZ,Math.min(13,w/3),.25,5.7);
+    for(const dx of [-5.3,5.3]){
+     if(Math.abs(x+dx)>w*.5-1)continue;
+     beam(frame,[x+dx,10.1,z],[x+dx,12.1,canopyZ+side*1.9],.17);
+    }
+    box(m.light,x,11.65,z+side*1.4,1.4,.23,.42);
+   }
+  }
+ }
+ // Long continuous ridge daylighting and roof-mounted service modules have
+ // explicit supporting curb/flashing, glazing and linked ventilation ducts.
+ if(pitch){
+  for(const z of [-d*.25,d*.18]){
+   const len=Math.min(d*.28,42);
+   box(wet,0,h+pitch+.3,z,8,.65,len);
+   for(const side of [-1,1]){
+    box(m.glass,side*3.85,h+pitch+2.5,z,.16,3.5,len-.8);
+    for(let zz=z-len/2+2;zz<z+len/2;zz+=4.8)box(frame,side*4.05,h+pitch+2.45,zz,.17,3.7,.23);
+   }
+   box(roof,0,h+pitch+4.4,z,9.2,.3,len+.6);
+   for(const x of [-3,3])for(const zz of [z-len*.46,z+len*.46])box(frame,x,h+pitch+.7,zz,.28,.65,.32);
+  }
+ }else{
+  // Flat-roof variants break up one level with two asymmetric superstructures.
+  for(const [x,z,xx,dd,hh] of [[-w*.19,-d*.17,w*.25,d*.22,4.6],[w*.21,d*.23,w*.19,d*.15,2.9]]){
+   box(wet,x,h+.28,z,xx+1,.55,dd+1);
+   box(roof,x,h+hh,z,xx,.35,dd);
+   for(const side of [-1,1]){
+    box(paint,x,h+hh*.51,z+side*dd/2,xx,hh-.35,.26);
+    for(let dx=-xx*.4;dx<xx*.4;dx+=1.15)box(frame,x+dx,h+hh*.51,z+side*(dd/2+.16),.09,hh-.7,.10);
+   }
+   for(const dx of [-xx*.43,xx*.43])for(const zz of [-dd*.42,dd*.42])box(frame,x+dx,h+hh*.5,z+zz,.24,hh,.24);
+  }
+ }
+ // Roof maintenance paths, drainage sumps and staggered mechanical cabinets.
+ for(let j=0;j<3;j++){
+  const z=-d*.27+j*d*.21,x=(j%2?-.25:.22)*w;
+  const roofY=h+(pitch?(pitch*(1-Math.abs(x)/(w*.5))):0);
+  box(frame,x,roofY+.35,z,5.2,.24,3.4);
+  box(wet,x,roofY+1.15,z,4,1.4,2.8);
+  for(const off of [-1.6,1.6])box(paint,x+off,roofY+1.2,z+1.5,.55,1.15,.10);
+  for(let zz=z-1.0;zz<=z+1.0;zz+=.55)box(frame,x,roofY+1.96,zz,4.2,.09,.17);
+  for(const dx of [-2.2,2.2])beam(frame,[x+dx,roofY+.26,z],[x+dx,roofY+.8,z],.18);
+ }
+}
+
+function define(name,fn){target=[];fn();enrichBuildingArchitecture(name);auditShells(name,target);const groups=new Map();for(const mesh of target){let g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();g.applyMatrix4(mesh.matrix);if(mesh.material.map&&!mesh.geometry.userData.keepUV){const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));if(ny>=nx&&ny>=nz)uv.setXY(i,x/4,z/4);else if(nx>=nz)uv.setXY(i,z/4,y/4);else uv.setXY(i,x/4,y/4)}}if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(g)}const group=new T.Group();group.name=name;for(const [mat,geos] of groups){const merged=T.BufferGeometryUtils.mergeBufferGeometries(geos);if(!merged)throw Error('merge failed '+name);const indexed=T.BufferGeometryUtils.mergeVertices(merged,0.0001);group.add(new T.Mesh(indexed,mat));merged.dispose();geos.forEach(g=>g.dispose())}templates[name]=group;placementBounds.set(name,new T.Box3().setFromObject(group));target=null;}
+// Container stack support footprints: all tiers must be aligned and consecutive.
+const containerSlots=[],stackIndex=new Map(),containerChunks=new Map(),containerLOD=[];
+function reserveContainer(x,y,z,angle,scale){
+ const a=Math.abs(Math.cos(angle)),b=Math.abs(Math.sin(angle)),hx=(6.15*a+1.27*b)*scale,hz=(6.15*b+1.27*a)*scale;
+ const key=[x.toFixed(3),z.toFixed(3),hx.toFixed(3),hz.toFixed(3)].join(':');
+ const stack=stackIndex.get(key);
+ if(stack){if(Math.abs(y-stack.next)>.08)return false;stack.next=y+2.94*scale;return true}
+ if(y>5.65)return false;
+ for(const q of containerSlots)if(Math.abs(x-q.x)<hx+q.hx+.06&&Math.abs(z-q.z)<hz+q.hz+.06)return false;
+ const q={x,z,hx,hz,next:y+2.94*scale};containerSlots.push(q);stackIndex.set(key,q);return true
+}
+function place(name,x,y,z,angle=0,scale=1){if(name.startsWith('container-')&&!reserveContainer(x,y,z,angle,scale))return false;const group=templates[name];const root=new T.Object3D();root.position.set(x,y,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();if(name.startsWith('container-')){const requested=name.split('-').pop(),stack=containerSlots.find(q=>Math.abs(q.x-x)<.001&&Math.abs(q.z-z)<.001),col=stack?(stack.livery||(stack.livery=requested)):requested,key=[Math.floor(x/600),Math.floor(z/600),col].join(':');if(!containerChunks.has(key))containerChunks.set(key,{col,matrices:[],bounds:new T.Box3()});const chunk=containerChunks.get(key);chunk.matrices.push(root.matrix.clone());chunk.bounds.expandByPoint(V(x-7,y,z-7));chunk.bounds.expandByPoint(V(x+7,y+3,z+7));return true}const placementBox=placementBounds.get(name).clone().applyMatrix4(root.matrix);placedSites.push(placementBox);for(const mesh of group.children){let key=mesh.geometry.uuid+mesh.material.uuid;if(!batches.has(key))batches.set(key,{g:mesh.geometry,mat:mesh.material,matrices:[]});batches.get(key).matrices.push(root.matrix.clone())}}
+// Dedicated cargo paint and UV atlas: localized chipping, runoff and scale markings.
+// A paint-wear roughness atlas is separate from the visible color atlas.
+ // Painted sheet is dielectric; the existing photographic normal map contributes
+ // restrained micro-relief, not oversized corrugation displacement.
+ function weatherRoughness(w,h,seed,base=.64){
+  const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');
+  const v=Math.round(base*255);ctx.fillStyle='rgb('+v+','+v+','+v+')';ctx.fillRect(0,0,w,h);
+  let sd=seed;const random=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
+  for(let i=0;i<1600;i++){const x=random()*w,y=random()*h,val=Math.floor(135+random()*95);ctx.fillStyle='rgba('+val+','+val+','+val+',.22)';ctx.fillRect(x,y,1+random()*w*.025,1+random()*h*.08)}
+  const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,'rgba(230,230,230,.18)');g.addColorStop(.20,'rgba(230,230,230,0)');g.addColorStop(.82,'rgba(235,235,235,0)');g.addColorStop(1,'rgba(235,235,235,.42)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return t
+ }
+ const cargoSkin={},cargoSide={};
+for(const [col,base,label] of [['rust','#703e34','IRON TIDE'],['blue','#344b55','NORTHLINE'],['green','#50584a','HARBOR'],['white','#878578','COASTAL']]){
+ const c=document.createElement('canvas');c.width=1024;c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,1024,256);
+ let sd=col.charCodeAt(0)*7919;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
+ for(let i=0;i<4400;i++){const x=rand()*1024,y=rand()*256;ctx.fillStyle=rand()>.5?'rgba(220,216,199,.055)':'rgba(20,18,16,.07)';ctx.fillRect(x,y,1+rand()*3,1+rand()*4)}
+ for(let i=0;i<28;i++){const x=i*36.6,g=ctx.createLinearGradient(x,0,x+36,0);g.addColorStop(0,'rgba(15,16,16,.17)');g.addColorStop(.23,'rgba(0,0,0,0)');g.addColorStop(.72,'rgba(255,255,255,.045)');g.addColorStop(1,'rgba(23,18,14,.16)');ctx.fillStyle=g;ctx.fillRect(x,0,36,256)}
+ for(let i=0;i<220;i++){const x=rand()*1024,y=rand()>.68?rand()*256:rand()*22+234;ctx.fillStyle='rgba(82,35,16,'+(.12+rand()*.3)+')';ctx.fillRect(x,y,1+rand()*6,2+rand()*15)}
+ for(let i=0;i<35;i++){const x=rand()*1024,y=rand()*256,g=ctx.createLinearGradient(x,y,x,y+48);g.addColorStop(0,'rgba(54,26,12,.32)');g.addColorStop(1,'rgba(54,26,12,0)');ctx.fillStyle=g;ctx.fillRect(x,y,2+rand()*5,48)}
+ ctx.fillStyle=col==='white'?'#333f43':'#c6c5ba';ctx.globalAlpha=.72;ctx.font='bold 43px sans-serif';ctx.fillText(label,82,133);ctx.font='13px monospace';ctx.fillText('ITCU 421087 45G1',824,52);ctx.fillText('MAX GROSS 30480 KG',824,70);ctx.globalAlpha=1;
+ const map=new T.CanvasTexture(c);map.encoding=T.sRGBEncoding;map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+ cargoSide[col]=new T.MeshStandardMaterial({map,metalness:.05,roughness:1,roughnessMap:weatherRoughness(512,128,col.charCodeAt(0)*537),normalMap:m.steel.normalMap,normalScale:new T.Vector2(.22,.22),envMapIntensity:.72});
+ const tc=document.createElement('canvas');tc.width=tc.height=256;const tctx=tc.getContext('2d');tctx.fillStyle=base;tctx.fillRect(0,0,256,256);
+ for(let i=0;i<2500;i++){const x=rand()*256,y=rand()*256;tctx.fillStyle=rand()>.52?'rgba(211,204,188,.06)':'rgba(20,18,16,.075)';tctx.fillRect(x,y,1+rand()*3,1+rand()*5)}
+ for(let i=0;i<80;i++){const x=rand()*256,y=rand()*256,g=tctx.createLinearGradient(x,y,x,y+22);g.addColorStop(0,'rgba(78,36,19,.28)');g.addColorStop(1,'rgba(78,36,19,0)');tctx.fillStyle=g;tctx.fillRect(x,y,1+rand()*4,22)}
+ const tile=new T.CanvasTexture(tc);tile.encoding=T.sRGBEncoding;tile.wrapS=tile.wrapT=T.RepeatWrapping;tile.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+ cargoSkin[col]=new T.MeshStandardMaterial({map:tile,metalness:.06,roughness:1,roughnessMap:weatherRoughness(256,256,col.charCodeAt(0)*353,.70),normalMap:m.steel.normalMap,normalScale:new T.Vector2(.18,.18),envMapIntensity:.7});
+}
+for(const col of ['rust','blue','green','white'])define('container-'+col,()=>{
+ const skin=cargoSkin[col];box(skin,0,1.45,0,12.1,2.9,2.36);
+ for(const side of [-1,1]){
+  const p=[],uv=[],idx=[];let k=0;
+  for(let i=0;i<=28;i++){const base=-5.88+i*.42;for(const [dx,dz] of [[0,0],[.095,.075],[.24,.075],[.335,0]]){if(base+dx>5.95)continue;const x=base+dx,z=side*(1.19+dz);p.push(x,.17,z,x,2.72,z);const u=(x+5.88)/11.83;uv.push(side>0?u:1-u,0,side>0?u:1-u,1);if(k>0){const j=2*k;idx.push(...(side>0?[j-2,j,j+1,j-2,j+1,j-1]:[j-2,j+1,j,j-2,j-1,j+1]))}k++}}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.userData.keepUV=true;part(g,cargoSide[col],0,0,0,1,1,1);
+  for(const y of [.10,2.8])box(skin,0,y,side*1.23,12.2,.16,.14);
+  for(const x of [-6,6]){box(skin,x,1.45,side*1.23,.22,2.9,.20);for(const y of [.12,2.78])box(m.dark,x,y,side*1.32,.13,.10,.04)}
+ }
+ for(const z of [-.62,.62]){box(skin,6.10,1.45,z,.11,2.55,1.16);for(const dz of [-.36,.36]){beam(m.steel,[6.22,.2,z+dz],[6.22,2.72,z+dz],.038,.038,true);for(const y of [.32,1.42,2.55])box(m.dark,6.23,y,z+dz,.09,.15,.12)}for(const y of [.4,2.5])box(m.steel,6.2,y,z,.16,.12,.26);box(m.yellow,6.22,1.22,z,.04,.17,.17)}
+ for(let x=-5.75;x<5.9;x+=.42)box(skin,x,2.93,0,.14,.045,2.22);
+ for(const z of [-.8,.8])for(const x of [-3.2,3.2])box(m.dark,x,.05,z,1.15,.11,.3);
+});
+for(const col of ['rust','blue','green','white'])define('container-far-'+col,()=>{box(cargoSkin[col],0,1.45,0,12.2,2.9,2.44);for(const s of [-1,1]){for(const y of [.13,2.77])box(m.steel,0,y,s*1.23,12.2,.12,.13);for(const x of [-6,6])box(m.steel,x,1.45,s*1.23,.18,2.9,.2)}});
+define('goliath',()=>{for(const x of [-65,65]){for(const z of [-12,12]){beam(m.orange,[x,4,z],[x*.83,108,z*.68],4.4,5.2);box(m.dark,x,2,z,12,4,8);for(const dx of [-3,3])for(const dz of [-2,2])cylinder(m.rubber,x+dx,1,z+dz,1.2,1.6)}for(let y=12;y<100;y+=17){beam(m.steel,[x*(1-y/650),y,-12+y*.035],[x*(1-(y+17)/650),y+17,12-(y+17)*.035],.65);box(m.steel,x*(1-y/650),y,0,10,.65,25);rail(x*(1-y/650),y+1,12,10)}}for(const z of [-8,8]){box(m.orange,0,109,z,130,6,4);for(let x=-62;x<62;x+=10)beam(m.orange,[x,106,z],[x+10,116,z],.55)}box(m.steel,0,115,0,137,1.3,17);rail(0,116,8,137);rail(0,116,-8,137);box(m.orange,10,119,0,15,5,19);box(m.glass,19,114,9,7,4,5);for(const x of [5,15])beam(m.dark,[x,106,0],[x,65,0],.13,.13,true);box(m.yellow,10,64,0,14,2,5);});
+define('luffing-crane',()=>{box(m.dark,0,2,0,14,4,16);for(const x of [-5,5])for(const z of [-5,5])beam(m.orange,[x,4,z],[x*.45,58,z*.45],1.1);for(let y=10;y<58;y+=8)for(const z of [-3,3])beam(m.orange,[-4,y,z],[4,y+8,z],.48);box(m.orange,0,59,0,9,3,11);box(m.glass,5,60,0,4,4,5);beam(m.orange,[0,59,0],[45,83,0],2);beam(m.orange,[0,59,0],[-18,68,0],2);beam(m.dark,[-18,68,0],[45,83,0],.12,.12,true);beam(m.dark,[45,83,0],[45,32,0],.12,.12,true);box(m.yellow,45,31,0,2,2,2);});
+define('warehouse',()=>{const w=112,d=160,h=49;for(const x of [-w/2,w/2]){box(m.blue,x,h/2,0,1,h,d);for(let z=-d/2;z<=d/2;z+=10){box(m.steel,x,h/2,z,1.7,h,1.3);box(m.glass,x,h-12,z,1.15,6,6)}rail(x,h-2,0,d,'z')}for(let z=-d/2;z<=d/2;z+=16){for(const x of [-w/2,w/2]){beam(m.steel,[x,h,z],[0,h+12,z],1.2);beam(m.steel,[x,h,z],[0,h,z],.65);beam(m.steel,[x/2,h,z],[0,h+12,z],.55)}for(const side of [-1,1]){const angle=-side*Math.atan2(12,w/2);part(boxGeo,m.blue,side*w/4,h+6,z,Math.hypot(w/2,12)+.6,.65,15.95,new T.Quaternion().setFromAxisAngle(V(0,0,1),angle));for(let i=0;i<7;i++)box(m.steel,side*(4+i*7),h+12-(4+i*7)*12/(w/2)+.6,z,.18,.28,15.95)}}for(const x of [-w/2,w/2])box(m.orange,x*.8,30,0,1.6,2,d);box(m.orange,0,32,-18,w-18,3,4);box(m.dark,9,34,-18,9,3,6);beam(m.dark,[9,31,-18],[9,18,-18],.14,.14,true);box(m.yellow,9,17,-18,2,2,2);for(let z=-60;z<=60;z+=15)for(const x of [-36,36]){box(m.light,x,47,z,3,.4,1);box(m.dark,x,47.45,z,3.4,.35,1.4)}for(const x of [-w/2+5,w/2-5]){box(m.steel,x,20,0,5,.65,d-4);rail(x+(x<0?2.3:-2.3),21,0,d-4,'z');for(let z=-70;z<80;z+=14){beam(m.dark,[x,20,z],[x+(x<0?-4:4),15,z],.45);box(m.yellow,x,20.4,z,.35,.18,3)}}
+ // Repeated structural bays carry continuous service lines, not free-floating pipes.
+ // Keep the central flight corridor unchanged.
+ for(const side of [-1,1]){
+  const x=side*(w/2-3.4);
+  for(const y of [9.2,10.5,12.1])for(let z=-76;z<76;z+=19){
+   beam(y===10.5?m.rust:m.steel,[x,y,z],[x,y,z+19],y===10.5?.30:.18,y===10.5?.30:.18,true);
+   beam(m.steel,[x,y,z],[side*(w/2-.8),y,z],.14);
+  }
+  for(let z=-68;z<=68;z+=34){
+   box(m.dark,side*(w/2-5.4),1.4,z,3.4,2.8,6.4);
+   box(m.steel,side*(w/2-5.4),2.9,z,3.8,.25,6.8);
+   for(const dz of [-2.2,2.2])beam(m.orange,[side*(w/2-5),3.05,z+dz],[side*(w/2-5),5.8,z+dz],.16);
+   for(let dz=-2;dz<=2;dz+=2)box(m.rust,side*(w/2-5.4),3.2,z+dz,3.1,.25,1.4);
+   box(m.steel,side*(w/2-1.4),7.1,z,.8,1.5,1.2);
+   beam(m.dark,[x,9.2,z],[x,6.7,z],.17,.17,true);
+   beam(m.dark,[x,6.7,z],[side*(w/2-1.8),6.7,z],.17,.17,true);
+  }
+ }
+ // Stage 3: distinct ship-block fabrication bays beneath the overhead flight
+ // corridor. Portal frames stay below y=18; the traversable hall keeps its
+ // original high-level route and structural envelope.
+ for(const side of [-1,1]){
+  const x=side*33;
+  for(const z of [-51,0,51]){
+   // Load-bearing adjustable jig supports and welding tables.
+   for(const dx of [-8,8])for(const dz of [-8,8]){
+    box(m.concrete,x+dx,.28,z+dz,2.4,.56,2.4);
+    box(m.dark,x+dx,1.4,z+dz,1.05,2.0,1.05);
+    box(m.steel,x+dx,2.5,z+dz,1.55,.35,1.55);
+   }
+   for(const dz of [-8,8])box(m.steel,x,2.85,z+dz,19,.7,.75);
+   box(m.rust,x,3.35,z,18,.32,17);
+   for(const dx of [-6,0,6])box(m.steel,x+dx,3.75,z,.27,.55,16.5);
+   for(const dz of [-5,0,5])box(m.rust,x,4.3,z+dz,17,.8,.28);
+   // Fixed local lifting frame and its diagonal supports.
+   for(const dx of [-9.5,9.5]){
+    box(m.steel,x+dx,7.2,z-9.5,.75,14.4,.75);
+    box(m.steel,x+dx,7.2,z+9.5,.75,14.4,.75);
+    beam(m.steel,[x+dx,10.5,z-9.5],[x+dx,14.1,z-5],.32);
+    beam(m.steel,[x+dx,10.5,z+9.5],[x+dx,14.1,z+5],.32);
+    box(m.steel,x+dx,14.2,z,.85,.85,20);
+   }
+   box(m.orange,x,14.8,z,20,1.1,1.5);
+   box(m.dark,x+4,13.95,z,2.4,.6,1.7);
+   for(const dx of [3.65,4.35])beam(m.wire,[x+dx,13.6,z],[x+dx,7.0,z],.085,.085,true);
+   box(m.yellow,x+4,6.8,z,1.5,.35,1.1);
+   for(const dx of [-8,8]){
+    box(m.light,x+dx,13.9,z,1.1,.25,.52);
+    box(m.dark,x+dx,14.13,z,1.3,.2,.65);
+   }
+  }
+  // Cable-fed control consoles are mounted to the original side columns.
+  for(const z of [-44,-12,22,55]){
+   const cx=side*48;box(m.dark,cx,.3,z,2.0,.6,2.0);
+   box(m.blue,cx,1.75,z,1.4,2.4,1.6);
+   box(m.glass,cx-side*.73,2.1,z,.12,.48,.75);
+   beam(m.wire,[cx,2.95,z],[side*52.6,6.5,z],.10,.10,true);
+   box(m.yellow,cx-side*.77,1.7,z+.52,.12,.19,.19);
+  }
+ }
+});
+define('pipe-rack',()=>{for(const z of [-9,9]){for(const x of [-35,0,35]){box(m.steel,x,17,z,1.8,34,1.8);beam(m.dark,[x,8,z],[x,28,-z],.6)}for(const y of [14,29])beam(m.steel,[-38,y,z],[38,y,z],1.5)}for(let i=0;i<4;i++){const y=30+i*2.7;beam(i%2?m.rust:m.steel,[-40,y,-5+i*3.3],[40,y,-5+i*3.3],1.05,1.05,true);for(let x=-35;x<=35;x+=10)beam(m.dark,[x-.45,y,-5+i*3.3],[x+.45,y,-5+i*3.3],1.18,1.18,true)}box(m.steel,0,39,8,76,.5,3);rail(0,40,9.5,76);
+ // Stage 3: supported lower process headers, reducer collars, branch valves
+ // and connected vertical takeoffs. Preserve the original overall rack width.
+ for(const y of [11.9,19.9]){
+  for(const z of [-9,9])beam(m.steel,[-35,y,z],[35,y,z],.65);
+  for(const x of [-30,-10,10,30])beam(m.steel,[x,y,-9],[x,y,9],.40);
+ }
+ for(const z of [-5,5]){
+  for(const y of [14,22]){
+   beam(m.steel,[-35,y,z],[35,y,z],.68,.68,true);
+   for(const x of [-30,-10,10,30]){
+    beam(m.dark,[x-.20,y,z],[x+.20,y,z],.88,.88,true);
+    beam(m.steel,[x,y-.8,z],[x,y-1.15,z],.25);
+    box(m.steel,x,y-1.25,z,1.6,.24,1.5);
+    beam(m.steel,[x,y-1.3,z],[x,y-2.1,z<0?-9:9],.29);
+   }
+  }
+  for(const x of [-30,30]){
+   beam(m.rust,[x,14,z],[x,30,z],.48,.48,true);
+   for(const y of [14,22,29])beam(m.dark,[x,y-.18,z],[x,y+.18,z],.69,.69,true);
+   box(m.dark,x,22,z,1.4,1.25,1.25);
+   beam(m.steel,[x,22.5,z],[x,24.2,z],.16,.16,true);
+   const wheel=new T.TorusGeometry(.55,.07,6,16);part(wheel,m.orange,x,24.3,z,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+   for(const a of [0,Math.PI/2])beam(m.orange,[x-.52*Math.cos(a),24.3,z-.52*Math.sin(a)],[x+.52*Math.cos(a),24.3,z+.52*Math.sin(a)],.07);
+  }
+ }
+ for(const x of [-35,0,35]){box(m.concrete,x,.38,-9,3,.76,3);box(m.concrete,x,.38,9,3,.76,3)}
+});
+define('tank',()=>{
+ // Welded vertical process/storage vessel; higher radial resolution at the
+ // silhouette, real nozzles, roof access and supported ladder cage.
+ const shellGeo=new T.CylinderGeometry(1,1,1,48),roofGeo=new T.CylinderGeometry(.15,1,1,48);
+ const skirtGeo=new T.CylinderGeometry(1,1,1,32);
+ part(skirtGeo,m.concrete,0,.55,0,15.7,1.1,15.7);
+ part(shellGeo,m.white,0,17.4,0,15,32.7,15);
+ part(roofGeo,m.steel,0,35.2,0,15.15,3.1,15.15);
+ for(const y of [1.3,6.6,12,17.5,23,28.5,33.65]){
+  const ring=new T.TorusGeometry(15.04,.09,6,64);part(ring,m.steel,0,y,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+ }
+ for(let i=0;i<16;i++){const a=i*Math.PI/8;const x=Math.cos(a),z=Math.sin(a);beam(m.steel,[15.05*x,1.2,15.05*z],[15.05*x,33.5,15.05*z],.055);box(m.dark,15.38*x,.95,15.38*z,.38,.28,.38)}
+ // Roof ring handrail and working platform.
+ for(let i=0;i<32;i++){const a=i*Math.PI/16,b=(i+1)*Math.PI/16;
+  const P=(theta,y)=>[14.7*Math.cos(theta),y,14.7*Math.sin(theta)];
+  beam(m.yellow,P(a,34.4),P(a,35.55),.09);beam(m.yellow,P(a,35.55),P(b,35.55),.085);
+  beam(m.steel,P(a,34.85),P(b,34.85),.06);
+ }
+ box(m.steel,0,37.05,0,4.2,.35,4.2);cylinder(m.dark,0,37.8,0,1.35,1.15);cylinder(m.steel,0,38.5,0,1.55,.25);
+ for(const z of [-.52,.52])beam(m.yellow,[15.6,1.15,z],[15.6,34.6,z],.105);
+ for(let y=1.45;y<34.5;y+=.48)beam(m.steel,[15.6,y,-.52],[15.6,y,.52],.07);
+ for(let y=3.2;y<34.5;y+=3.1){
+  beam(m.steel,[15.0,y,0],[15.6,y,0],.12);for(let i=0;i<8;i++){const a=-Math.PI/2+i*Math.PI/8,b=a+Math.PI/8;beam(m.steel,[15.62+.78*Math.cos(a),y,.78*Math.sin(a)],[15.62+.78*Math.cos(b),y,.78*Math.sin(b)],.065)}
+ }
+ for(const a of [-Math.PI/3,0,Math.PI/3]){const x=15.62+.78*Math.cos(a),z=.78*Math.sin(a);beam(m.steel,[x,3.2,z],[x,34.2,z],.06)}
+ // Side inspection manway, nozzle and flanged discharge port.
+ beam(m.steel,[0,3.6,14.9],[0,3.6,16.0],.85,.85,true);beam(m.dark,[0,3.6,15.95],[0,3.6,16.25],1.08,1.08,true);
+ for(let i=0;i<10;i++){const a=i*Math.PI/5;beam(m.steel,[.91*Math.cos(a),3.6+.91*Math.sin(a),16.1],[.91*Math.cos(a),3.6+.91*Math.sin(a),16.38],.065,.065,true)}
+ beam(m.rust,[0,6.0,14.9],[0,6.0,17.5],.48,.48,true);beam(m.steel,[0,6,16.8],[0,6,17.1],.66,.66,true);
+ beam(m.rust,[0,6,17.5],[0,1.5,17.5],.48,.48,true);
+});
+define('ship-rib',()=>{for(const s of [-1,1]){const pts=[[0,1,s*5],[0,3,s*14],[0,9,s*25],[0,18,s*31],[0,34,s*32]];for(let i=0;i<pts.length-1;i++)beam(m.rust,pts[i],pts[i+1],1.5,1.1);box(m.steel,0,34,s*32,1.6,.8,3);beam(m.dark,[0,8,s*24],[0,18,s*31],.8)}box(m.steel,0,1,0,1.8,1.2,12)});
+// Open-ended fabrication stage, rather than a falsely completed navigable ship.
+// Transverse web frames intersect longitudinal shell stiffeners; all access decks
+// and brackets are attached to the same lofted shell coordinate system.
+define('ship-hull',()=>{
+ const L=350,N=70,Y=[3.5,6,10,15,21,27,32],W=[.40,.61,.79,.91,.97,1,1];
+ const outer=m.rust.clone(),inner=m.rust.clone();outer.color.setHex(0xb4876e);inner.color.setHex(0x998474);inner.roughness=.94;outer.roughness=.86;inner.normalScale=new T.Vector2(.48,.48);outer.normalScale=new T.Vector2(.40,.40);
+ const seam=m.dark,flange=m.steel,primer=m.rust.clone();primer.color.setHex(0x755246);primer.roughness=.86;primer.metalness=.20;
+ function profile(x,y){let k=0;while(k<Y.length-2&&y>Y[k+1])k++;let f=T.MathUtils.clamp((y-Y[k])/(Y[k+1]-Y[k]),0,1);const w=T.MathUtils.lerp(W[k],W[k+1],f);
+ // Open cut ends retain a usable passage; elliptical shoulder blends into the parallel midbody.
+ const u=Math.max(0,(Math.abs(x)-124)/51),taper=1-.58*u*u;return 32*w*taper}
+ function P(x,y,side,offset=0){return [x,y,side*(profile(x,y)-offset)]}
+ for(const side of [-1,1])for(const isInner of [false,true]){
+  const verts=[],uv=[],indices=[];for(let j=0;j<Y.length;j++)for(let i=0;i<=N;i++){const x=-L/2+i*L/N,y=Y[j],p=P(x,y,side,isInner?.38:0);verts.push(...p);uv.push(x/12,y/8)}
+  for(let j=0;j<Y.length-1;j++)for(let i=0;i<N;i++){const a=j*(N+1)+i,b=a+1,c=b+N+1,d=a+N+1;if((side>0)!==isInner)indices.push(a,b,c,a,c,d);else indices.push(a,c,b,a,d,c)}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();g.userData.keepUV=true;g.userData.structuralShell='drydock-walls';part(g,isInner?inner:outer,0,0,0,1,1,1);
+ }
+ // Close the thickness of both cut shell walls without blocking the
+ // intentional race-through aperture. Each strip shares side-loft vertices.
+ const capP=[],capUV=[];
+ function shellQuad(a,b,c,d,reverse){
+  const list=reverse?[a,c,b,a,d,c]:[a,b,c,a,c,d];
+  for(const v of list){capP.push(...v);capUV.push(v[0]/12,v[1]/8)}
+ }
+ for(const side of [-1,1]){
+  for(const y of [Y[0],Y[Y.length-1]])for(let i=0;i<N;i++){
+   const x=-L/2+i*L/N,x2=-L/2+(i+1)*L/N;
+   shellQuad(P(x,y,side),P(x2,y,side),P(x2,y,side,.38),P(x,y,side,.38),(y===Y[0])===(side>0));
+  }
+  for(const x of [-L/2,L/2])for(let j=0;j<Y.length-1;j++){
+   shellQuad(P(x,Y[j],side),P(x,Y[j+1],side),P(x,Y[j+1],side,.38),P(x,Y[j],side,.38),(x>0)===(side>0));
+  }
+ }
+ const cutEdge=new T.BufferGeometry();cutEdge.setAttribute('position',new T.Float32BufferAttribute(capP,3));cutEdge.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cutEdge.computeVertexNormals();cutEdge.userData.keepUV=true;cutEdge.userData.structuralShell='drydock-walls';part(cutEdge,primer,0,0,0,1,1,1);
+ for(const side of [-1,1]){
+  // Continuous longitudinal stiffeners, top edge and shell plate seams.
+  for(const y of [7,12,17,22,27,31.6])for(let x=-174;x<174;x+=8){
+   const x2=Math.min(174,x+8),a=P(x,y,side,.45),b=P(x2,y,side,.45);beam(y===31.6?flange:primer,a,b,y===31.6?.7:.28,y===31.6?1:.42);
+  }
+  for(let x=-165;x<=165;x+=10){
+   for(let j=0;j<Y.length-1;j++){const y=Y[j],y2=Y[j+1];beam(seam,P(x,y,side,-.05),P(x,y2,side,-.05),.075,.09);}
+  }
+  // Deep web frames: web and cap flange both follow the inner shell.
+  for(let x=-155;x<=155;x+=10){
+   for(let j=0;j<Y.length-1;j++){
+    const y=Y[j],y2=Y[j+1],a=P(x,y,side,1.15),b=P(x,y2,side,1.15);
+    beam(primer,a,b,.55,1.55);beam(flange,P(x,y,side,2.05),P(x,y2,side,2.05),.75,.18);
+   }
+   if(x%20===5){
+    // Real gussets are triangular plates, not rectangular floating blocks.
+    const a=P(x,16,side,2.05),b=P(x,20,side,2.05),c=P(x,16,side,5.1);
+    const v=[a,b,c].map(q=>[q[0]-.065,q[1],q[2]]).concat([a,b,c].map(q=>[q[0]+.065,q[1],q[2]]));
+    const ids=side>0?[0,2,1,3,4,5,0,1,4,0,4,3,1,2,5,1,5,4,2,0,3,2,3,5]:[0,1,2,3,5,4,0,4,1,0,3,4,1,5,2,1,4,5,2,3,0,2,5,3];
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v.flat(),3));g.setAttribute('uv',new T.Float32BufferAttribute(v.flatMap(q=>[q[2]/4,q[1]/4]),2));g.setIndex(ids);g.computeVertexNormals();part(g,primer,0,0,0,1,1,1);
+   }
+  }
+  // Narrow work platforms follow the side, leaving a wide, clear central route.
+  for(let x=-142;x<142;x+=8){
+   const x2=Math.min(142,x+8),z=side*(profile(x+4,16)-3.4);
+   box(flange,x+4,16,z,8,.28,3.4);
+   beam(m.yellow,[x,17.15,z-side*1.55],[x2,17.15,z-side*1.55],.09);
+   beam(m.yellow,[x,16.15,z-side*1.55],[x,17.15,z-side*1.55],.08);
+   beam(seam,[x+4,15.9,z],[x+4,12,z+side*2],.34);
+   if((x+142)%16===0){box(m.light,x+4,20,z+side,1,.32,.45);box(seam,x+4,20.22,z+side,1.2,.22,.6);beam(flange,[x+4,20.3,z+side],[x+4,20.3,side*(profile(x+4,20.3)-.45)],.15)}
+  }
+  for(const x of [-124,-64,0,64,124]){
+   const z0=side*(profile(x,4)-1.5),z1=side*(profile(x,16)-3.5);
+   // Inclined ladder remains inside the curved shell and ends at its access deck.
+   for(const dx of [-.48,.48])beam(flange,[x+dx,3.75,z0],[x+dx,17.1,z1],.10);
+   for(let i=0;i<=30;i++){const t=i/30,y=4+t*12.6,z=T.MathUtils.lerp(z0,z1,t);beam(flange,[x-.48,y,z],[x+.48,y,z],.065)}
+   for(const t of [0,.33,.66,1]){const y=4+t*12.6,z=T.MathUtils.lerp(z0,z1,t),wall=side*(profile(x,y)-1);beam(seam,[x,y,z],[x,y,wall],.16)}
+
+  }
+ }
+ // Attached service assemblies inside the shell. Each bracket is referenced
+ // to the lofted wall profile, not an independently positioned object.
+ for(const side of [-1,1]){
+  for(let x=-146;x<146;x+=12){
+   const x2=Math.min(x+12,146),y=13.4,z1=side*(profile(x,y)-2.0),z2=side*(profile(x2,y)-2.0);
+   beam(m.dark,[x,y,z1],[x2,y,z2],.24,.24,true);
+   beam(m.steel,[x,y-.7,z1],[x2,y-.7,z2],.10,.10,true);
+   beam(m.steel,[x,y,z1],P(x,y,side,.4),.16);
+   beam(m.rust,[x-.12,y,z1],[x+.12,y,z1],.34,.34,true);
+  }
+  for(const x of [-132,-72,-12,48,108]){
+   const z=side*(profile(x,16)-2.9);
+   box(m.dark,x,16.8,z,2.1,1.3,.85);
+   box(m.steel,x,16.8,z-side*.47,1.8,1.05,.12);
+   box(m.yellow,x+.64,17.05,z-side*.55,.18,.18,.08);
+   // Ventilation duct runs from a fan housing down to the service deck.
+   const ductZ=side*(profile(x,22)-1.55);
+   beam(m.steel,[x,22,ductZ],[x+3,22,ductZ],.48,.48,true);
+   beam(m.steel,[x+3,22,ductZ],[x+3,18.5,z],.48,.48,true);
+   beam(m.dark,[x+2.8,22,ductZ],[x+3.2,22,ductZ],.56,.56,true);
+   box(m.steel,x+3,18.3,z,.95,.55,.95);
+   for(const dx of [-.25,0,.25])box(m.dark,x+3+dx,18,z,.11,.12,.7);
+  }
+ }
+ // Stage 3: shipyard staging platforms, cable trays and ventilator risers,
+ // attached to the actual lofted shell, outside the center flight corridor.
+ for(const side of [-1,1]){
+  for(const x of [-126,-86,-46,-6,34,74,114]){
+   const z=side*(profile(x,24)-3.0);
+   box(m.steel,x,23.8,z,5.4,.32,3.6);
+   for(const dx of [-2.4,2.4])beam(m.steel,[x+dx,23.7,z],[x+dx,20.1,side*(profile(x+dx,20.1)-.5)],.28);
+   rail(x,24.95,z-side*1.65,5.2);
+   box(m.dark,x,24.8,z+side*.55,1.8,1.65,1.2);
+   box(m.blue,x,24.85,z-side*.12,1.55,1.2,.18);
+   for(const dz of [-.44,.44])beam(m.steel,[x-1.1,25.9,z+dz],[x+1.1,25.9,z+dz],.13,.13,true);
+   beam(m.rust,[x,25.6,z+side*.42],P(x,27,side,.6),.24,.24,true);
+  }
+  for(let x=-144;x<144;x+=12){
+   const z0=side*(profile(x,19.2)-1.15),z1=side*(profile(x+12,19.2)-1.15);
+   for(const dy of [0,.32])beam(m.dark,[x,19.2+dy,z0],[x+12,19.2+dy,z1],.09);
+   beam(m.steel,[x,19.2,z0],P(x,19.2,side,.42),.14);
+  }
+ }
+ // Short shell plate welds and irregular fitted doubler plates. Avoid the
+ // central flight space; attach all geometry directly to the loft.
+ for(const side of [-1,1])for(let x=-148;x<148;x+=19){
+  const y=10+(Math.abs(x)%4)*3.2;
+  for(const dy of [0,.45])beam(flange,P(x-2.1,y+dy,side,.48),P(x+2.1,y+dy,side,.48),.065,.11);
+  for(const dx of [-2.1,2.1])beam(seam,P(x+dx,y,side,.48),P(x+dx,y+.45,side,.48),.075);
+  const y2=23.5+(Math.abs(x)%3)*.8;
+  beam(seam,P(x-3,y2,side,.42),P(x+3,y2,side,.42),.065);
+ }
+ // Partial transverse bulkheads with center openings and overhead girders.
+ for(const x of [-90,-20,50,120]){for(const side of [-1,1]){const z=side*(profile(x,22)-4.2);box(inner,x,22,z,.50,15,6.8);box(flange,x,22,z-side*3.5,.8,15,.4);for(const y of [17,22,27])box(flange,x,y,z,.7,.3,7.1);beam(primer,[x,27,z-side*3],[x,31,z-side*6],.65)}box(flange,x,32,0,1.05,.85,profile(x,32)*2-2);box(primer,x,32.6,0,1.6,.35,profile(x,32)*2-2)}
+ // Inner bottom and parallel girders sit above the keel supports.
+ for(let x=-174;x<174;x+=6){const z=Math.min(profile(x,4),profile(x+6,4))-.5;box(m.dark,x+3,3.22,0,6,.62,2*z);for(const side of [-1,1])box(flange,x+3,3.55,side*z*.58,6,.32,.42)}
+ for(let x=-165;x<=165;x+=10){const z=profile(x,4)-.8;box(flange,x,3.75,0,.42,.85,z*2)}
+ // Temporary top-edge handrails and suspended side cables are attached to plating.
+ for(const side of [-1,1])for(let x=-165;x<165;x+=5){const a=P(x,32,side,.5),b=P(x+5,32,side,.5);beam(m.yellow,[a[0],33,a[2]],[b[0],33,b[2]],.08);beam(flange,a,[a[0],33,a[2]],.10)}
+});
+define('bollard',()=>{cylinder(m.dark,0,.55,0,1.2,1.1);cylinder(m.steel,0,1.3,0,.65,1.5);cylinder(m.dark,0,2.1,0,1,.32)});
+define('caisson',()=>{box(m.concrete,0,5,0,18,12,17);box(m.dark,0,11.2,0,20,1.4,19);for(const x of [-5,5])beam(m.steel,[x,11.8,-5],[x,14,-5],.5)});
+define('light-tower',()=>{beam(m.dark,[0,0,0],[0,28,0],.65,.65,true);box(m.steel,0,28,0,8,.7,1.2);for(let x=-3;x<=3;x+=2)box(m.light,x,27.7,0,1.2,.7,1)});
+define('propeller',()=>{
+ const bronze=new T.MeshStandardMaterial({color:0x97704a,metalness:.76,roughness:.43});
+ const shaft=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);
+ part(cylGeo,m.steel,0,9,0,1.3,7,1.3,shaft);part(sphereGeo,bronze,2.3,9,0,1.8,1.7,1.7);
+ const p=[],uv=[],idx=[],R=14,C=12;
+ for(let j=0;j<=R;j++){const t=j/R,r=1.35+6.1*t,chord=(.6+2.6*Math.sin(Math.PI*t))*(1-.30*t),skew=.2+t*t*.75,pitch=.92-.52*t;
+  for(let i=0;i<=C;i++){const angle=2*Math.PI*i/C,w=Math.cos(angle)*chord*.5,thickness=Math.sin(angle)*(.10+.16*Math.sin(Math.PI*t))*(1-.7*t);
+   p.push(w*Math.sin(pitch)+thickness*Math.cos(pitch),r,skew+w*Math.cos(pitch)-thickness*Math.sin(pitch));uv.push(i/C,t)}
+ }
+ for(let j=0;j<R;j++)for(let i=0;i<C;i++){const a=j*(C+1)+i,b=a+C+1;idx.push(a,b,a+1,b,b+1,a+1)}
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();bronze.side=T.DoubleSide;
+ for(let i=0;i<5;i++)part(g,bronze,0,9,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),i*Math.PI*2/5));
+ box(m.dark,0,.75,0,8,1.5,14);for(const z of [-4,4]){box(m.steel,0,1.9,z,7,1,2.8);beam(m.steel,[0,2,z],[0,6,z*.45],.7)}
+});
+define('straddle-carrier',()=>{for(const x of [-3.8,3.8])for(const z of [-4.5,4.5]){box(m.orange,x,6,z,1.15,12,1.1);box(m.dark,x,1.5,z,2.8,2.7,2.7);for(const off of [-.75,.75])part(cylGeo,m.rubber,x+off,1.25,z,1.25,.62,1.25,new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2))}for(const z of [-4.5,4.5]){box(m.orange,0,12,z,9.5,1.3,1.5);beam(m.dark,[-3.8,9,z],[0,12,z],.55);beam(m.dark,[3.8,9,z],[0,12,z],.55)}for(const x of [-3.8,3.8])box(m.orange,x,12,0,1,1,10);box(m.glass,4.2,10,3,2.5,2.8,2.4);box(m.dark,0,9,0,4,1,6);});
+define('service-gantry',()=>{for(const x of [-24,24]){for(const z of [-4,4])box(m.steel,x,13,z,1.2,26,1.2);beam(m.steel,[x,2,-4],[x,24,4],.55);box(m.concrete,x,1,0,5,2,12)}for(const z of [-4,4]){box(m.orange,0,27,z,50,2,1.5);for(let x=-24;x<24;x+=6)beam(m.steel,[x,25,z],[x+6,29,z],.4)}box(m.steel,0,29,0,50,.6,9);rail(0,30,4.5,50);rail(0,30,-4.5,50);box(m.dark,10,26,0,5,2,6);});
+define('lighthouse',()=>{cylinder(m.concrete,0,2,0,9,4);for(let i=0;i<6;i++)cylinder(i%2?m.white:m.rust,0,4+i*5+2.5,0,4.5-i*.28,5.05);cylinder(m.steel,0,34,0,4.5,1);cylinder(m.glass,0,37,0,2.8,5);cylinder(m.rust,0,40,0,3.6,1.5);for(let i=0;i<8;i++){const a=i*Math.PI/4;beam(m.dark,[Math.cos(a)*3,34,Math.sin(a)*3],[Math.cos(a)*3,40,Math.sin(a)*3],.15)}box(m.light,0,37,0,2,1,2);});
+define('service-block',()=>{box(m.concrete,0,4,0,24,8,18);box(m.dark,0,8.2,0,25,.5,19);for(let x=-9;x<=9;x+=6){box(m.glass,x,5,9.06,3,2,.2);box(m.steel,x,5,9.22,3.2,.2,.3)}box(m.dark,0,2,-9.1,4,4,.2);box(m.steel,5,10,1,6,3,5);for(let z=-1;z<=3;z+=2)cylinder(m.dark,5,11.6,z,.8,.25);});
+define('drydock-keel-block',()=>{box(m.concrete,0,1.1,0,5,2.2,3);box(m.dark,0,2.4,0,4,.5,2.6);for(const x of [-1.8,1.8])box(m.steel,x,2.1,0,.2,1.1,3.2);});
+define('office-block',()=>{box(m.concrete,0,12,0,55,24,30);box(m.dark,0,24.4,0,56,.8,31);for(const z of [-15.1,15.1])for(let y=5;y<=20;y+=5)for(let x=-23;x<=23;x+=6){box(m.glass,x,y,z,4,2.5,.3);box(m.steel,x,y-1.4,z,4.4,.2,.6)}for(const x of [-27.7,27.7])for(let y=5;y<=20;y+=5)for(let z=-11;z<=11;z+=6)box(m.glass,x,y,z,.3,2.5,4);box(m.steel,-12,27,3,8,5,6);box(m.steel,12,25.8,-5,12,2.8,8)});
+define('tugboat',()=>{const deck=26;for(let i=0;i<9;i++){let x=-18+i*4.5,w=7*Math.min(1,(19-Math.abs(x))/8+.25);box(m.blue,x,1.4,0,4.6,4.4,w*2);box(m.rust,x,-.9,0,4.6,.9,w*1.9);box(m.dark,x,3.7,0,4.6,.6,w*2)}box(m.white,-5,6.1,0,12,4.4,10);box(m.white,-4,10,0,9,3.3,8);box(m.glass,-4,10.3,4.1,8,1.8,.25);box(m.glass,-4,10.3,-4.1,8,1.8,.25);box(m.glass,.7,10.3,0,.2,1.8,7.5);cylinder(m.dark,-12,8,2,1.3,9);beam(m.steel,[-6,11,0],[-6,18,0],.17);beam(m.steel,[-10,15,0],[-2,15,0],.12);for(let x=-13;x<15;x+=4)for(const z of [-6.5,6.5])part(cylGeo,m.rubber,x,2,z,1.15,.55,1.15,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));});
+define('cargo-shed',()=>{
+ // Clad workshop with raised seam roof, drainage, loading doors and roof vents.
+ const W=65,D=100,H=24,roofRise=5.8;
+ box(m.blue,0,11.8,0,W,23.6,D);box(m.concrete,0,.42,0,W+.4,.84,D+.4);
+ for(const side of [-1,1]){
+  const x=side*(W/2+.15),z=side*(D/2+.15);
+  for(let zz=-48;zz<=48;zz+=4){box(m.steel,x,12,zz,.18,23.4,.17);if(zz%8===0)box(m.glass,x+side*.16,18,zz,.14,3.6,4.5)}
+  for(let xx=-29;xx<=29;xx+=4)box(m.steel,xx,12,z,.17,23.4,.18);
+  for(const xx of [-22,0,22]){
+   box(m.dark,xx,7,z+side*.2,10.5,13,.26);box(m.steel,xx,7,z+side*.4,9.8,12.4,.14);
+   for(let y=1;y<13;y+=.65)box(m.dark,xx,y,z+side*.49,9.7,.075,.08);
+   for(const dx of [-5.2,5.2]){box(m.yellow,xx+dx,1,z+side*.55,.15,2,.17);box(m.steel,xx+dx,7,z+side*.42,.28,13.4,.32)}
+   box(m.light,xx,14.8,z+side*.3,2.4,.28,.55);
+  }
+  // Roof slopes are structurally continuous instead of rectangular slabs.
+  const angle=-side*Math.atan2(roofRise,W/2),rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),angle);
+  part(boxGeo,m.dark,side*W/4,H+roofRise/2,0,Math.hypot(W/2,roofRise)+1,.42,D+1.5,rot);
+  for(let zz=-49;zz<=49;zz+=3)beam(m.steel,[0,H+roofRise+.25,zz],[side*(W/2+.4),H+.2,zz],.09,.14);
+  beam(m.steel,[side*(W/2+.65),H, -51],[side*(W/2+.65),H,51],.26,.26,true);
+  for(const zz of [-47,0,47])beam(m.steel,[side*(W/2+.65),H,zz],[side*(W/2+.65),.8,zz],.14,.14,true);
+  for(const zz of [-34,0,34]){const xx=side*13,y=H+roofRise*(1-Math.abs(xx)/(W/2));box(m.steel,xx,y+.7,zz,6,1.8,9);box(m.dark,xx,y+1.7,zz,6.6,.32,9.6);for(let dz=-3;dz<=3;dz+=1.5)box(m.dark,xx,y+1,zz+dz,6.1,.17,.3)}
+ }
+ // Close both gable ends so the pitched roof has continuous supporting walls.
+ for(const side of [-1,1]){const z=side*50.1,A=[-W/2,H,z],B=[W/2,H,z],C=[0,H+roofRise,z],p=side>0?[...A,...B,...C]:[...A,...C,...B];const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute([0,0,1,0,.5,1],2));g.computeVertexNormals();part(g,m.blue,0,0,0,1,1,1)}
+ beam(m.steel,[0,H+roofRise+.35,-51],[0,H+roofRise+.35,51],.28,.35);
+ for(const zz of [-27,27]){box(m.steel,4,H+roofRise+.85,zz,2,2.5,2);box(m.dark,4,H+roofRise+2.2,zz,2.8,.3,2.8)}
+});
+/* Civil layout: separate slabs leave actual excavated dock unobstructed. */
+const pavedSlabs=[];function slab(x,z,w,d){pavedSlabs.push([x,z,w,d]);box(m.concrete,x,1.8,z,w,6.4,d);box(m.road,x,5.04,z,w-8,.08,d-8)}
+slab(0,650,2360,1100);slab(-425,-550,1510,1300);slab(1000,-985,360,410);slab(850,-125,660,450);slab(1140,-550,100,500);
+box(m.concrete,850,-10,-550,400,4,400);for(const x of [655,1045]){box(m.concrete,x,-1,-550,10,12,400);rail(x,6,-550,400,'z')}box(m.concrete,850,-1,-747,390,12,9);box(m.dark,850,-3,-350,390,8,6);for(let z=-735;z<-365;z+=22)for(const x of [680,1020])box(m.light,x,0,z,2,.5,2);
+for(const x of [660,1040])for(let z=-725;z<=-375;z+=35){box(m.dark,x,0,z,.3,12,.18);box(m.steel,x,5.2,z,1.2,.3,3);for(let i=0;i<20;i++)beam(m.orange,[x+(x<850?1:-1),-7+i*.65,z-1],[x+(x<850?1:-1),-7+i*.65,z+1],.09)}
+for(const z of [-720,-380]){for(let k=0;k<20;k++)box(m.concrete,690, -7+k*.65,z+(z<-550?k:-k)*.75,5,.7,.85);}
+slab(780,-920,700,250);slab(-900,-1230,500,150);slab(-1200,-920,110,450);slab(1120,720,180,480);slab(650,1250,650,80);slab(-650,1250,520,80);place('ship-hull',750,5,-920);place('propeller',550,5,-975);
+// Keel and bilge blocks carry the open fabrication section above the apron.
+for(let x=590;x<=910;x+=12){place('drydock-keel-block',x,5,-920,0,1.10);if(x>615&&x<885)for(const dz of [-8,8])place('drydock-keel-block',x,5,-920+dz,0,1.10)}
+
+/* legacy gantry retained as inspectable template, replaced in world by heavy-gantry-detail */place('luffing-crane',1100,5,-250);place('luffing-crane',400,5,-990,Math.PI);place('luffing-crane',-1100,5,950,.6);
+for(const z of [550,650,760,900])for(let x=230;x<=1100;x+=42){if(Math.abs(x-600)<35||Math.abs(x-850)<38||Math.abs(x-1020)<26)continue;const h=2+Math.floor(rnd()*5),orientation=rnd()>.85?Math.PI/2:0;for(let j=0;j<h;j++)place('container-'+['rust','blue','green','white'][Math.floor(rnd()*4)],x,5+j*2.94,z,orientation)}
+for(const z of [-650,-450,-170,100]){place('warehouse',-880,5,z);place('warehouse',-540,5,z)}
+for(const z of [430,590,750]){place('pipe-rack',-850,5,z,Math.PI/2);place('pipe-rack',-650,5,z)}
+for(const x of [-1050,-990,-560,-490])for(const z of [500,675])place('tank',x,5,z);
+for(let x=-1100;x<=1110;x+=40){place('bollard',x,5,1190);place('caisson',x,0,-1320)}
+for(let z=-1180;z<=1150;z+=120){place('light-tower',-1140,5,z);if(z>200)place('light-tower',1140,5,z)}
+for(let x=-1050;x<1100;x+=60){box(m.yellow,x,5.12,1040,15,.06,.32);box(m.yellow,x,5.12,1120,15,.06,.32)}
+// Keep functional support buildings, equipment and dry dock fixtures away from the racing centers.
+for(const z of [-710,-665,-620,-575,-530,-485,-440,-395])for(const x of [725,980])place('drydock-keel-block',x,-8,z);
+for(const z of [620,825,985]){place('straddle-carrier',470,5,z,Math.PI/2);place('straddle-carrier',930,5,z)}
+for(const z of [-275,245,430])place('service-gantry',680,5,z,Math.PI/2);
+for(const z of [-760,-490,-230,200,390,970])place('service-block',-360,5,z);
+for(const x of [100,270,430])place('service-block',x,5,320);
+place('lighthouse',-1120,0,-1320);
+for(let i=0;i<100;i++){const x=-1175+i*23.5,z=-1340-rnd()*25;part(sphereGeo,m.concrete,x,1,z,8+rnd()*7,4+rnd()*5,7+rnd()*6,new T.Quaternion().setFromAxisAngle(up,rnd()*Math.PI))}
+for(let x=-1110;x<1140;x+=45){box(m.dark,x,5.13,1180,20,.08,.35);box(m.steel,x,5.23,1185,18,.15,.18)}
+// Dense industrial districts are placed away from the eight primary flight corridors.
+// Check low scenery against the linear inspection path; not a full craft swept-volume test.
+const routePoints=layout.sectors.flatMap(s=>s.gates);
+function clearScenery(x,top,z){for(let i=0;i<routePoints.length;i++){const a=routePoints[i],b=routePoints[(i+1)%routePoints.length],dx=b[0]-a[0],dz=b[2]-a[2],den=dx*dx+dz*dz,t=den?T.MathUtils.clamp(((x-a[0])*dx+(z-a[2])*dz)/den,0,1):0,px=a[0]+dx*t,pz=a[2]+dz*t,py=a[1]+(b[1]-a[1])*t;if(Math.hypot(x-px,z-pz)<23&&top>py-12)return false}return true}
+// Functional production districts, sized to the same civil footprint:
+ // steel receiving -> plate preparation -> block fabrication -> coating -> outfitting.
+ const districtPlan=[];
+ // Rolled painted sheet cladding: baked seam shading, runoff and corrosion.
+ // UVs are metre-projected by define(), so scale remains consistent per facade.
+ function cladMaterial(base,roof=false){
+  const c=document.createElement('canvas');c.width=c.height=512;const ctx=c.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,512,512);
+  let sd=base.charCodeAt(2)*113+173;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
+  for(let x=0;x<512;x+=64){const g=ctx.createLinearGradient(x,0,x+64,0);g.addColorStop(0,'rgba(12,16,18,.40)');g.addColorStop(.07,'rgba(255,255,255,.12)');g.addColorStop(.20,'rgba(255,255,255,0)');g.addColorStop(.9,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(10,12,13,.20)');ctx.fillStyle=g;ctx.fillRect(x,0,64,512);
+   for(let y=0;y<512;y+=128){ctx.fillStyle='rgba(16,19,20,.55)';ctx.fillRect(x+4,y+4,3,3)}
+  }
+  for(let x=0;x<512;x+=64){const a=rand()*.13;ctx.fillStyle=x%128?'rgba(15,22,27,'+a+')':'rgba(182,169,151,'+a+')';ctx.fillRect(x+9,0,54,512);}
+  for(let i=0;i<210;i++){const x=rand()*512,y=rand()*512,h=10+rand()*115,g=ctx.createLinearGradient(x,y,x,y+h);g.addColorStop(0,'rgba(77,41,24,.18)');g.addColorStop(1,'rgba(77,41,24,0)');ctx.fillStyle=g;ctx.fillRect(x,y,1+rand()*4,h)}
+  for(let i=0;i<3200;i++){const x=rand()*512,y=rand()*512;ctx.fillStyle=rand()>.55?'rgba(220,214,198,.045)':'rgba(9,12,14,.055)';ctx.fillRect(x,y,1+rand()*3,1+rand()*4)}
+  const map=new T.CanvasTexture(c);map.encoding=T.sRGBEncoding;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  const nc=document.createElement('canvas');nc.width=nc.height=256;const nctx=nc.getContext('2d'),nimg=nctx.createImageData(256,256);
+  // Analytic folded-sheet profile: 8 ribs per 4 m tile; normals change
+  // only on the two sloped faces, leaving broad flat metal panels.
+  const slope=(t)=>{t-=Math.floor(t);return t<.09?.72:t<.20?0:t<.29?-.72:0};
+  for(let y=0;y<256;y++)for(let x=0;x<256;x++){
+   const d=slope(x/32),micro=(rand()-.5)*.045,nx=-d+micro,ny=(rand()-.5)*.035,nz=1,mag=Math.hypot(nx,ny,nz),i=(y*256+x)*4;
+   nimg.data[i]=Math.round(127.5+127.5*nx/mag);nimg.data[i+1]=Math.round(127.5+127.5*ny/mag);nimg.data[i+2]=Math.round(127.5+127.5*nz/mag);nimg.data[i+3]=255;
+  }
+  nctx.putImageData(nimg,0,0);const sheetNormals=new T.CanvasTexture(nc);sheetNormals.wrapS=sheetNormals.wrapT=T.RepeatWrapping;sheetNormals.anisotropy=map.anisotropy;
+  return new T.MeshStandardMaterial({map,roughness:1,roughnessMap:weatherRoughness(256,256,base.charCodeAt(2)*713,roof?.66:.75),normalMap:sheetNormals,normalScale:new T.Vector2(.70,.35),metalness:roof?.18:.06,envMapIntensity:.83});
+ }
+ const cladding=cladMaterial('#53646a'),oxideCladding=cladMaterial('#755349'),roofMetal=loadedMaterials.includes('roof')?m.roof:cladMaterial('#464a4c',true);
+ weatheredIndustrialPBR(cladding,.61,'blue-cladding');weatheredIndustrialPBR(oxideCladding,.53,'oxide-cladding');
+ const translucentClerestory=new T.MeshStandardMaterial({color:0x57717b,roughness:.37,metalness:.18});
+ define('plate-processing-hall',()=>{
+  const W=76,L=116,H=28;
+  box(m.concrete,0,.4,0,W+.6,.8,L+.6);
+  for(const side of [-1,1]){
+   box(cladding,side*W/2,H/2,0,.65,H,L);
+   for(let z=-55;z<=55;z+=5){box(m.steel,side*(W/2+.34),H/2,z,.18,H,.23);if(z%10===0)box(translucentClerestory,side*(W/2+.46),H-5,z,.15,3.5,6)}
+   box(cladding,0,H/2,side*L/2,W,H,.65);
+   for(const x of [-24,0,24]){box(m.dark,x,7.2,side*(L/2+.4),15,14.4,.35);for(let y=.5;y<14;y+=.8)box(m.steel,x,y,side*(L/2+.62),14.8,.09,.09)}
+   const x=side*19;part(boxGeo,roofMetal,x,H+3,0,Math.hypot(38,6)+.5,.5,L+1,new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*Math.atan2(6,38)));
+   for(let z=-54;z<56;z+=6)beam(m.steel,[0,H+6.3,z],[side*38,H+.3,z],.12);
+   for(let z=-42;z<=42;z+=28){box(m.steel,side*16,H+4,z,5,2.5,8);box(m.dark,side*16,H+5.4,z,5.5,.3,8.5)}
+  }
+  box(translucentClerestory,0,H+6.6,0,8,1.5,L-8);
+  for(let z=-50;z<=50;z+=5)box(m.steel,0,H+7.4,z,8.5,.15,.22);
+  for(const x of [-24,24]){box(m.steel,x,H+1,30,3,6,3);box(m.dark,x,H+4.2,30,4,.3,4)}
+ });
+ define('coating-shop',()=>{
+  box(oxideCladding,0,13,0,74,26,100);
+  box(m.concrete,0,.4,0,75,.8,101);
+  box(roofMetal,0,26.3,0,75,.65,101);
+  for(const side of [-1,1]){
+   for(let z=-47;z<=47;z+=4)box(m.steel,side*37.15,13,z,.15,26,.16);
+   for(const x of [-22,0,22]){
+    box(m.dark,x,9,side*50.3,17,18,.45);box(m.steel,x,9,side*50.6,15.8,17.2,.22);
+    for(let y=1;y<18;y+=.8)box(m.dark,x,y,side*50.75,15.5,.08,.07);
+    box(m.light,x,19.5,side*50.55,3,.4,.65);
+   }
+  }
+  for(const x of [-22,0,22])for(const z of [-28,28]){
+   box(m.steel,x,27.6,z,9,2.6,8);box(m.dark,x,29.1,z,9.5,.4,8.5);
+   beam(m.steel,[x,29.4,z],[x,37,z],1.15,1.15,true);
+   beam(m.dark,[x,37,z],[x,37.4,z],1.5,1.5,true);
+  }
+ });
+ define('outfit-workshop',()=>{
+  // Working outfitting shop: closed steel wall panels and actual openings are
+  // separate meshes. No opaque box concealed behind the open door or glazing.
+  const W=62,D=88,H=19, eave=17.8, ridge=22.2;
+  box(m.concrete,0,.28,0,W+1,.56,D+1);
+  for(const z of [-43,-32,-21,-10,1,12,23,34,43]){
+   for(const side of [-1,1]){
+    const x=side*30;
+    box(m.concrete,x,.55,z,1.7,1.1,1.8);
+    box(m.steel,x,eave*.5,z,.55,eave,.68);
+    beam(m.steel,[x,eave,z],[0,ridge,z],.45,.56);
+    beam(m.steel,[x,eave-2.2,z],[x-side*5,eave+.7,z],.22);
+    // Runway beams and side service galleries attach to portal columns.
+    box(m.orange,x-side*1.05,13,z,1.25,1.1,11.05);
+    box(m.steel,x-side*2.2,10.5,z,2.5,.22,10.95);
+    rail(x-side*3.35,11.55,z,10.9,'z');
+    beam(m.steel,[x,8.5,z],[x-side*3.2,10.4,z],.23);
+   }
+   beam(m.steel,[-30,eave,z],[30,eave,z],.35,.45);
+   for(let x=-24;x<24;x+=8)beam(m.steel,[x,eave,z],[x+8,ridge-Math.abs(x+8)*4.4/30,z],.19);
+  }
+  for(const side of [-1,1]){
+   const x=side*30.9,rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*Math.atan2(4.4,31));
+   part(boxGeo,roofMetal,side*15.5,20,0,Math.hypot(31,4.4)+.8,.35,89,rot);
+   // Continuous lower wall, independent glazed ribbon and upper spandrel.
+   box(cladding,x,6.4,0,.28,12.8,88);
+   box(m.concrete,x+side*.10,.92,0,.52,1.84,88);
+   for(const y of [2.2,8.9,12.7])box(m.steel,x+side*.19,y,0,.17,.18,88);
+   for(const z of [-30,27]){
+    box(m.dark,x+side*.44,3.5,z,.65,2.8,3.2);
+    box(m.door,x+side*.80,3.5,z,.10,2.6,3.0);
+    for(const dz of [-1.2,1.2])box(m.steel,x+side*.73,2.05,z+dz,.4,.24,.24);
+    beam(m.steel,[x+side*.41,4.9,z],[x+side*.41,9,z],.13,.13,true);
+    beam(m.steel,[x+side*.41,9,z],[x,9,z],.13,.13,true);
+   }
+   box(cladding,x,16.65,0,.28,2.3,88);
+   for(let z=-40;z<=40;z+=8){
+    box(m.dark,x,14.2,z,.25,2.8,7.7);
+    box(m.glass,x+side*.17,14.2,z,.12,2.45,7.3);
+    for(const dz of [-3.7,0,3.7])box(m.steel,x+side*.24,14.2,z+dz,.13,2.6,.12);
+    box(m.steel,x+side*.24,12.88,z,.18,.16,7.7);
+    box(m.steel,x+side*.24,15.51,z,.18,.16,7.7);
+   }
+   for(let z=-43;z<=43;z+=4.3)box(m.steel,x+side*.16,6.4,z,.12,12.8,.12);
+   beam(m.steel,[side*31.65,eave-.2,-44.5],[side*31.65,eave-.2,44.5],.28,.28,true);
+   for(const z of [-39,0,39]){
+    beam(m.dark,[side*31.62,.55,z],[side*31.62,eave-.2,z],.21,.21,true);
+    for(const y of [3,8,13])beam(m.steel,[side*31.62,y,z],[side*30.95,y,z],.13);
+   }
+   // Saw-toothed roof lighting curbs and mounted extractors sit on the pitch.
+   for(const z of [-28,0,28]){
+    const xx=side*15,y=22.2-4.4*Math.abs(xx)/31;
+    box(m.dark,xx,y+.32,z,6,1.0,7);
+    box(m.steel,xx,y+1.35,z,5.4,1.65,6.4);
+    box(roofMetal,xx,y+2.3,z,6,.22,7);
+    for(let dz=-2.7;dz<2.8;dz+=.54)box(m.dark,xx,y+1.35,z+dz,5.5,.08,.16);
+   }
+  }
+  // Asymmetric service annexes with real structural supports and exhaust ducts.
+  for(const [side,cz,len,h] of [[1,-22,29,6.8],[-1,19,18,5.4]]){
+   const x=side*34.8,outer=side*38.7;
+   box(m.concrete,x,.28,cz,8.1,.56,len+.6);
+   box(oxideCladding,outer,h*.5,cz,.24,h,len);
+   for(const z of [cz-len*.5,cz+len*.5])box(cladding,x,h*.5,z,7.8,h,.25);
+   for(let z=cz-len*.5;z<=cz+len*.5+.01;z+=len/5){box(m.steel,outer-side*.23,h*.5,z,.32,h,.32);beam(m.steel,[side*31,h+.95,z],[outer,h,z],.23);}
+   part(boxGeo,roofMetal,x,h+.45,cz,8.25,.24,len+.7,new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*.12));
+   box(m.dark,outer+side*.15,h-.55,cz,.15,.18,len+.4);
+   for(const z of [cz-len*.35,cz+len*.35]){
+    box(m.dark,outer+side*.17,2.1,z,.20,3.1,3.4);box(m.door,outer+side*.29,2.1,z,.12,2.8,3.1);
+    box(m.light,outer+side*.55,3.95,z,.28,.24,.65);beam(m.steel,[outer,4.12,z],[outer+side*.55,4.12,z],.18);
+   }
+   for(let z=cz-len*.35;z<cz+len*.35;z+=3.2){box(m.dark,outer+side*.14,h-1.55,z,.14,1.45,2.55);box(m.glass,outer+side*.25,h-1.55,z,.10,1.20,2.25);}
+   const gx=side*33.35,gy=h+3.1,gz=cz;
+   box(m.steel,gx,gy,gz,4.8,.25,len-2);rail(gx+side*2.28,gy+1.12,gz,len-2,'z');
+   for(let z=cz-len*.4;z<=cz+len*.41;z+=len/4){beam(m.steel,[side*31,gy-3.1,z],[gx+side*2.1,gy-.18,z],.24);box(m.steel,side*31,gy-3.1,z,.5,.7,.65);}
+   const start=cz+len*.5-1,run=gy*1.22,steps=Math.ceil(gy/.25);
+   if(start+run<43.8){for(let i=0;i<steps;i++){const t=(i+.5)/steps;box(m.steel,gx,gy*(1-t),start+run*t,1.75,.14,run/steps+.04);}
+    for(const off of [-.8,.8]){beam(m.dark,[gx+off,gy-.18,start],[gx+off,.18,start+run],.23);beam(m.yellow,[gx+off,gy+1.0,start],[gx+off,1.05,start+run],.095);for(let i=0;i<=5;i++){const t=i/5;beam(m.steel,[gx+off,gy*(1-t),start+run*t],[gx+off,gy*(1-t)+1.05,start+run*t],.10);}}}
+   const vz=cz-len*.34,vx=side*32.0;
+   beam(m.steel,[vx,h+.7,vz],[vx,eave+2.5,vz],.78,.78,true);
+   beam(m.steel,[vx,eave+2.5,vz],[side*28.8,eave+2.5,vz],.78,.78,true);
+   beam(m.steel,[side*28.8,eave+2.5,vz],[side*28.8,eave+4.0,vz],.78,.78,true);
+   cylinder(m.dark,side*28.8,eave+4.0,vz,.65,.22);
+   for(const y of [h+1.8,h+4.4,eave-1])beam(m.steel,[side*31,y,vz],[vx,y,vz],.24);
+  }
+  // Raised roof monitor: paired continuous daylighting walls and a dark
+  // folded metal ridge. Supports descend to the existing truss top chords.
+  for(const [cz,len,height] of [[-19,24,3.2],[19,17,2.55]]){
+   box(m.steel,0,ridge+.1,cz,6.5,.42,len);
+   for(const side of [-1,1]){
+    const xx=side*2.9;
+    box(m.dark,xx,ridge+height*.5,cz,.28,height,len);
+    for(let zz=cz-len/2+1.5;zz<cz+len/2;zz+=3){
+     box(m.glass,xx+side*.16,ridge+height*.62,zz,.12,height*.58,2.55);
+     box(m.steel,xx+side*.22,ridge+height*.62,zz-1.32,.11,height*.65,.13);
+    }
+    part(boxGeo,roofMetal,side*1.6,ridge+height+.25,cz,3.45,.25,len+.65,new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*.13));
+    for(const zz of [cz-len*.38,cz+len*.38])beam(m.steel,[xx,ridge-.48,zz],[xx,ridge+height,zz],.30);
+   }
+   for(const zz of [cz-len*.5,cz+len*.5])box(cladding,0,ridge+height*.5,zz,5.9,height,.20);
+  }
+  // Portal frontage: piers, header and two asymmetric real open loading bays.
+  for(const side of [-1,1]){
+   const z=side*43.85;
+   for(const [x,w] of [[-28,6],[-10,7],[10,7],[28,6]])box(cladding,x,8.9,z,w,17.8,.35);
+   box(cladding,0,15.2,z,62,5.2,.35);
+   for(const x of [-19,0,19]){
+    const isOpen=(side===1&&x!==19)||(side===-1&&x===0);
+    box(m.steel,x-6.5,6.2,z,.38,12.4,.65);
+    box(m.steel,x+6.5,6.2,z,.38,12.4,.65);
+    box(m.dark,x,12.2,z,13.3,.9,.9);
+    if(!isOpen){
+     box(m.door,x,6,z,12.4,12,.24);
+     for(let y=.8;y<12;y+=.65)box(m.dark,x,y,z+side*.17,12.2,.06,.10);
+    }else{
+     // Roll-up door retained at the lintel; bottom remains visibly open.
+     part(cylGeo,m.door,x,11.6,z+side*.32,.36,12.5,.36,new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2));
+     box(m.door,x,11.05,z,12.4,1,.24);
+     for(const dx of [-5.9,5.9])box(m.yellow,x+dx,.8,z+side*.65,.2,1.6,.20);
+    }
+    box(m.light,x,12.8,z+side*.38,2.2,.22,.5);
+   }
+   // Gable closure follows the actual sloping roof; no open roof seam.
+   const p=[-31,eave,z,31,eave,z,0,ridge,z],g=new T.BufferGeometry();
+   g.setAttribute('position',new T.Float32BufferAttribute(side>0?p:[...p.slice(0,3),...p.slice(6,9),...p.slice(3,6)],3));
+   g.setAttribute('uv',new T.Float32BufferAttribute([0,0,1,0,.5,1],2));g.computeVertexNormals();part(g,cladding,0,0,0,1,1,1);
+  }
+  // Interior work lines: actual supported panel jigs, tool benches and crane
+  // trolley. Central passage remains open and can be seen through the doors.
+  for(const x of [-19,19])for(const z of [-27,-9,9,27]){
+   for(const dx of [-4.8,4.8])for(const dz of [-2.6,2.6]){
+    box(m.dark,x+dx,.72,z+dz,.27,1.45,.28);box(m.steel,x+dx,.18,z+dz,.65,.12,.65);
+   }
+   box(m.steel,x,1.5,z,10.8,.22,6.2);
+   for(let j=0;j<4;j++)box(m.rust,x,1.67+j*.12,z,9.8,.09,5.4);
+   for(const dx of [-3.5,3.5])beam(m.steel,[x+dx,1.6,z-2],[x+dx,4,z+2],.18);
+   box(m.dark,x+7,1.45,z,2.3,2.3,2.5);
+  }
+  // Nonrepeating fabrication stations. Steel stock and fume-extraction
+  // hoses are seated on existing benches or the apron, never in the aisle.
+  for(const [x,z,angle] of [[-23,-30,0],[22,-7,1],[-22,10,1],[23,29,0]]){
+   const x0=x+(x<0?-4:4);
+   box(m.dark,x0,.22,z,3.3,.44,4.4);box(m.blue,x0,1.45,z,2.7,2,3.6);
+   for(let y=.8;y<2.2;y+=.22)box(m.steel,x0+(x<0?1.38:-1.38),y,z,.08,.075,3.1);
+   box(m.dark,x0,2.49,z,2.95,.17,3.85);box(m.glass,x0+(x<0?1.49:-1.49),1.95,z-.95,.12,.58,1.0);
+   beam(m.wire,[x0,2.55,z],[x0,4.5,z],.18,.18,true);beam(m.wire,[x0,4.5,z],[x,4.5,z],.18,.18,true);beam(m.steel,[x,4.5,z],[x,2.25,z],.26,.26,true);
+   for(const dz of [-2.6,2.6]){cylinder(m.green,x0,.85,z+dz,.28,1.5);cylinder(m.dark,x0,1.64,z+dz,.14,.16);box(m.steel,x0,.22,z+dz,.8,.15,.8);}
+  }
+  for(const z of [-29,0,29]){
+   box(m.orange,0,14,z,57,1.7,2.3);
+   box(m.dark,-8,15.3,z,4,1.1,3.4);
+   beam(m.wire,[-8,14.5,z],[-8,6.2,z],.09,.09,true);
+   box(m.yellow,-8,6,z,.7,.7,.7);
+   for(const x of [-18,18]){
+    beam(m.steel,[x,eave,z],[x,16.9,z],.13);
+    box(m.dark,x,16.8,z,3.4,.28,.9);box(m.light,x,16.6,z,3,.12,.6);
+   }
+  }
+ });
+ // Explicitly stagger footprints and rotate service facilities around production lanes.
+ for(const [x,z,kind,angle,scale] of [
+ [-320,-1000,'plate-processing-hall',0,1],[-170,-1000,'outfit-workshop',0,1],[5,-1000,'coating-shop',0,1],[160,-1000,'outfit-workshop',Math.PI/2,.93],
+ [-320,-820,'plate-processing-hall',0,1],[-170,-820,'cargo-shed',Math.PI/2,.9],[5,-820,'coating-shop',0,1],[160,-820,'cargo-shed',0,.9],
+ [-320,-640,'cargo-shed',0,1],[-170,-640,'outfit-workshop',Math.PI/2,1],[5,-640,'plate-processing-hall',0,1],[160,-640,'outfit-workshop',0,.9],
+ [-320,-460,'outfit-workshop',Math.PI/2,.9],[-170,-460,'plate-processing-hall',0,1],[5,-460,'cargo-shed',0,.9],[160,-460,'coating-shop',0,.9],
+ [-320,-280,'cargo-shed',0,.86],[-170,-280,'outfit-workshop',0,1],[5,-280,'plate-processing-hall',Math.PI/2,.85],[160,-280,'cargo-shed',0,.85],
+ [-320,-100,'outfit-workshop',0,.9],[-170,-100,'cargo-shed',Math.PI/2,.9],[5,-100,'outfit-workshop',0,.9],[160,-100,'coating-shop',0,.86]]){
+  // Shared ground replaces one conspicuous square pad per building. A loading
+  // strip sits only at the appropriate working frontage.
+  box(apron,x,5.13,z+63,104*scale,.12,13);
+  for(const dx of [-48,-24,0,24,48])box(m.yellow,x+dx*scale,5.205,z+63,.13,.026,11);
+  place(kind,x,5.2,z,angle,scale);districtPlan.push({x,z,kind,angle,scale});
+ }
+ // Ground markings guide cargo flow between the workshops.
+ for(const z of [-910,-730,-550,-370,-190]){box(asphalt,-80,5.24,z,605,.06,12);for(let x=-365;x<=205;x+=24)box(m.yellow,x,5.29,z,8,.025,.18)}
+ for(const x of [-395,-245,-85,82,245]){box(asphalt,x,5.24,-550,12,.06,1080);for(let z=-1050;z<-70;z+=24)box(m.yellow,x,5.29,z,.18,.025,8)}
+ 
+// North administration and receiving quarter has deliberately irregular frontage.
+ for(const [x,z,kind,angle,scale] of [
+ [-970,-1060,'office-block',Math.PI/2,1.2],[-810,-1050,'outfit-workshop',Math.PI/2,.92],[-650,-1075,'office-block',0,.85],[-490,-1050,'coating-shop',Math.PI/2,.72],
+ [-1100,-900,'office-block',0,.9],[-970,-875,'service-block',Math.PI/2,1.4],[-810,-900,'cargo-shed',Math.PI/2,.85],[-650,-880,'outfit-workshop',0,.95],[-490,-890,'office-block',Math.PI/2,1.05]]){
+  box(apron,x,5.12,z+48,90*scale,.12,17);place(kind,x,5.2,z,angle,scale);
+  if(kind==='office-block')place('service-block',x+32,5.2,z+36);
+ }
+for(const x of [-460,-290,-120,50,220])for(const z of [350,530,710,870]){box(apron,x,5.13,z,128,.12,114);for(const dx of [-63,63])box(m.yellow,x+dx,5.21,z,.13,.025,114);for(let a=-48;a<=48;a+=16)for(let b=-42;b<=42;b+=14){const layers=1+Math.floor(rnd()*4);for(let j=0;j<layers;j++)place('container-far-'+['rust','blue','green','white'][Math.floor(rnd()*4)],x+a,5.25+j*2.94,z+b,Math.PI/2)}}
+for(const x of [350,470,730,930,1100])for(const z of [570,670,800,930]){if(Math.abs(x-850)<60&&z===800)continue;for(let a=-26;a<=26;a+=13)for(let b=-16;b<=16;b+=8){const layers=2+Math.floor(rnd()*4);for(let j=0;j<layers;j++){if(!clearScenery(x+a,5+(j+1)*2.94,z+b))break;place('container-'+['rust','blue','green','white'][Math.floor(rnd()*4)],x+a,5+j*2.94,z+b)}}}
+for(const z of [250,480,760]){box(asphalt,80,5.16,z,2100,.1,14);for(let x=-950;x<=1100;x+=40)box(m.yellow,x,5.25,z,16,.03,.22)}
+for(const x of [-780,-390,90,570]){box(asphalt,x,5.16,650,14,.10,1080);for(let z=150;z<1170;z+=40)box(m.yellow,x,5.25,z,.22,.03,16)}
+for(const x of [-1180,1180])for(let z=150;z<1150;z+=26){box(m.dark,x,3.7,z,2.2,1.8,8);box(m.concrete,x,4.9,z,3,.4,25)}
+// Connected sea wall and harbor breakwaters, rather than floating caisson rows.
+box(m.concrete,0,2,-1320,2280,5.2,26);box(m.dark,0,5,-1320,2280,.4,18);
+for(let x=-1120;x<1120;x+=100){box(m.yellow,x,5.3,-1320,36,.06,.35);if(x%200===-120)place('light-tower',x,5,-1320)}
+for(const x of [-820,-420,60,650,1020])place('tugboat',x,.5,(x===60||x===1020)?1270:1311,Math.PI*(rnd()>.5?0:1));
+for(const z of [-1050,-840,-600,-400])place('tugboat',1210,.5,z,Math.PI/2);
+// Planar reflected-scene buffers: one bounded-resolution capture shared by
+// wet pavement, or by the harbor surface when viewing the waterfront.
+const reflectionRT=new T.WebGLRenderTarget(896,560,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true,type:renderer.capabilities.isWebGL2&&renderer.extensions.has("EXT_color_buffer_float")?T.HalfFloatType:T.UnsignedByteType});
+const seaReflectionRT=new T.WebGLRenderTarget(768,480,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true,type:renderer.capabilities.isWebGL2&&renderer.extensions.has("EXT_color_buffer_float")?T.HalfFloatType:T.UnsignedByteType});
+const reflectionPlanes={road:{target:reflectionRT,projection:{value:new T.Matrix4()},map:{value:reflectionRT.texture}},sea:{target:seaReflectionRT,projection:{value:new T.Matrix4()},map:{value:seaReflectionRT.texture}}};
+const reflUniforms={uRoadReflect:{value:0},uSeaReflect:{value:0}};
+let dualReflection=false;
+const reflectionCamera=new T.PerspectiveCamera(),reflectionClip=new T.Plane(V(0,1,0),0),waterSurfaces=[],roadFilm=new T.Group(),seaFilm=new T.Group();
+roadFilm.visible=seaFilm.visible=false;scene.add(roadFilm,seaFilm);
+const reflectionCommon='uniform sampler2D uPortReflection;\nuniform mat4 uPortProjection;\nvec4 portSample(vec3 p,vec2 ripple){vec4 clip=uPortProjection*vec4(p,1.);vec2 uv=clip.xy/max(clip.w,.001)*.5+.5+ripple;vec2 edge=min(uv,1.-uv);float coverage=smoothstep(.006,.055,min(edge.x,edge.y))*step(.001,clip.w);return vec4(texture2D(uPortReflection,clamp(uv,vec2(.002),vec2(.998))).rgb,coverage);}\n';
+let reflectionsEnabled=true,reflectionPasses=0,reflectionCalls=0,reflectionTriangles=0,lastReflectionTime=-Infinity,lastReflectionMode='',lastReflectionPlane=NaN,lastReflectionKey='',cachedDual=false;
+function cameraKey(cam){return [cam.uuid,...cam.position.toArray(),...cam.quaternion.toArray(),...cam.projectionMatrix.elements,guide.visible,...guide.children.filter(o=>o.isLine).map(o=>o.visible),yardLightEnabled.value].join('|')}
+function renderPortReflection(cam,plane){
+ const layer=plane<0?reflectionPlanes.sea:reflectionPlanes.road;
+ // Reflect the eye, view direction and up across the horizontal water layer.
+ cam.updateMatrixWorld();const direction=cam.getWorldDirection(V(0,0,0)),worldUp=V(0,1,0).applyQuaternion(cam.quaternion);
+ reflectionCamera.position.copy(cam.position);reflectionCamera.position.y=2*plane-cam.position.y;direction.y*=-1;worldUp.y*=-1;
+ reflectionCamera.up.copy(worldUp);reflectionCamera.lookAt(reflectionCamera.position.clone().add(direction));
+ reflectionCamera.projectionMatrix.copy(cam.projectionMatrix);reflectionCamera.projectionMatrixInverse.copy(cam.projectionMatrixInverse);reflectionCamera.updateMatrixWorld();
+ layer.projection.value.multiplyMatrices(reflectionCamera.projectionMatrix,reflectionCamera.matrixWorldInverse);
+ const oldTarget=renderer.getRenderTarget(),oldClips=renderer.clippingPlanes,oldGuide=guide.visible,oldHalos=fixtureHalos.visible;fixtureHalos.visible=false;roadFilm.visible=seaFilm.visible=false;
+ const oldRoad=reflUniforms.uRoadReflect.value,oldSea=reflUniforms.uSeaReflect.value;
+ reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;
+ for(const water of waterSurfaces)water.visible=false;
+ const lineVisibility=guide.children.filter(o=>o.isLine).map(o=>[o,o.visible]);for(const [o] of lineVisibility)o.visible=false;
+ const oldTone=renderer.toneMapping;renderer.toneMapping=T.NoToneMapping;reflectionClip.constant=-plane+.035;renderer.clippingPlanes=[reflectionClip];
+ try{updateContainerLOD(reflectionCamera,true);renderer.setRenderTarget(layer.target);renderer.render(scene,reflectionCamera);reflectionCalls+=renderer.info.render.calls;reflectionTriangles+=renderer.info.render.triangles;reflectionPasses++}
+ finally{renderer.setRenderTarget(oldTarget);renderer.toneMapping=oldTone;for(const [o,v] of lineVisibility)o.visible=v;renderer.clippingPlanes=oldClips;guide.visible=oldGuide;fixtureHalos.visible=oldHalos;for(const water of waterSurfaces)water.visible=true;reflUniforms.uRoadReflect.value=oldRoad;reflUniforms.uSeaReflect.value=oldSea;updateContainerLOD(cam)}
+}
+function updatePortReflection(cam){
+ reflUniforms.uRoadReflect.value=0;reflUniforms.uSeaReflect.value=0;roadFilm.visible=seaFilm.visible=false;dualReflection=false;
+ if(!reflectionsEnabled||!cam.isPerspectiveCamera||cam.position.y<6||cam.position.y>190){lastReflectionKey='';return;}
+ const p=cam.position,sea=!onLand(p.x,p.z),plane=sea?-.25:5.14,now=performance.now(),moving=tour||keys.size>0||drag,key=cameraKey(cam),wantDual=!moving&&p.y<85;
+ // Water motion changes normals and sampling, not the reflected static world.
+ // Reuse the exact same projection/texture while the camera is stationary.
+ if((!moving&&(key!==lastReflectionKey||cachedDual!==wantDual))||now-lastReflectionTime>125&&moving||lastReflectionMode!==mode||lastReflectionPlane!==plane){
+  reflectionCalls=reflectionTriangles=0;renderPortReflection(cam,plane);lastReflectionTime=now;lastReflectionMode=mode;lastReflectionPlane=plane;lastReflectionKey=key;cachedDual=wantDual;
+  if(wantDual)renderPortReflection(cam,sea?5.14:-.25);
+ }
+ dualReflection=cachedDual&&!moving&&lastReflectionKey===key;
+ if(lastReflectionPlane===plane){reflUniforms.uRoadReflect.value=(!sea||dualReflection)?1:0;reflUniforms.uSeaReflect.value=(sea||dualReflection)?1:0;roadFilm.visible=!sea||dualReflection;seaFilm.visible=false;}
+}
+// Approximate baked footprint occlusion, sampled in world coordinates.
+ // The atlas is populated once after the complete static placement pass.
+ const contactCanvas=document.createElement('canvas');contactCanvas.width=contactCanvas.height=2048;
+ const contactCtx=contactCanvas.getContext('2d',{alpha:false});contactCtx.fillStyle='#fff';contactCtx.fillRect(0,0,2048,2048);
+ const contactMap=new T.CanvasTexture(contactCanvas);contactMap.minFilter=T.LinearFilter;contactMap.magFilter=T.LinearFilter;contactMap.generateMipmaps=false;
+ const contactUniform={value:contactMap};
+ // A deterministic world-scale pavement wear atlas, separate from AO and
+ // practical-light irradiance. Large dark freight routes, water pooling,
+ // patch repairs and oily forklift turning circles do not repeat every 30 m.
+ const freightCanvas=document.createElement('canvas');freightCanvas.width=freightCanvas.height=1536;
+ const freightCtx=freightCanvas.getContext('2d',{alpha:false});
+ freightCtx.fillStyle='#bababa';freightCtx.fillRect(0,0,1536,1536);
+ let freightSeed=784199;const freightRnd=()=>{freightSeed=(Math.imul(freightSeed,1664525)+1013904223)>>>0;return freightSeed/4294967296};
+ const fx=x=>(x+1500)*1536/3000,fz=z=>(z+1500)*1536/3000;
+ let freightStamps=0;
+ for(const [a,b,c,d] of layout.land){
+  const area=(b-a)*(d-c),count=Math.max(3,Math.round(area/4500));
+  for(let k=0;k<count;k++){
+   const x=a+(b-a)*freightRnd(),z=c+(d-c)*freightRnd(),r=2+freightRnd()*16,xx=fx(x),zz=fz(z),rr=r*1536/3000;
+   const g=freightCtx.createRadialGradient(xx,zz,0,xx,zz,rr);
+   const dark=freightRnd()>.18;
+   g.addColorStop(0,dark?'rgba(19,23,25,.35)':'rgba(235,230,215,.25)');
+   g.addColorStop(.62,dark?'rgba(23,28,31,.13)':'rgba(233,229,216,.07)');
+   g.addColorStop(1,'rgba(23,24,27,0)');
+   freightCtx.fillStyle=g;freightCtx.fillRect(xx-rr,zz-rr,2*rr,2*rr);freightStamps++;
+  }
+  if(b-a>110&&d-c>110){
+   const x=(a+b)/2,mainX=fx(x),z0=fz(c+14),z1=fz(d-14);
+   for(const off of [-1.9,-.4,.4,1.9]){
+    freightCtx.beginPath();freightCtx.moveTo(mainX+off,z0);freightCtx.lineTo(mainX+off,z1);
+    freightCtx.strokeStyle='rgba(14,18,18,.09)';freightCtx.lineWidth=.7;freightCtx.stroke();
+   }
+   for(let k=0;k<7;k++){
+    const z=c+(d-c)*freightRnd(),cx=fx(a+(b-a)*freightRnd()),cy=fz(z),rr=(2+freightRnd()*4)*1536/3000;
+    freightCtx.strokeStyle='rgba(19,22,23,.26)';freightCtx.lineWidth=.55;
+    freightCtx.beginPath();freightCtx.arc(cx,cy,rr,0,Math.PI*2);freightCtx.stroke();
+   }
+  }
+ }
+ const freightMap=new T.CanvasTexture(freightCanvas);freightMap.minFilter=T.LinearFilter;freightMap.magFilter=T.LinearFilter;freightMap.generateMipmaps=false;
+ const freightUniform={value:freightMap};
+ // Static irradiance approximation for the existing practical fixtures.
+ // Shared atlas is world-space and costs one texture sample, not more lights.
+ const yardLightCanvas=document.createElement('canvas');yardLightCanvas.width=yardLightCanvas.height=2048;
+ const yardLightCtx=yardLightCanvas.getContext('2d',{alpha:false});yardLightCtx.fillStyle='#000';yardLightCtx.fillRect(0,0,2048,2048);
+ const yardLightMap=new T.CanvasTexture(yardLightCanvas);yardLightMap.minFilter=T.LinearFilter;yardLightMap.magFilter=T.LinearFilter;yardLightMap.generateMipmaps=false;
+ const yardLightUniform={value:yardLightMap},yardLightEnabled={value:1};let bakedLightPools=0;
+ // Ground macro variation is evaluated in world space so large slabs and tiny props
+// no longer share the same apparent UV scale. Preserve the original texture for GLB.
+for(const mat of [m.road,asphalt,apron]){
+ mat.onBeforeCompile=shader=>{
+  shader.uniforms.uContact=contactUniform;shader.uniforms.uYardLight=yardLightUniform;shader.uniforms.uYardLightEnabled=yardLightEnabled;shader.uniforms.uFreight=freightUniform;
+  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 pavementP=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n pavementP=instanceMatrix*pavementP;\n#endif\n vPavement=(modelMatrix*pavementP).xyz;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPavement;\nuniform sampler2D uContact;uniform sampler2D uYardLight;uniform sampler2D uFreight;uniform float uYardLightEnabled;\nfloat wetHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wetNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wetHash(i),wetHash(i+vec2(1,0)),f.x),mix(wetHash(i+vec2(0,1)),wetHash(i+vec2(1,1)),f.x),f.y);}').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat wet=wetNoise(vPavement.xz*.044)*.72+wetNoise(vPavement.xz*.20)*.28;float puddle=smoothstep(.45,.63,wet*.78+wetNoise(vPavement.xz*.57)*.22);roughnessFactor=mix(roughnessFactor,.095,puddle*.91);float repairs=wetNoise(vPavement.xz*.11)*.55+wetNoise(vPavement.xz*.71)*.45;diffuseColor.rgb*=mix(.83,1.16,repairs)*mix(1.0,.62,puddle);').replace('#include <color_fragment>','#include <color_fragment>\nvec2 contactUV=vPavement.xz/3000.+.5;float contact=texture2D(uContact,vec2(contactUV.x,1.-contactUV.y)).r;float freight=texture2D(uFreight,vec2(contactUV.x,1.-contactUV.y)).r;diffuseColor.rgb*=mix(1.,contact,.78)*mix(.73,1.10,freight);').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\nfloat yardIrr=texture2D(uYardLight,vec2(contactUV.x,1.-contactUV.y)).r;float surfaceFacing=smoothstep(.78,.98,abs(normalize(cross(dFdx(vPavement),dFdy(vPavement))).y));float level=1.-smoothstep(.5,1.5,abs(vPavement.y-5.22));totalEmissiveRadiance+=diffuseColor.rgb*vec3(3.4,1.70,.72)*yardIrr*surfaceFacing*level*uYardLightEnabled;');
+
+ if(mat===m.road){shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'(vPavement.xz/30.0)')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'(vPavement.xz/30.0)'));}
+ };
+}
+// Metre-scale concrete projection for large civil slabs and retaining faces.
+// The ordinary mesh UV is retained in exported GLBs; only the live world renderer
+// chooses world-space UVs. A separate program key avoids cached shader confusion.
+m.concrete.onBeforeCompile=shader=>{
+ shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vCivil;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 civil=vec4(transformed,1.);\n#ifdef USE_INSTANCING\n civil=instanceMatrix*civil;\n#endif\n vCivil=(modelMatrix*civil).xyz;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vCivil;').replace('#include <map_fragment>','vec3 worldN=normalize(cross(dFdx(vCivil),dFdy(vCivil)));vec3 civilN=abs(worldN);vec2 civilUV=(civilN.y>=civilN.x&&civilN.y>=civilN.z?vCivil.xz:(civilN.x>=civilN.z?vCivil.zy:vCivil.xy))/8.0;\n'+T.ShaderChunk.map_fragment.replace(/\bvUv\b/g,'civilUV')).replace('#include <roughnessmap_fragment>',T.ShaderChunk.roughnessmap_fragment.replace(/\bvUv\b/g,'civilUV')).replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace(/\bvUv\b/g,'civilUV'));
+};
+m.concrete.customProgramCacheKey=()=> 'iron-tide-civil-v2';
+// Native industrial kit: batched working-port models and practical lighting.
+const fixturePositions=[];const warmGlow=new T.MeshBasicMaterial({color:0xffc285,toneMapped:true});warmGlow.color.multiplyScalar(3.6);
+const glowCanvas=document.createElement('canvas');glowCanvas.width=glowCanvas.height=64;const gc=glowCanvas.getContext('2d'),gg=gc.createRadialGradient(32,32,0,32,32,32);gg.addColorStop(0,'rgba(255,165,73,.65)');gg.addColorStop(.35,'rgba(255,132,45,.25)');gg.addColorStop(1,'rgba(255,132,45,0)');gc.fillStyle=gg;gc.fillRect(0,0,64,64);const glowMat=new T.MeshBasicMaterial({map:new T.CanvasTexture(glowCanvas),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,blending:T.AdditiveBlending});const flatGlow=new T.PlaneGeometry(1,1);flatGlow.rotateX(-Math.PI/2);
+function pool(x,y,z,r){
+  // On the main apron, light is painted into an irradiance atlas. Keep the
+  // existing geometry glow for other heights (hull catwalks and drydock floor).
+  if(y>=5.05&&y<=5.65&&Math.abs(x)<1500&&Math.abs(z)<1500){
+   const k=2048/3000,cx=(x+1500)*k,cy=(z+1500)*k,rr=Math.max(2,r*k);
+   const g=yardLightCtx.createRadialGradient(cx,cy,0,cx,cy,rr);
+   g.addColorStop(0,'rgba(255,255,255,.60)');g.addColorStop(.26,'rgba(255,255,255,.40)');g.addColorStop(.60,'rgba(255,255,255,.11)');g.addColorStop(1,'rgba(255,255,255,0)');
+   yardLightCtx.save();yardLightCtx.globalCompositeOperation='lighter';yardLightCtx.fillStyle=g;yardLightCtx.fillRect(cx-rr,cy-rr,2*rr,2*rr);yardLightCtx.restore();bakedLightPools++;
+  }else part(flatGlow,glowMat,x,y,z,r*2,1,r*2)
+ }
+function lamp(x,y,z){fixturePositions.push([x+2,y+11.6,z]);beam(m.dark,[x,y,z],[x,y+12,z],.25);beam(m.steel,[x,y+12,z],[x+2,y+12,z],.19);box(m.dark,x+2,y+11.9,z,1.5,.4,.75);box(warmGlow,x+2,y+11.66,z,1.2,.12,.52);pool(x+2,y+.20,z,13)}
+define('welding-skid',()=>{box(m.dark,0,.22,0,5,.44,2.5);box(m.orange,0,1.3,0,3.8,1.8,2);for(const z of [-1.02,1.02]){for(let x=-1.4;x<1.5;x+=.20)box(m.dark,x,1.45,z,.08,.65,.07);box(m.steel,0,.75,z,3.6,.15,.08)}for(const x of [-1.5,1.5]){box(m.dark,x,2.25,0,.2,.20,1.8);box(m.steel,x,.25,0,.22,.42,2.7)}cylinder(m.dark,1.7,2.45,.5,.12,.6)});
+define('workboat',()=>{
+ // Closed tapered hull built from cross sections with separately colored boot stripe.
+ const n=32, rows=[[-2.0,.35],[0,.72],[2.2,1],[4.2,1],[5, .96]];
+ function hullPoint(i,j){const x=-61+122*i/n, taper=Math.sqrt(Math.max(.001,1-Math.pow(Math.abs(x)/61,5)));return [x,rows[j][0],rows[j][1]*10*taper]}
+ for(let j=0;j<rows.length-1;j++){const points=[];for(let i=0;i<n;i++){for(const sign of [-1,1]){const p=(a,b)=>{const v=hullPoint(a,b);v[2]*=sign;return v};let A=p(i,j),B=p(i+1,j),C=p(i+1,j+1),D=p(i,j+1);if(sign===1)points.push(...A,...B,...C,...A,...C,...D);else points.push(...A,...C,...B,...A,...D,...C)}}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points,3));geo.setAttribute('uv',new T.Float32BufferAttribute(new Array(points.length/3*2).fill(0),2));geo.computeVertexNormals();part(geo,j<1?m.rust:j===1?m.dark:m.blue,0,0,0,1,1,1)}
+ for(let i=0;i<n;i++){const a=hullPoint(i,4),b=hullPoint(i+1,4);box(m.dark,(a[0]+b[0])/2,5,(0),122/n+.03,.25,(a[2]+b[2]));}
+ box(m.white,-35,12,0,23,13,18);box(m.glass,-35,16,9.1,19,3,.25);box(m.glass,-35,16,-9.1,19,3,.25);box(m.dark,-44,22,0,4,10,5);
+ for(let x=-12;x<=35;x+=12){box(m.rust,x,8,0,10,5,16);for(const z of [-8,8])rail(x,11,z,10)}
+ for(const x of [-49,49]){beam(m.steel,[x,6,0],[x,25,0],.3);box(m.light,x,25,0,.7,.6,.7)}
+});
+define('workshop-kit',()=>{box(m.dark,0,.35,0,10,.7,5);for(const x of [-3,0,3]){box(m.rust,x,1.4,0,2.7,2,2);for(const z of [-1.1,1.1])box(m.steel,x,1.1,z,2.6,.12,.14)}for(let x=-4;x<=4;x+=2){beam(m.steel,[x,.7,-2],[x,.7,2],.23);box(m.yellow,x,2.45,0,.25,.10,1.8)}});
+for(let x=-1100;x<=1080;x+=42){if(clearScenery(x,18,1155))lamp(x,5.15,1155);for(const z of [1060,1100])box(m.steel,x,5.29,z,42,.12,.15);if(clearScenery(x,9,1020))place('welding-skid',x,5.25,1020,Math.PI/2)}
+for(const x of [-950,-600,-240,220,590,1000]){if(x===-600||x===590)continue;place('workboat',x,0,1322,Math.PI*(x>0?1:0))}
+for(const x of [695,1005])for(let z=-720;z<-360;z+=27){lamp(x,-7.8,z);if(clearScenery(x,-2,z))place('welding-skid',x,-7.8,z,Math.PI/2)}
+for(const x of [660,1040])for(let z=-310;z<=360;z+=48){if(clearScenery(x,19,z))lamp(x,5.16,z);box(m.steel,x,5.25,z,.22,.12,48)}
+for(const x of [-1010,-750,-670,-420,320,490,780,1080])for(let z=320;z<1000;z+=48){const xx=x+(rnd()-.5)*12,zz=z+(rnd()-.5)*16;if(clearScenery(xx,18,zz)){if(rnd()<.40)lamp(xx,5.26,zz);else place(rnd()<.5?'welding-skid':'workshop-kit',xx,5.26,zz,rnd()*Math.PI)}}
+for(const x of [-940,-820,-600,-480])for(const z of [-650,-450,-170,100])for(let dz=-62;dz<65;dz+=20){if(clearScenery(x,12,z+dz)){place('workshop-kit',x,5.2,z+dz,Math.PI/2);pool(x,5.22,z+dz,9)}}
+for(let x=-1080;x<1080;x+=54){if(clearScenery(x,18,-1318))lamp(x,5.24,-1318)}
+for(const x of [-950,-720,-420,220,520,960]){if(clearScenery(x,72,1160))place('luffing-crane',x,5,1160,Math.PI/2,.8)}
+for(const z of [-1100,-900,-680,-460,-240,180]){if(clearScenery(1150,85,z))place('luffing-crane',1150,5,z,Math.PI/2,.9)}
+for(let x=-1050;x<1100;x+=48){const z=1000;if(clearScenery(x,15,z))place('container-far-'+['rust','blue','green','white'][Math.floor(rnd()*4)],x,5.2,z,Math.PI/2)}
+for(let x=600;x<=900;x+=14)for(const z of [-950,-890]){box(m.dark,x,32,z,1.7,.5,1.7);box(warmGlow,x,32.4,z,.85,.25,.85);pool(x,8.2,z,8)}
+// Sector-specific work areas: deliberately leave the existing inspection route open.
+define('fabrication-canopy',()=>{
+ for(const x of [-25,25])for(const z of [-15,15]){box(m.steel,x,8,z,1.2,16,1.2);box(m.concrete,x,.4,z,3,.8,3)}
+ for(const z of [-15,15]){beam(m.steel,[-26,16,z],[26,16,z],1.1);for(let x=-25;x<25;x+=10)beam(m.dark,[x,16,z],[x+10,12,z],.5)}
+ for(let x=-25;x<=25;x+=5)for(const sign of [-1,1])beam(m.steel,[x,16,sign*16],[x,21,0],.4);
+ for(const sign of [-1,1]){const r=new T.Quaternion().setFromAxisAngle(V(1,0,0),sign*Math.atan2(5,16));part(boxGeo,m.blue,0,18.5,sign*8,54,.45,Math.hypot(16,5),r)}
+ for(let x=-20;x<=20;x+=10){box(m.light,x,15.5,0,2,.24,.5);box(m.dark,x,1.2,-9,5,2.4,3)}
+});
+for(const x of [-600,-460,-320,-180,-40])if(clearScenery(x,27,950)){place('fabrication-canopy',x,5.2,950);pool(x,5.28,950,19)}
+// Deep berth: retaining walls and maintenance staging tighten the actual drydock composition.
+for(const x of [775,925]){
+ box(m.concrete,x,-2,-550,3.2,12,330);
+ box(m.steel,x,4.2,-550,5,.35,330);rail(x,5.25,-550,330,'z');
+ for(let z=-706;z<-390;z+=16){box(m.dark,x,-1.8,z,4.1,10,.85);box(m.steel,x,3.9,z,5,.4,1.1);if(z%32===-2){box(warmGlow,x+(x<850?1.9:-1.9),2.5,z,.22,.7,1.1);pool(x+(x<850?7:-7),-7.75,z,9)}}
+}
+// Longitudinal catwalks and rib-mounted work lamps leave the ship's center unobstructed.
+for(const z of [-945,-895]){
+ box(m.steel,750,16,z,265,.45,3.4);rail(750,17,z+(z<-920?1.7:-1.7),265);
+ for(let x=620;x<885;x+=14){beam(m.dark,[x,15.6,z],[x,9,z+(z<-920?-3:3)],.5);box(warmGlow,x,17.8,z,.9,.28,.5);pool(x,5.95,z,7)}
+}
+// Interior equipment is against the walls, not in the race line.
+for(const center of [-650,-450,-170,100])for(const x of [-916,-844])for(let dz=-55;dz<=55;dz+=22){
+ const z=center+dz;if(clearScenery(x,11,z)){place('welding-skid',x,5.24,z,Math.PI/2);pool(x,5.31,z,10)}
+}
+for(const center of [-650,-450,-170,100])for(let dz=-55;dz<=55;dz+=25)for(const x of [-906,-854]){
+ const z=center+dz;box(warmGlow,x,43,z,2.6,.35,.5);fixturePositions.push([x,42.5,z]);pool(x,5.32,z,14)
+}
+// Pipe district: heavy valves, flanges and ground-level process equipment.
+for(const z of [410,570,730])for(const x of [-920,-580]){
+ if(!clearScenery(x,13,z))continue;
+ for(const dz of [-16,16]){box(m.concrete,x,5.8,z+dz,10,1.6,7);beam(m.steel,[x-5,9,z+dz],[x+5,9,z+dz],2,2,true);for(const dx of [-3,3])beam(m.dark,[x+dx-.3,9,z+dz],[x+dx+.3,9,z+dz],2.4,2.4,true);cylinder(m.rust,x,11,z+dz,.6,3);box(m.yellow,x,12.5,z+dz,2,.25,.35)}
+ pool(x,5.25,z,10)
+}
+// Distant coastline outside the playable footprint gives the port a geographical context.
+// Layered coastal terrain: grounded silhouettes and a continuous shore,
+// with low-amplitude fractal relief rather than a smooth featureless ridge.
+const coastMat=new T.MeshStandardMaterial({vertexColors:true,side:T.DoubleSide,roughness:1,metalness:0,envMapIntensity:.45});
+function shoreline(x){return -2500-170*Math.sin(x*.0007)-90*Math.cos(x*.0025)-65*Math.sin(x*.009)}
+function coastalHeight(x,z){const t=T.MathUtils.clamp((shoreline(x)-z)/2200,0,1);const ridge=Math.sin(Math.PI*t)**1.35;
+ const large=.40+.29*Math.sin(x*.0008)+.19*Math.sin(x*.0019+1);
+ const ridged=1.-Math.abs(2.*smoothNoise(x*.0023,z*.0023)-1.);
+ const detail=.38+.27*ridged+.21*smoothNoise(x*.006,z*.006)+.09*smoothNoise(x*.017,z*.017);
+ return -3+ridge*(100+Math.max(.05,large)*890)*detail}
+const coastGeo=new T.BufferGeometry(),coastPos=[],coastColors=[],coastIndices=[],coastN=330,coastM=72;
+for(let iz=0;iz<=coastM;iz++)for(let ix=0;ix<=coastN;ix++){
+ const x=-6600+ix*13200/coastN,t=iz/coastM,z=shoreline(x)-t*2200,height=coastalHeight(x,z);
+ coastPos.push(x,height,z);const detail=smoothNoise(x*.012,z*.012),grass=smoothNoise(x*.003,z*.003),shore=T.MathUtils.smoothstep(t,.005,.065);
+ const slope=Math.hypot(coastalHeight(x+20,z)-coastalHeight(x-20,z),coastalHeight(x,z+20)-coastalHeight(x,z-20))/40;
+ const rock=T.MathUtils.smoothstep(height,210,550)*T.MathUtils.smoothstep(slope,.10,.60),c=new T.Color().setRGB(.045+.033*detail+.021*grass,.061+.035*grass,.048+.030*detail);
+ c.lerp(new T.Color().setRGB(.13+.065*detail,.125+.05*detail,.12+.045*detail),rock);c.lerp(new T.Color(0x665c53),1-shore);coastColors.push(c.r,c.g,c.b)
+}
+for(let iz=0;iz<coastM;iz++)for(let ix=0;ix<coastN;ix++){const a=iz*(coastN+1)+ix,b=a+1,c=a+coastN+1,d=c+1;coastIndices.push(a,b,c,b,d,c)}
+coastGeo.setAttribute('position',new T.Float32BufferAttribute(coastPos,3));coastGeo.setAttribute('color',new T.Float32BufferAttribute(coastColors,3));coastGeo.setIndex(coastIndices);coastGeo.computeVertexNormals();part(coastGeo,coastMat,0,0,0,1,1,1);
+// Richer native industrial architecture: each kit has an inspectable/exportable model.
+// Reserve the original gate centerline; reject whole footprint candidates, not just their centers.
+function clearFootprint(x,z,w,d,top){for(const dx of [-w/2,0,w/2])for(const dz of [-d/2,0,d/2])if(!clearScenery(x+dx,top,z+dz))return false;return true}
+const rawSteel=material('#8b9196',.68,.46,'steel'),primer=material('#b27250',.18,.75,'steel'),deck=material('#5a615d',.3,.66,'steel');
+// Large crane paint must not resemble uniformly pitted raw rust.
+// Preserve fine source variation but attenuate it to a plausible coating.
+const gantryPaint=m.orange.clone();
+{
+ const source=m.orange.map.image,c=document.createElement('canvas');c.width=c.height=512;
+ const ctx=c.getContext('2d');ctx.drawImage(source,0,0,512,512);
+ const image=ctx.getImageData(0,0,512,512),px=image.data;
+ for(let i=0;i<px.length;i+=4){const r=px[i],g=px[i+1],b=px[i+2],lum=(r*.2126+g*.7152+b*.0722-95);
+  px[i]=Math.max(0,Math.min(255,150+lum*.48));px[i+1]=Math.max(0,Math.min(255,64+lum*.34));px[i+2]=Math.max(0,Math.min(255,33+lum*.24))}
+ ctx.putImageData(image,0,0);
+ let wearSeed=19021;const wearRand=()=>{wearSeed=(Math.imul(wearSeed,1664525)+1013904223)>>>0;return wearSeed/4294967296};
+ for(let i=0;i<85;i++){const x=wearRand()*512,y=wearRand()*512,w=1+wearRand()*3,h=1+wearRand()*5;ctx.fillStyle='rgba(56,46,40,.68)';ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(198,137,91,.52)';ctx.fillRect(x+w,y,w*.4,h);const len=8+wearRand()*50,g=ctx.createLinearGradient(x,y+h,x,y+h+len);g.addColorStop(0,'rgba(84,35,21,.36)');g.addColorStop(1,'rgba(84,35,21,0)');ctx.fillStyle=g;ctx.fillRect(x,y+h,w*.66,len)}
+ const tex=new T.CanvasTexture(c);tex.encoding=T.sRGBEncoding;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+ gantryPaint.map=tex;gantryPaint.roughness=1;gantryPaint.roughnessMap=weatherRoughness(256,256,9137,.71);gantryPaint.metalness=.08;gantryPaint.normalScale=new T.Vector2(.24,.24);gantryPaint.envMapIntensity=.74;
+}
+weatheredIndustrialPBR(gantryPaint,.94,'gantry-coating');
+define('heavy-gantry-detail',()=>{
+ // Paired portal legs with substantial box sections, base bogies and a real trolley walkway.
+ for(const x of [-62,62]){for(const z of [-13,13]){
+  beam(gantryPaint,[x,3,z],[x*.85,106,z*.65],5.6,6.2);
+  // Rail-running bogie frame is elevated above the wheels. Axles run in X;
+  // wheel treads align with the pair of longitudinal Z rails at +/-3.8 m.
+  box(m.dark,x,3.22,z,12.5,.95,10.5);
+  for(const dx of [-3.8,3.8]){
+   box(m.steel,x+dx,2.98,z,1.4,.62,9.6);
+   for(const dz of [-3.3,-1.1,1.1,3.3]){
+    const wheelRot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2),wy=1.90;
+    part(cylGeo,m.steel,x+dx,wy,z+dz,1.18,.82,1.18,wheelRot);
+    for(const rim of [-.43,.43])part(cylGeo,m.dark,x+dx+rim,wy,z+dz,1.24,.15,1.24,wheelRot);
+    beam(m.steel,[x+dx-.78,wy,z+dz],[x+dx+.78,wy,z+dz],.24,.24,true);
+    for(const h of [-.73,.73]){box(m.dark,x+dx+h,2.18,z+dz,.32,1.12,1.25);box(m.steel,x+dx+h,2.72,z+dz,.48,.24,1.5)}
+   }
+   box(m.blue,x+dx,2.78,z-4.55,1.55,.90,1.30);box(m.dark,x+dx,2.8,z+4.9,1.65,.55,.7);
+  }
+  for(const dx of [-5.1,5.1]){box(m.yellow,x+dx,3.78,z,.12,.15,9.4);for(const dz of [-4.5,4.5])beam(m.steel,[x+dx,3.55,z+dz],[x+dx,4.65,z+dz],.10)}
+  beam(m.steel,[x-5,4.65,z-4.5],[x-5,4.65,z+4.5],.10);
+  for(let y=13;y<=100;y+=15){const px=x*(1-y/700);box(rawSteel,px,y,z*.8,7,.65,7);for(const off of [-2.4,2.4])box(m.dark,px+off,y+.45,z*.8,.35,.3,6)}
+ }
+ for(let y=8;y<100;y+=14){const px=x*(1-y/700),px2=x*(1-(y+14)/700);beam(gantryPaint,[px,y,-12],[px2,y+14,12],1.5);beam(rawSteel,[px,y,12],[px2,y+14,-12],.65);}
+ for(const off of [-.35,.35])beam(m.steel,[x-4,4,off],[x*.85-4,106,off],.12,.12,true);
+ for(let y=4;y<105;y+=.75)beam(m.steel,[x*(1-y/700)-4,y,-.35],[x*(1-y/700)-4,y,.35],.065,.065,true);
+ }
+ for(const z of [-9,9]){
+  box(gantryPaint,0,110,z,142,8,4.5);box(rawSteel,0,114.5,z,142,.7,5.8);box(m.dark,0,105.5,z,141,.55,4.8);
+  for(let x=-68;x<70;x+=7){beam(rawSteel,[x,106,z-2.3],[x+6,114,z-2.3],.45);box(m.dark,x,110,z+2.35,.25,7.2,.35)}
+  box(deck,0,115.2,z,144,.45,3);rail(0,116.4,z+1.5,142);
+ }
+ for(let x=-64;x<=64;x+=8)box(m.steel,x,112,0,1.25,1.4,19);
+ box(gantryPaint,8,118,0,17,5.8,21);box(m.dark,8,121.2,0,18,.6,22);
+ box(m.dark,19,114,12,6,4.5,4);box(m.glass,19,114.35,14.05,5.45,2.9,.15);for(const x of [17,19,21])box(m.steel,x,114.35,14.16,.12,2.95,.12);for(const x of [15.95,22.05])box(m.glass,x,114.35,12,.12,2.9,3.55);box(gantryPaint,19,116.38,12,6.5,.45,4.6);box(m.steel,19,111.4,12,7,.4,5);rail(19,112.55,14.45,7);
+ for(const x of [2,14])for(const z of [-3,3])beam(m.dark,[x,113,z],[x,64,z],.12,.12,true);
+ box(m.yellow,8,63,0,15,2.8,7);box(m.dark,8,61.1,0,11,.6,4);
+ // Four reinforced lifting eyes, pin housings and clevises are attached to
+ // the spreader beam, not suspended independently of it.
+ for(const x of [2.3,13.7])for(const z of [-2.35,2.35]){
+  box(rawSteel,x,64.6,z,1.25,.48,1.15);for(const dx of [-.38,.38])box(m.steel,x+dx,65.1,z,.23,1.05,.78);
+  beam(m.wire,[x-.62,65.2,z],[x+.62,65.2,z],.17,.17,true);
+  box(m.dark,x,61.1,z,1.18,.42,1.1);for(const dx of [-.35,.35])box(rawSteel,x+dx,60.5,z,.22,1.1,.64);
+  beam(m.steel,[x-.5,60.25,z],[x+.5,60.25,z],.18,.18,true);
+ }
+ for(const x of [2.3,13.7]){box(m.dark,x,63,3.52,1.8,.78,.1);for(let dx=-.65;dx<=.65;dx+=.35)beam(m.yellow,[x+dx-.2,62.65,3.59],[x+dx+.2,63.35,3.59],.12)}
+
+ // Cable sheaves, lifting shackles, trolley wheel housings and access platforms.
+ for(const x of [1,15])for(const z of [-5.5,5.5]){part(cylGeo,m.dark,x,114,z,1.4,.6,1.4,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));box(rawSteel,x,116,z,3.6,2.2,1.1)}
+ for(const x of [-53,53])for(const z of [-9,9]){box(rawSteel,x,103.6,z,8,.65,8);rail(x,104.7,z+3.5,8);beam(m.steel,[x-3,103.2,z],[x,98,z],.48);}
+ for(const z of [-6,6]){box(m.steel,8,62.9,z,16,.45,.55);for(const x of [1,15])beam(m.dark,[x,63.2,z],[x,60.8,z],.16,.16,true)}
+ 
+ for(const x of [-54,54])for(const z of [-10,10])box(m.light,x,104,z,2,.5,2);
+ // Upper trolley motors, drum shafts, cable reeving, access platforms and service hoist.
+ for(const z of [-7,7]){box(m.steel,8,121.4,z,13,.6,3);beam(m.dark,[2,122.8,z],[14,122.8,z],1.1,1.1,true);for(const x of [2.6,13.4])beam(m.steel,[x-.24,122.8,z],[x+.24,122.8,z],1.35,1.35,true);for(const x of [0,16])box(m.dark,x,122.2,z,3.5,2.6,3.5)}
+ for(const x of [3,13])for(const z of [-2.8,2.8]){beam(m.steel,[x,112,z],[x,64,z],.085,.085,true);beam(m.dark,[x+.5,112,z],[x+.5,64,z],.07,.07,true)}
+ for(const x of [-55,55]){box(m.dark,x,111,0,6.5,4,12);box(gantryPaint,x,114,0,7,.5,13);rail(x,115,6.4,7)}
+ box(gantryPaint,-45,118,0,7,3,5);beam(gantryPaint,[-45,120,0],[-32,129,0],.7);beam(m.dark,[-32,129,0],[-32,115,0],.065,.065,true);
+ for(const x of [-61,61])for(const z of [-12,12]){box(m.steel,x,4.8,z,6,.65,4.6);box(gantryPaint,x,6.5,z,3.2,2.8,2.8);box(m.dark,x,6.5,z+1.45,2.5,1.6,.15)}
+ // Switchback maintenance stairs on the outboard face of the eastern leg.
+ // Landing supports follow the tapered columns; continuous stringers carry
+ // the treads and terminate at the actual trolley service deck.
+ const stairBase=5.15,stairTop=115.2,flights=16,rise=(stairTop-stairBase)/flights,run=12.4;
+ const stairX=y=>62*(1-Math.min(y,106)/700)+4.2;
+ for(let n=0;n<=flights;n++){
+  const y=stairBase+n*rise,z=n%2?6.2:-6.2,x=stairX(y);
+  box(deck,x,y-.16,z,2.9,.32,2.7);
+  beam(rawSteel,[x-1.3,y-.18,z],[62*(1-Math.min(y,106)/700),y-1.3,z>0?9:-9],.32);
+  for(const dz of [-1.15,1.15]){beam(m.yellow,[x+1.35,y,z+dz],[x+1.35,y+1.05,z+dz],.085);beam(m.yellow,[x-1.35,y,z+dz],[x-1.35,y+1.05,z+dz],.085)}
+  beam(m.yellow,[x+1.35,y+1.05,z-1.15],[x+1.35,y+1.05,z+1.15],.075);
+  if(n===flights){box(deck,(x+55)/2,y-.16,z,Math.abs(x-55)+2,.32,2.7);break}
+  const nextY=y+rise,nextZ=-z,nextX=stairX(nextY),steps=Math.ceil(rise/.23);
+  for(const dx of [-.92,.92]){
+   beam(rawSteel,[x+dx,y-.28,z],[nextX+dx,nextY-.28,nextZ],.20,.36);
+   beam(m.yellow,[x+dx*1.25,y+1.04,z],[nextX+dx*1.25,nextY+1.04,nextZ],.075);
+   for(let k=0;k<=4;k++){const t=k/4,xx=T.MathUtils.lerp(x,nextX,t)+dx*1.25,yy=y+rise*t,zz=T.MathUtils.lerp(z,nextZ,t);beam(m.steel,[xx,yy,zz],[xx,yy+1.04,zz],.075)}
+  }
+  for(let k=1;k<steps;k++){const t=k/steps;box(deck,T.MathUtils.lerp(x,nextX,t),y+rise*t-.08,T.MathUtils.lerp(z,nextZ,t),2.0,.16,run/steps+.055)}
+ }
+ // Stage 3: connection plates, ribbed motor housings, access enclosures,
+ // and bolted rail-running machinery, kept inside the original portal envelope.
+ for(const side of [-1,1])for(const z of [-13,13]){
+  const x=side*62;
+  for(const dx of [-4.6,4.6])for(const dz of [-4.2,4.2]){
+   box(m.steel,x+dx,3.85,z+dz,.65,.32,.65);
+   cylinder(m.dark,x+dx,4.06,z+dz,.16,.18);
+  }
+  box(m.blue,x,7.1,z,2.3,2.1,2.4);
+  for(let k=-4;k<=4;k++)box(m.steel,x+k*.22,7.1,z+1.23,.075,1.8,.13);
+  beam(m.dark,[x,6.05,z],[x,4.2,z],.20,.20,true);
+  box(m.yellow,x,8.2,z,2.45,.18,2.55);
+ }
+ for(const z of [-9,9])for(let x=-63;x<=63;x+=14){
+  box(rawSteel,x,110,z+2.32,.52,7.5,.18);
+  for(const y of [106.9,113.1])for(const dx of [-.16,.16])box(m.dark,x+dx,y,z+2.46,.15,.18,.16);
+ }
+
+ // Power supply bus and protective guard below the main girder.
+ for(const z of [-11.5,11.5])for(let x=-63;x<63;x+=7){
+  beam(m.wire,[x,104.9,z],[x+7,104.9,z],.14,.14,true);
+  beam(m.steel,[x,104.9,z],[x,106.4,z],.15);
+ }
+
+
+});
+define('lattice-boom-crane',()=>{
+ box(m.dark,0,1.8,0,13,3.6,13);cylinder(m.steel,0,4,0,5,1.2);box(m.orange,-2,7,0,11,5,7);
+ for(const x of [-3.2,3.2])for(const z of [-3.2,3.2])beam(m.orange,[x,10,z],[x*.52,51,z*.52],.72);
+ for(let y=10;y<49;y+=5.5)for(const z of [-2.5,2.5]){beam(m.orange,[-3,y,z],[3,y+5.5,z],.42);beam(m.steel,[3,y,z],[-3,y+5.5,z],.25)}
+ box(m.glass,4.5,48,0,4.7,3.5,4.6);box(m.orange,4.5,50,0,5.4,.6,5.2);
+ const A=[0,51,0],B=[55,80,0];for(const z of [-1.65,1.65]){beam(m.orange,[A[0],A[1]-2,z],[B[0],B[1],z*.25],.64);beam(m.orange,[A[0],A[1]+2,z],[B[0],B[1],z*.25],.54);for(let i=0;i<11;i++){let a=i/11,b=(i+1)/11;beam(m.orange,[55*a,49+31*a,z*(1-a*.75)],[55*b,53+27*b,z*(1-b*.75)],.33)}}
+ beam(m.steel,[-18,58,0],[0,63,0],1.2);box(m.dark,-17,57,0,8,5,6);
+ beam(m.dark,[-17,61,0],[55,80,0],.12,.12,true);for(const z of [-.65,.65])beam(m.dark,[55,79,z],[55,30,z],.09,.09,true);box(m.yellow,55,29,0,2.5,2,2.5);
+});
+define('pipe-bundle',()=>{for(const x of [-5,0,5])box(deck,x,.3,0,.65,.6,5.2);for(let r=0;r<3;r++)for(let i=0;i<5-r;i++){let z=(i-(4-r)/2)*1.05;beam(rawSteel,[-6,.95+r*.88,z],[6,.95+r*.88,z],.48,.48,true);for(const x of [-5.8,5.8])beam(m.dark,[x-.12,.95+r*.88,z],[x+.12,.95+r*.88,z],.53,.53,true)}});
+define('pallet-load',()=>{for(const x of [-1.5,0,1.5])box(deck,x,.14,0,.22,.28,2.4);for(let x=-1.7;x<=1.7;x+=.36)box(m.steel,x,.36,0,.28,.15,2.4);for(const z of [-.55,.55]){box(primer,0,1.15,z,2.8,1.4,1);for(const x of [-.85,.85])box(m.dark,x,1.16,z, .08,1.43,1.03)}});
+define('utility-cart',()=>{box(m.dark,0,.5,0,3.6,.4,2);box(m.orange,-.65,1.3,0,2.1,1.1,1.8);box(m.glass,-.9,2.1,0,1.5,.8,1.65);for(const x of [-1.2,1.2])for(const z of [-.95,.95])part(cylGeo,m.rubber,x,.45,z,.48,.27,.48,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));box(m.steel,1.5,.9,0,.55,.4,1.9)});
+define('industrial-barrier',()=>{box(m.concrete,0,.25,0,3.5,.5,1.15);for(const x of [-1.4,1.4])box(m.yellow,x,1,0,.19,1.5,.18);box(m.yellow,0,1.42,0,3.1,.16,.16);for(let x=-1.4;x<1.5;x+=.5)beam(m.dark,[x,.7,0],[x+.3,1.4,0],.12)});
+define('maintenance-bay',()=>{for(const x of [-9,9])for(const z of [-7,7]){box(m.steel,x,4,z,.45,8,.45);box(m.concrete,x,.2,z,1.5,.4,1.5)}for(const z of [-7,7]){box(m.steel,0,8,z,19,.7,.6);for(let x=-9;x<=9;x+=3)beam(rawSteel,[x,7,z],[x+2,8.3,z],.18)}
+ box(m.blue,0,8.5,0,20,.3,15);for(let x=-8;x<=8;x+=4)box(m.light,x,8.1,0,1.3,.2,.45);box(m.dark,0,1,-5,10,2,1.5);for(let x=-4;x<=4;x+=2)box(m.orange,x,1.2,-4,1.5,1.8,1.2);
+});
+define('breakwater-armour',()=>{const g=new T.IcosahedronGeometry(1,1);for(let i=0;i<7;i++){const a=i*2.399,r=3+(i%3)*1.8;part(g,m.concrete,Math.cos(a)*r,1.2+(i%3)*.6,Math.sin(a)*r,2.5+(i%2),2.1,2.9,new T.Quaternion().setFromAxisAngle(up,a))}});
+// Purpose-built ship silhouettes: lofted longitudinal sections, bridge, coamings,
+// loading booms and deck machinery. No race volume is inferred from this visual mesh.
+function defineMerchant(name,unfinished=false){define(name,()=>{
+ const length=208, stations=72, sections=[[-4,.28],[-1,.68],[2,.94],[8,1],[11.8,.96]];
+ // Meter-scale hull plating atlas: actual courses, weld lines, and downward
+ // oxidation from damaged paint. No baked shadows or sunset colors.
+ function shipFinish(base,wear){
+  const W=2048,H=512,c=document.createElement('canvas');c.width=W;c.height=H;const ctx=c.getContext('2d');
+  const rough=document.createElement('canvas');rough.width=W;rough.height=H;const rc=rough.getContext('2d');
+  const bump=document.createElement('canvas');bump.width=W;bump.height=H;const bc=bump.getContext('2d');
+  ctx.fillStyle=base;ctx.fillRect(0,0,W,H);rc.fillStyle='#b1b1b1';rc.fillRect(0,0,W,H);bc.fillStyle='#808080';bc.fillRect(0,0,W,H);
+  let sd=27113+base.charCodeAt(2)*149;const rand=()=>{sd=(Math.imul(sd,1664525)+1013904223)>>>0;return sd/4294967296};
+  // Photographed iron surface is used at plausible metre scale, not stretched
+  // across the entire bow. Vary crops and blend gently into shop-primer paint.
+  const img=m.rust.map?.image;
+  if(img){
+   for(let x=0;x<W;x+=256)for(let y=0;y<H;y+=256){
+    const size=Math.min(img.width,img.height)*.55,sx=rand()*(img.width-size),sy=rand()*(img.height-size);
+    ctx.save();ctx.globalAlpha=.26+wear*.25;ctx.globalCompositeOperation='soft-light';
+    ctx.drawImage(img,sx,sy,size,size,x,y,256,256);ctx.restore();
+   }
+  }
+  // 2 m strakes, 7–9 m plate lengths, butt joints stagger by course.
+  const row=64,plate=152;
+  for(let y=0;y<H;y+=row)for(let x=-(y/row%2)*plate*.5;x<W;x+=plate){
+   const tone=rand()-.5;
+   ctx.fillStyle=tone<0?'rgba(28,25,23,'+(-tone*.46)+')':'rgba(210,203,187,'+(tone*.42)+')';ctx.fillRect(x,y,plate,row);
+   rc.fillStyle='rgba(225,225,225,'+(rand()*.24)+')';rc.fillRect(x,y,plate,row);
+   ctx.fillStyle='rgba(32,28,26,.48)';ctx.fillRect(x,y,plate,1.6);ctx.fillRect(x,y,1.6,row);
+   ctx.fillStyle='rgba(230,216,193,.17)';ctx.fillRect(x+1.6,y+1.6,plate-2,1.1);ctx.fillRect(x+1.6,y+1.6,1.1,row-2);
+   bc.fillStyle='#575757';bc.fillRect(x,y,plate,2);bc.fillRect(x,y,2,row);
+   bc.fillStyle='#a0a0a0';bc.fillRect(x+2,y+2,plate-3,1);bc.fillRect(x+2,y+2,1,row-3);
+   for(let n=0;n<6;n++){
+    const xx=x+rand()*plate,yy=y+rand()*8,h=10+rand()*78,ww=1+rand()*7;
+    const g=ctx.createLinearGradient(xx,yy,xx,yy+h);
+    g.addColorStop(0,'rgba(96,42,18,'+(wear*(.28+rand()*.64))+')');g.addColorStop(.6,'rgba(132,65,28,'+(wear*.22)+')');g.addColorStop(1,'rgba(92,43,21,0)');
+    ctx.fillStyle=g;ctx.fillRect(xx,yy,ww,h);
+    rc.fillStyle='rgba(236,236,236,.21)';rc.fillRect(xx,yy,ww,h*.6);
+   }
+  }
+  // Large contiguous repair coats and oxidation patches with non-hard edges.
+  for(let i=0;i<115;i++){
+   const x=rand()*W,y=rand()*H,r=18+rand()*90,ry=.45+rand()*1.1;
+   ctx.save();ctx.translate(x,y);ctx.scale(1,ry);
+   const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+   grad.addColorStop(0,'rgba(99,48,25,'+(wear*(.24+rand()*.58))+')');grad.addColorStop(.6,'rgba(118,65,33,'+(wear*.13)+')');grad.addColorStop(1,'rgba(118,65,33,0)');
+   ctx.fillStyle=grad;ctx.fillRect(-r,-r,2*r,2*r);ctx.restore();
+  }
+  const salt=ctx.createLinearGradient(0,0,0,H);salt.addColorStop(0,'rgba(56,34,22,.25)');salt.addColorStop(.2,'rgba(56,34,22,0)');salt.addColorStop(.8,'rgba(45,38,31,.08)');salt.addColorStop(1,'rgba(30,25,22,.35)');ctx.fillStyle=salt;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<3000;i++){
+   const x=rand()*W,y=rand()*H,r=1+rand()*2;
+   ctx.fillStyle=rand()>.5?'rgba(220,210,191,.07)':'rgba(26,21,18,.12)';ctx.fillRect(x,y,r,r);
+  }
+  const tex=(canvas,srgb=false)=>{const t=new T.CanvasTexture(canvas);if(srgb)t.encoding=T.sRGBEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return t};
+  const weld=bc.getImageData(0,0,W,H).data,normalCanvas=document.createElement('canvas');normalCanvas.width=W;normalCanvas.height=H;
+  const nctx=normalCanvas.getContext('2d'),nimg=nctx.createImageData(W,H),source=m.steel.normalMap?.image;
+  const photo=source?.getContext('2d')?.getImageData(0,0,source.width,source.height).data;
+  const height=(x,y)=>weld[((Math.max(0,Math.min(H-1,y))*W+((x+W)%W))*4)]/255;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+   // Atlas spans 104 m x 16 m. A 4 m source tile repeats 26 x 4 times.
+   const u=source?Math.floor(x/W*26*source.width)%source.width:0,v=source?Math.floor(y/H*4*source.height)%source.height:0;
+   const a=source?(v*source.width+u)*4:0,px=photo?(photo[a]/127.5-1)*.30:0,py=photo?(photo[a+1]/127.5-1)*.30:0;
+   const nx=(height(x-1,y)-height(x+1,y))*.90+px,ny=(height(x,y+1)-height(x,y-1))*.90+py,magnitude=Math.hypot(nx,ny,1),i=(y*W+x)*4;
+   nimg.data[i]=(nx/magnitude*.5+.5)*255;nimg.data[i+1]=(ny/magnitude*.5+.5)*255;nimg.data[i+2]=(1/magnitude*.5+.5)*255;nimg.data[i+3]=255;
+  }
+  nctx.putImageData(nimg,0,0);
+  return new T.MeshStandardMaterial({map:tex(c,true),roughness:.92,roughnessMap:tex(rough),metalness:.10,normalMap:tex(normalCanvas),normalScale:new T.Vector2(.80,.80),envMapIntensity:.84});
+ }
+ const hullmat=shipFinish(unfinished?'#a29e91':'#465761',unfinished?.83:.55),bootmat=shipFinish(unfinished?'#85483a':'#713b33',.42);
+ const topmat=shipFinish('#3d4546',.32);
+ function width(x){const q=x/(length/2);return 16.3*Math.sqrt(Math.max(.0005,1-Math.abs(q)**(q>0?3.8:9)))}
+ function P(i,j,side){return loftPoint(-length/2+i*length/stations,sections[j][0],side).toArray()}
+ // Interpolate each band with a monotonic Hermite curve. Normals are
+ // evaluated across station and section boundaries, so plate material seams
+ // no longer produce large artificial faceted lighting discontinuities.
+ function loftWidth(y){
+  let j=0;while(j<sections.length-2&&y>sections[j+1][0])j++;
+  const [a,wa]=sections[j],[b,wb]=sections[j+1],t=T.MathUtils.clamp((y-a)/(b-a),0,1);
+  const slope=(i)=>{const l=Math.max(0,i-1),r=Math.min(sections.length-1,i+1);return (sections[r][1]-sections[l][1])/(sections[r][0]-sections[l][0])};
+  const m0=slope(j)*(b-a),m1=slope(j+1)*(b-a),t2=t*t,t3=t2*t;
+  return T.MathUtils.clamp((2*t3-3*t2+1)*wa+(t3-2*t2+t)*m0+(-2*t3+3*t2)*wb+(t3-t2)*m1,.26,1.03);
+ }
+ function loftPoint(x,y,side){
+  const bow=Math.max(0,(x-78)/26);
+  return V(x-8*bow*bow*(1-(y+4)/15.8),y+bow*bow*2.4,side*width(x)*loftWidth(y));
+ }
+ function loftNormal(x,y,side){
+  const dx=loftPoint(Math.min(104,x+.08),y,side).sub(loftPoint(Math.max(-104,x-.08),y,side));
+  const dy=loftPoint(x,Math.min(11.8,y+.08),side).sub(loftPoint(x,Math.max(-4,y-.08),side));
+  return dx.cross(dy).multiplyScalar(side).normalize();
+ }
+ for(let j=0;j<sections.length-1;j++){
+  const p=[],uv=[],normals=[],indices=[],rows=5;
+  for(const side of [-1,1]){
+   const base=p.length/3;
+   for(let k=0;k<=rows;k++)for(let i=0;i<=stations;i++){
+    const x=-104+i*208/stations,y=T.MathUtils.lerp(sections[j][0],sections[j+1][0],k/rows);
+    const v=loftPoint(x,y,side),n=loftNormal(x,y,side);
+    p.push(v.x,v.y,v.z);normals.push(n.x,n.y,n.z);uv.push((x+104)/104,(y+4)/16);
+   }
+   for(let k=0;k<rows;k++)for(let i=0;i<stations;i++){
+    const a=base+k*(stations+1)+i,b=a+1,c=b+stations+1,d=a+stations+1;
+    indices.push(...(side>0?[a,b,c,a,c,d]:[a,c,b,a,d,c]));
+   }
+  }
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));
+  g.setAttribute('normal',new T.Float32BufferAttribute(normals,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);
+  g.userData.keepUV=true;g.userData.structuralShell='merchant-hull';part(g,j===0?bootmat:j===1?m.dark:hullmat,0,0,0,1,1,1);
+ }
+ // Close the keel and end faces; the hull is not an open two-sided shell.
+ const capP=[],capUV=[];
+ function hullCap(a,b,c){for(const v of [a,b,c]){capP.push(v.x,v.y,v.z);capUV.push((v.x+104)/104,(v.z+17)/34);}}
+ for(let i=0;i<stations;i++){
+  const a=-104+i*208/stations,b=-104+(i+1)*208/stations,A=loftPoint(a,-4,-1),B=loftPoint(a,-4,1),C=loftPoint(b,-4,1),D=loftPoint(b,-4,-1);
+  hullCap(A,C,B);hullCap(A,D,C);
+ }
+ for(const x of [-104,104])for(let j=0;j<sections.length-1;j++)for(let k=0;k<5;k++){
+  const y0=T.MathUtils.lerp(sections[j][0],sections[j+1][0],k/5),y1=T.MathUtils.lerp(sections[j][0],sections[j+1][0],(k+1)/5);
+  const a=loftPoint(x,y0,-1),b=loftPoint(x,y0,1),c=loftPoint(x,y1,1),d=loftPoint(x,y1,-1);
+  if(x>0){hullCap(a,c,b);hullCap(a,d,c)}else{hullCap(a,b,c);hullCap(a,c,d)}
+ }
+ const cap=new T.BufferGeometry();cap.setAttribute('position',new T.Float32BufferAttribute(capP,3));cap.setAttribute('uv',new T.Float32BufferAttribute(capUV,2));cap.computeVertexNormals();cap.userData.keepUV=true;cap.userData.structuralShell='merchant-hull';part(cap,bootmat,0,0,0,1,1,1);
+ const deckP=[],deckUv=[];for(let i=0;i<stations;i++){const A=P(i,4,-1),B=P(i,4,1),C=P(i+1,4,1),D=P(i+1,4,-1);for(const v of [A,B,C,A,C,D]){deckP.push(...v);deckUv.push((v[0]+104)/104,(v[2]+17)/17)}}
+ const dg=new T.BufferGeometry();dg.setAttribute('position',new T.Float32BufferAttribute(deckP,3));dg.setAttribute('uv',new T.Float32BufferAttribute(deckUv,2));dg.computeVertexNormals();dg.userData.keepUV=true;dg.userData.structuralShell='merchant-hull';part(dg,topmat,0,0,0,1,1,1);
+ for(let i=0;i<stations;i++)for(const side of [-1,1]){const a=P(i,4,side),b=P(i+1,4,side);beam(m.steel,[a[0],a[1]+1,a[2]],[b[0],b[1]+1,b[2]],.12,.12,true);beam(m.steel,a,[a[0],a[1]+1,a[2]],.12)}
+ for(const x of [-42,-10,22,54]){box(m.rust,x,13.2,0,26,2.6,23);box(m.dark,x,14.6,0,25,.3,22);for(let dx=-10;dx<=10;dx+=5)box(m.steel,x+dx,14.85,0,.18,.18,21)}
+ for(let y=15;y<=27;y+=4){box(m.white,-73,y,0,28-(y-15)*.5,3.8,24);
+  const bridgeW=28-(y-15)*.5;
+  for(const z of [-12.1,12.1]){box(m.dark,-73,y+.55,z,bridgeW-.6,1.58,.18);
+   for(let x=-73-bridgeW/2+1.9;x<-73+bridgeW/2-1;x+=3.6){box(m.glass,x,y+.55,z*1.015,2.8,1.14,.12);box(m.steel,x-1.48,y+.55,z*1.022,.12,1.48,.12)}
+   box(m.steel,-73,y-.27,z*1.012,bridgeW,.12,.36);
+  }
+ }
+ // Recessed dark bridge windows, deck overhang and external access stairs.
+ for(const z of [-12.2,12.2])for(const x of [-83,-75,-67]){box(m.steel,x,16,z,5.3,.28,1.4);rail(x,17.1,z*1.055,5.2);beam(m.dark,[x,15.8,z],[x,14.6,z*.93],.18)}
+ box(m.white,-73,29,0,31,3,25);box(m.glass,-73,29.2,12.6,28,1.6,.18);box(m.glass,-57.4,29.2,0,.18,1.6,24);
+ box(m.dark,-87,34,0,7,7,8);box(m.rust,-87,37.8,0,8,.7,9);beam(m.steel,[-73,31,0],[-73,48,0],.22);beam(m.steel,[-78,43,0],[-68,43,0],.16);box(m.light,-73,47.9,0,.6,.45,.6);
+ for(const x of [-27,6,38]){cylinder(m.steel,x,17,0,1.35,7);beam(m.orange,[x,20,0],[x+16,33,0],1.1);beam(m.dark,[x+16,33,0],[x+16,16,0],.1,.1,true);box(m.yellow,x+16,15.5,0,1.4,1.2,1.4)}
+ for(const x of [-95,90])for(const z of [-5,5]){cylinder(m.dark,x,13,z,.85,1.3);cylinder(m.steel,x,13.8,z,1.1,.35)}
+ if(unfinished){
+  for(const x of [10,22,34,46,58,70]){
+   const w=Math.min(width(x)-1.8,11.0);
+   for(const side of [-1,1]){const z=side*w;box(m.steel,x,12.02,z,1.35,.42,1.35);box(m.rust,x,17.5,z,.46,11,.46);
+    beam(m.steel,[x,13,z],[x,20.8,z-side*2],.24);box(m.steel,x,21.9,z,.75,.42,.75)}
+   beam(m.rust,[x,22,-w],[x,22,w],.50,.68);
+   if(x<70)for(const side of [-1,1]){const w2=Math.min(width(x+12)-1.8,11);beam(m.steel,[x,22,side*w],[x+12,22,side*w2],.42);beam(m.steel,[x,14,side*w],[x+12,21.8,side*w2],.24)}
+  }
+  for(const side of [-1,1])for(const x of [8,24,40,56]){
+   const z=side*(Math.min(width(x+8),width(x-8))-.95);
+   box(m.steel,x,16.2,z,14,.20,1.65);rail(x,17.3,z+side*.72,14);
+   for(const dx of [-6,6]){beam(m.steel,[x+dx,12.0,z],[x+dx,16.2,z],.14);beam(m.steel,[x+dx,16,z],[x+dx,14,side*10.5],.16);beam(m.steel,[x+dx,16,z],[x-dx,12.2,z],.12)}
+   box(m.light,x,20.5,side*11.0,.72,.25,.4);beam(m.steel,[x,20.75,side*11],[x,22,side*11],.12);
+  }
+  for(const side of [-1,1]){
+   const x=84,z=side*5.8;
+   box(m.steel,x,12.4,z,5.2,.65,2.3);
+   part(cylGeo,m.dark,x,13.9,z,.85,1.7,.85,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+   for(const dz of [-.94,.94])part(cylGeo,m.steel,x,13.9,z+dz,1.0,.18,1.0,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+   beam(m.wire,[x+1.2,13.9,z],[x+7,12.5,z],.16,.16,true);
+  }
+  // A true multi-level side staging system follows the lofted hull shell.
+  // Deck bearers and diagonals tie back to individual shell courses, rather
+  // than sitting as detached cosmetic scaffolding next to the vessel.
+  for(const side of [-1,1])for(let x=-44;x<=72;x+=9){
+   const w=Math.min(width(x-3),width(x+3)),out=side*(w+2.55),shell=side*(w*.955);
+   for(const y of [6.8,14.0,21.2]){
+    box(m.steel,x,y,out,8.4,.24,2.65);
+    beam(m.steel,[x,y,out-side*.4],[x,y,side*(w-.3)],.27,.32);
+    beam(m.steel,[x-3.7,y,out],[x+3.7,y,out],.10);
+    beam(m.steel,[x-3.7,y+1.18,out+side*1.15],[x+3.7,y+1.18,out+side*1.15],.10);
+    beam(m.steel,[x,y,out+side*1.15],[x,y+1.18,out+side*1.15],.11);
+    for(const yy of [y+.22,y+.72])box(m.dark,x,yy,out,8.0,.075,2.3);
+   }
+   for(const off of [-3.8,3.8]){
+    const xx=x+off,z=out+side*.85;
+    beam(m.steel,[xx,4.3,z],[xx,24.0,z],.21);
+    for(const y of [6.8,14.0,21.2]){
+     box(m.steel,xx,y,z,.85,.20,.85);
+     beam(m.steel,[xx,y,z],[xx+side*0.3,y+3.4,side*(w+.45)],.16);
+    }
+    for(let k=0;k<13;k++){
+     const y=5.6+k*1.37;
+     beam(m.steel,[xx-.35,y,z],[xx+.35,y,z],.075);
+    }
+   }
+   // Fire-retardant weather sheeting is hung from actual scaffold frames
+   // at selected bays; most of the ship remains exposed to view.
+   if((x+44)%27===0){box(m.blue,x,17.65,out+side*.85,6.8,5.6,.08);
+    for(const dx of [-3.3,3.3])for(const y of [15,20])box(m.yellow,x+dx,y,out+side*.92,.13,.28,.15)}
+  }
+  // Deck inspection walkways, power takeoffs and bulkhead rib gussets.
+  for(const x of [-65,-40,-15,10,35,60]){
+   for(const side of [-1,1]){
+    const z=side*(width(x)-2.1);
+    box(m.dark,x,12.15,z,5.4,.25,3.6);
+    beam(m.steel,[x-2.6,12.3,z],[x-2.6,14.1,z],.15);
+    beam(m.steel,[x+2.6,12.3,z],[x+2.6,14.1,z],.15);
+    beam(m.yellow,[x-2.6,14.1,z],[x+2.6,14.1,z],.12);
+    beam(m.steel,[x,12.2,z],[x,9,side*(width(x)*.94)],.30);
+    box(m.dark,x,12.9,z,2.7,1.5,1.5);
+    box(m.light,x,14,z,1.05,.24,.44);
+   }
+  }
+  // Embedded weld seams track the actual curved shell at both shoulders.
+  for(const side of [-1,1])for(let x=-92;x<97;x+=7){
+   const z0=side*width(x)*.965,z1=side*width(Math.min(x+7,103))*.965;
+   beam(m.dark,[x,8.5,z0],[Math.min(x+7,103),8.5,z1],.065,.065);
+   if((x+92)%21===0)for(const y of [3.0,6.0,9.0]){
+    beam(m.rust,[x,y,side*width(x)*(.94+y*.003)],[x,y+1.4,side*width(x)*(.94+y*.003)],.10);
+   }
+  }
+ }
+});}
+defineMerchant('merchant-vessel');
+defineMerchant('stage3-outfitting-vessel',true);
+place('merchant-vessel',480,0,-550,Math.PI/2);
+place('merchant-vessel',390,0,-1030,Math.PI/2,.72);
+ // Full-size vessels occupy true water berths, not concrete aprons.
+ place('merchant-vessel',-1050,0,1232);
+ place('merchant-vessel',-150,0,1232,Math.PI);
+ place('merchant-vessel',-660,0,1312);
+ for(const cx of [-515,-280])if(clearFootprint(cx,-1218,210,34,49)){
+  place('merchant-vessel',cx,0,-1218,Math.PI);
+  for(const dx of [-78,78]){beam(m.dark,[cx+dx,12,-1207],[cx+dx*1.1,5.6,-1194],.14,.14,true);place('bollard',cx+dx*1.1,5.15,-1194)}
+  // Gangway joins the lower quay to the elevated ship deck.
+  const a=[cx-40,5.4,-1197],b=[cx-40,12.4,-1209];
+  beam(m.steel,a,b,2.5,.28);for(const side of [-1,1])beam(m.yellow,[a[0]+side*1.05,a[1]+1.05,a[2]],[b[0]+side*1.05,b[1]+1.05,b[2]],.08);
+  for(let i=0;i<=7;i++){const t=i/7,x=a[0],y=a[1]+(b[1]-a[1])*t,z=a[2]+(b[2]-a[2])*t;box(m.steel,x,y,z,2.4,.14,1.3)}
+ }
+ // Working north waterfront: cranes and sheds are at the edge of the berth,
+ // with maintained roadway and actual mooring infrastructure.
+ for(const x of [-620,-380,-140,115,270])if(clearFootprint(x,-1150,26,26,90))place('lattice-boom-crane',x,5,-1150,-Math.PI/2,.9);
+ for(const x of [-485,-235,15,245])if(clearFootprint(x,-1120,68,104,36))place('cargo-shed',x,5.2,-1120,Math.PI/2,.84);
+
+ // Shipyard shore power and mooring points connect vessel to quay.
+ for(const cx of [-1050,-150])for(const dx of [-76,76]){beam(m.dark,[cx+dx,12,1222],[cx+dx*1.12,5.7,1193],.16,.16,true);place('bollard',cx+dx*1.12,5.15,1193);}
+
+place('heavy-gantry-detail',850,5,50);for(const x of [788,912]){box(m.concrete,x,5.22,50,9,.42,290);for(const off of [-3.8,3.8]){
+  box(m.steel,x+off,5.56,50,.22,.32,290);
+  for(let z=-92;z<195;z+=3.5)box(m.dark,x+off,5.46,z,1.0,.1,.4);
+ }}
+ // Large prefabricated hull sections are intentionally outside the high-altitude
+ // crane route; their cross-sections communicate genuine shipyard scale.
+ define('hull-section-module',()=>{
+  const length=58,half=23,pts=[[0,2],[8,3],[16,10],[21,19],[23,28]];
+  for(const sign of [-1,1])for(let i=0;i<pts.length-1;i++){
+   const [z1,y1]=pts[i],[z2,y2]=pts[i+1],angle=sign*Math.atan2(y2-y1,z2-z1);
+   // Plate normal follows the shell, with longitudinal seams and exposed edges.
+   part(boxGeo,m.rust,0,(y1+y2)/2,sign*(z1+z2)/2,length,.66,Math.hypot(z2-z1,y2-y1),new T.Quaternion().setFromAxisAngle(V(1,0,0),-angle));
+   for(let x=-28;x<=28;x+=7)beam(rawSteel,[x,y1,sign*z1],[x,y2,sign*z2],.78,1.15);
+   beam(m.steel,[-29,y2,sign*z2],[29,y2,sign*z2],.4,.55);
+  }
+  for(let x=-28;x<=28;x+=7){box(m.dark,x,2,0,1.1,1.5,15);beam(m.steel,[x,3,-8],[x,3,8],.62);for(const side of [-1,1]){beam(m.orange,[x,5,side*11],[x,20,side*21],.75);box(m.steel,x,27,side*22,1.2,.45,2.1)}}
+  for(const x of [-23,0,23])for(const z of [-7,7]){box(m.concrete,x,.5,z,5,1,4);box(m.dark,x,1.25,z,4.6,.5,3.4)}
+ });
+ for(const [x,z,a] of [[658,45,0],[664,-80,Math.PI/2],[1060,-75,Math.PI/2],[1100,70,0]])if(clearFootprint(x,z,60,50,36))place('hull-section-module',x,5.1,z,a);
+ for(const [x,z,a] of [[625,-185,.2],[1090,-190,2.9],[565,185,1.3]])if(clearFootprint(x,z,20,20,80))place('lattice-boom-crane',x,5,z,a,.85);
+ // Fabrication storage halls beside the high climb.
+ for(const [x,z] of [[1100,120],[625,115],[1130,230],[595,-200]])if(clearFootprint(x,z,80,100,32))place('cargo-shed',x,5.2,z);
+ 
+ // Rail-mounted drydock gantry on raised concrete runway strips.
+ for(const x of [788,912]){box(m.concrete,x,-1.5,-535,15,13,350);box(m.concrete,x,5.42,-535,10,.84,350);for(const off of [-3.8,3.8]){box(m.steel,x+off,6.06,-535,.22,.32,350);for(let z=-702;z<-365;z+=3.5)box(m.dark,x+off,5.95,z,1.0,.10,.4)}}
+ place('heavy-gantry-detail',850,5.5,-535);
+ define('dock-transfer-portal',()=>{
+  for(const z of [-48,48]){box(m.concrete,0,1.25,z,12,2.5,10);for(const x of [-4.5,4.5]){box(m.orange,x,32,z,3,64,3);for(let y=8;y<60;y+=10)beam(m.steel,[x,y,z-2],[x,y+10,z+2],.65)}box(m.steel,0,63,z,12,2,9)}
+  for(const x of [-4,4]){box(m.orange,x,65,0,2.7,3.8,103);for(let z=-46;z<48;z+=8){beam(m.steel,[x,63,z],[x,71,z+8],.65);beam(m.orange,[x,71,z],[x,63,z+8],.55)}box(m.steel,x,71,0,1.1,1.1,103);rail(x,72,0,101,'z')}
+  box(m.dark,0,67,0,10,.9,103);for(let z=-40;z<=40;z+=16)box(m.light,0,62,z,1.6,.5,1.6);
+  box(m.glass,-6,57,42,4,5,6);box(m.dark,-6,54,42,5,.5,7);
+ });
+ for(const x of [-810,-490,-140])place('dock-transfer-portal',x,5.1,1080);
+ 
+for(const [x,z,a] of [[-1030,1160,.45],[-410,1180,1.1],[340,1175,1.3],[1060,-290,2.8],[1130,-900,3.0],[250,-1050,1.1]])if(clearFootprint(x,z,18,18,75))place('lattice-boom-crane',x,5,z,a);
+for(const [cx,cz] of [[-990,1015],[-760,1015],[-470,1015],[-150,1015],[350,920],[650,735],[1010,870],[960,-255],[685,-620],[1020,-605],[-950,-540],[-820,20],[-960,530],[-615,685]]){
+ for(let i=0;i<13;i++){const x=cx+(i%4-1.5)*13,z=cz+(Math.floor(i/4)-1)*12;if(!clearFootprint(x,z,12,6,10))continue;const kind=['pipe-bundle','pallet-load','utility-cart','welding-skid','industrial-barrier'][i%5];place(kind,x,cz<-350&&cz>-750&&cx>650&&cx<1050?-7.8:5.29,z,(i%4)*Math.PI/2)}
+ if(clearFootprint(cx,cz+24,20,16,15)&&!(cz<-350&&cz>-750&&cx>650))place('maintenance-bay',cx,5.26,cz+24);
+}
+// Container walls in offset groups: close silhouettes without a constant-height grid.
+for(const [cx,cz] of [[430,1020],[540,920],[720,860],[780,710],[950,690],[1050,570]]){
+ for(let i=0;i<7;i++){const x=cx+(i-3)*14,z=cz+((i%2)?14:-14);for(let h=0;h<8;h++){if(!clearFootprint(x,z,13,3,5+(h+1)*2.94))break;place('container-'+['rust','blue','green','white'][(i+h)%4],x,5+h*2.94,z,0)}}
+}
+// Flight-facing industrial street walls: elevated maintenance decks and varied sheds.
+define('dock-transfer-hall',()=>{
+ const W=70,D=37,H=24;for(const x of [-W/2,W/2])for(const z of [-D/2,D/2]){box(m.steel,x,H/2,z,1.35,H,1.35);box(m.concrete,x,.55,z,3,1.1,3)}
+ for(const z of [-D/2,D/2]){box(m.blue,0,H-3,z,W,6,.55);for(let x=-W/2+2;x<W/2;x+=4)box(rawSteel,x,H-3,z,.23,5.8,.75);box(m.orange,0,H-6.3,z,W,.55,.7);for(let x=-W/2+3;x<W/2;x+=10)box(m.glass,x,H-2,z,5,1.6,.6)}
+ for(let x=-W/2;x<=W/2;x+=7){for(const z of [-D/2,D/2])beam(rawSteel,[x,H,z],[x,H+6,0],.65);beam(m.steel,[x,H,-D/2],[x,H,D/2],.6);beam(m.steel,[x,H,-D/2],[x,H+6,0],.35)}
+ for(const side of [-1,1]){const a=side*Math.atan2(6,D/2);part(boxGeo,m.blue,0,H+3,side*D/4,W+2,.48,Math.hypot(D/2,6)+1,new T.Quaternion().setFromAxisAngle(V(1,0,0),a))}
+ for(const x of [-27,0,27]){box(m.orange,x,13,0,2,1.5,D-3);box(m.dark,x,12,0,3,1.3,4);beam(m.dark,[x,11.5,0],[x,5.5,0],.1,.1,true);box(m.yellow,x,5,0,1.2,.75,1.2)}
+ for(let x=-27;x<=27;x+=9){box(m.light,x,H-7,-D/2+.6,2,.3,.5);box(m.dark,x,1.1,-D/2+3,6,2,2)}
+});
+for(const [x,z] of [[-1060,1005],[-820,995],[-580,995],[-340,995],[-100,995],[130,1000],[200,1155],[490,1155],[715,1155],[1030,1155]]){
+ if(clearFootprint(x,z,74,41,36)){place('dock-transfer-hall',x,5.25,z);for(let j=-2;j<=2;j++){if(clearFootprint(x+j*12,z+24,12,8,11))place('pipe-bundle',x+j*12,5.28,z+24);pool(x+j*12,5.31,z+20,8)}}
+}
+// Service passage on the central dock sides; retain the wet channel in between.
+for(const x of [340,620])for(let z=-755;z<-360;z+=28){box(m.concrete,x,1.3,z,10,5.4,28);box(deck,x,4.2,z,10,.4,28);if(z%56<-20)place('bollard',x,4.4,z);if(clearFootprint(x,z,10,12,10))place('pallet-load',x,4.42,z+5)}
+for(let x=585;x<910;x+=14)for(const z of [-942,-898]){
+ box(m.steel,x,10.5,z,1.1,3.8,1.2);box(m.rust,x,12.6,z,1.5,.45,2.3);
+ if(x%28===25)box(m.yellow,x,17.1,z,.35,.4,.45);
+}
+// Dry dock mechanical service galleries: platforms, stair flights, pipe penetrations,
+ // fender posts and railings outside the central dive corridor.
+for(const x of [752,948]){const side=x<850?-1:1;for(let z=-715;z<-365;z+=36){
+ box(m.concrete,x,-7.35,z,13,1.3,30);box(m.steel,x,-6.58,z,12,.25,29);
+ for(const dx of [-4.5,4.5]){box(m.dark,x+dx,-2,z,.65,8,.65);beam(m.steel,[x+dx,-5.8,z-12],[x+dx,1.8,z+12],.35)}
+ box(m.steel,x,1.9,z,11.8,.45,29);rail(x-side*5.6,3,z,29,'z');
+ box(m.rust,x+side*4,-3,z,2.8,4.5,6);for(let dz=-8;dz<=8;dz+=4){beam(m.dark,[x-4,-4,z+dz],[x+4,-4,z+dz],.32,.32,true);beam(m.steel,[x+3.5,-4,z+dz],[x+4.2,-4,z+dz],.44,.44,true)}
+ box(m.light,x,3.35,z,1.2,.25,.65);pool(x,-6.39,z,8);
+ if(z%72<-30){for(let j=0;j<14;j++)box(m.steel,x+side*3,-6.4+j*.58,z-12+j*1.3,3.2,.22,1.4);beam(m.yellow,[x+side*4.6,-5.35,z-12],[x+side*4.6,2.2,z+5],.10)}
+}}
+ // Connected utility conduits alongside outer dock faces.
+for(const x of [767,933]){for(let z=-730;z<-375;z+=28){beam(m.steel,[x,-.6,z],[x,-.6,z+28],.6,.6,true);beam(m.rust,[x,1.3,z],[x,1.3,z+28],.36,.36,true);box(m.dark,x,-.6,z,.65,1.5,.5)}}
+ // Offset secondary container walls along the technical-sector gate directions.
+ for(let i=4;i<=6;i++){const a=routePoints[i],b=routePoints[i+1],dx=b[0]-a[0],dz=b[2]-a[2],l=Math.hypot(dx,dz),nx=-dz/l,nz=dx/l;
+  for(const side of [-1,1])for(let k=1;k<=5;k++){const t=k/6,x=a[0]+dx*t+nx*36*side,z=a[2]+dz*t+nz*36*side;
+   for(let h=0;h<7+(k%3);h++){if(!clearFootprint(x,z,14,14,5+(h+1)*2.94))break;place('container-'+['rust','blue','green','white'][(h+k+i)%4],x,5+h*2.94,z,Math.PI/2)}
+  }
+ }
+ // Working terminal equipment: rubber-tyred yard cranes and ship-to-shore cranes
+// based on real machinery arrangements; not simply freestanding decorative frames.
+define('rtg-crane',()=>{
+ const span=23.5,H=23;
+ for(const x of [-span/2,span/2])for(const z of [-5,5]){
+  box(m.orange,x,11.8,z,1.3,22.3,1.45);box(m.dark,x,2.25,z,3,2.1,3.2);
+  for(const dx of [-1.05,1.05]){const q=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);part(cylGeo,m.rubber,x+dx,.94,z,1.0,.64,1.0,q);part(cylGeo,m.steel,x+dx+(dx>0?.33:-.33),.94,z,.44,.12,.44,q)}
+  box(m.orange,x,4,z,2.5,2.0,3.0);beam(m.steel,[x,4,z],[x,10,z*.7],.36);
+ }
+ for(const x of [-span/2,span/2]){box(m.orange,x,22,0,1.6,2.1,12);box(m.dark,x,4,0,2.6,1.4,9);rail(x,24,0,12,'z')}
+ for(const z of [-4,4]){box(m.orange,0,H,z,26,2.2,1.55);box(m.steel,0,H+1.25,z,26,.25,1.2);rail(0,H+2.1,z+.7,25)}
+ box(m.orange,0,24.5,0,5.2,2.1,10);box(m.dark,-3.2,21,4.8,2.8,2.7,2.6);box(m.glass,-3.2,21.35,6.13,2.45,1.68,.11);box(m.steel,-3.2,21.35,6.2,.08,1.68,.05);box(m.orange,-3.2,22.43,4.8,3,.23,2.8);
+ box(m.dark,0,25.9,0,4,.75,6);for(const x of [-2.0,2.0])for(const z of [-3,3])for(const sign of [-1,1])beam(m.dark,[x,23,z+sign*.18],[x,17,z+sign*.18],.055,.055,true);
+ box(m.yellow,0,16.9,0,2.65,.65,7);for(const x of [-1.2,1.2])for(const z of [-3.4,3.4])box(m.dark,x,16.4,z,.38,.4,.38);
+ box(m.dark,span/2+1,5,0,2.1,3,5);box(m.light,-span/2,20,0,1.3,.4,.6);
+});
+define('quay-container-crane',()=>{
+ // STS: waterside/landside portals, outreach boom, machinery house, trolley and spreader.
+ for(const x of [-10,10])for(const z of [-12,12]){
+  box(m.dark,x,1.4,z,4.7,2.8,5.0);
+  for(const dz of [-1.6,0,1.6]){const q=new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2);part(cylGeo,m.steel,x,.85,z+dz,1,.6,1,q)}
+  beam(m.orange,[x,3,z],[x*.85,52,z*.8],2.1,2.5);
+  box(m.steel,x,4,z,3.9,.5,4.2);
+ }
+ for(const x of [-9,9]){
+  box(m.orange,x,49,0,1.9,3,29);beam(m.steel,[x,18,-11],[x,40,11],.65);
+  beam(m.orange,[x,51,-10],[x*.68,78,-4],1.6);
+  for(const z of [-25,0,25])box(m.steel,x,50,z,1.4,1.6,1);
+ }
+ for(const x of [-2.6,2.6]){
+  box(m.orange,x,52,20,2.4,3.5,96);box(m.steel,x,54,20,1.5,.25,96);box(m.dark,x,50,20,1.7,.2,96);
+  for(let z=-25;z<67;z+=7)box(m.steel,x,52,z,.23,3.5,1.8);
+  beam(m.dark,[x,78,-4],[x,54,66],.11,.11,true);beam(m.dark,[x,78,-4],[x,54,-27],.11,.11,true);
+ }
+ beam(m.orange,[-6,78,-4],[6,78,-4],1.5);box(m.dark,0,56,-18,9,5,16);box(m.blue,0,58.7,-18,9.5,.45,16.5);
+ box(m.orange,0,49,42,7.5,3.6,8);box(m.dark,4.2,48,42,2.8,3.2,4);box(m.glass,5.64,48.4,42,.11,2.2,3.56);box(m.glass,4.2,48.4,44.04,2.45,2.2,.11);box(m.steel,5.72,48.4,42,.055,2.2,.08);box(m.orange,4.2,49.72,42,3.1,.25,4.3);
+ for(const x of [-1.3,1.3])for(const z of [39,45])beam(m.dark,[x,48,z],[x,27,z],.08,.08,true);
+ box(m.yellow,0,26.5,42,3.2,1.0,12);for(const x of [-1.5,1.5])for(const z of [36,48])box(m.dark,x,25.8,z,.35,.55,.35);
+ box(m.steel,7,50,16,1.8,.42,85);rail(7.9,51,16,85,'z');for(const z of [-12,12,45])box(m.light,0,48,z,1.5,.45,1.1);
+});
+function openGround(x,z,w,d){return !containerSlots.some(q=>Math.abs(x-q.x)<w/2+q.hx+1&&Math.abs(z-q.z)<d/2+q.hz+1)}
+let rtgCount=0;
+for(const z of [580,680,780,880,980])for(const x of [300,405,520,650,770,900,1045]){
+ if(rtgCount>=9)break;
+ if(clearFootprint(x,z,29,16,33)&&openGround(x-11.75,z,4,14)&&openGround(x+11.75,z,4,14)){place('rtg-crane',x,5.18,z);rtgCount++}
+}
+// Rail foundations and wharf cranes above the southern berth. All lie seaward
+// of the launch route; the cantilever extends over the vessel loading area.
+for(const x of [-710,-230,270,770]){
+ if(clearFootprint(x,1174,24,29,85)){place('quay-container-crane',x,5.16,1174);for(const z of [1162,1186])box(m.steel,x,5.25,z,85,.17,.28)}
+}
+// Foundry and process district equipment: functional assembly layouts, not loose boxes.
+define('steel-forming-press',()=>{
+ box(m.dark,0,.55,0,9,1.1,6.5);box(m.steel,0,1.2,0,8.3,.35,5.6);
+ for(const x of [-3.5,3.5])for(const z of [-2.5,2.5]){box(m.steel,x,5,z,.9,9,.9);box(m.dark,x,1.4,z,1.3,.45,1.3)}
+ box(m.blue,0,9.2,0,9,2.2,6.2);for(const x of [-2.3,2.3]){cylinder(m.dark,x,7.2,0,.65,2.9);cylinder(m.steel,x,5.1,0,.28,2.8)}
+ box(m.steel,0,3.9,0,7.4,.8,4.8);box(m.orange,0,2,0,7,.5,4.5);
+ box(m.dark,4.8,2.1,0,1.9,3.4,3);box(m.glass,4.8,3.1,1.55,1.4,.85,.12);
+ for(const z of [-2,2]){beam(m.rust,[4.9,4,z],[4.9,8,z],.12,.12,true);beam(m.steel,[4.9,8,z],[2.3,8,z],.12,.12,true)}
+ for(const x of [-4.3,4.3])box(m.yellow,x,.17,0,.18,.15,6.4);
+});
+define('roller-conveyor',()=>{
+ for(const x of [-2.25,2.25]){box(m.steel,x,1.65,0,.45,.5,26);for(let z=-12;z<=12;z+=4){box(m.dark,x,.8,z,.5,1.6,.5);box(m.steel,x,.18,z,1.1,.36,1.1)}}
+ for(let z=-12;z<=12;z+=.85){beam(m.steel,[-2.4,1.85,z],[2.4,1.85,z],.19,.19,true);for(const x of [-2.28,2.28])box(m.dark,x,1.85,z,.32,.32,.28)}
+ box(m.orange,2.8,1.7,8,.65,.7,2.1);
+});
+define('process-pump-skid',()=>{
+ box(m.steel,0,.24,0,8.3,.48,5.4);for(const z of [-1.3,1.3]){
+  beam(m.steel,[-2.6,1.5,z],[.6,1.5,z],.65,.65,true);beam(m.dark,[-2.8,1.5,z],[-2.55,1.5,z],.8,.8,true);
+  part(sphereGeo,m.blue,1.45,1.5,z,1.03,1.12,1.1);beam(m.steel,[1.45,1.7,z],[1.45,3.4,z],.33,.33,true);beam(m.steel,[1.45,3.4,z],[3.8,3.4,z],.33,.33,true);
+  for(const x of [-2.4,-1.2,.2])box(m.dark,x,.62,z,1.05,.6,.95);
+ }
+ for(const z of [-1.3,1.3])beam(m.rust,[3.8,3.4,z],[3.8,1.15,z],.35,.35,true);beam(m.steel,[3.8,1.15,-1.8],[3.8,1.15,1.8],.48,.48,true);
+ for(const z of [-1.8,1.8]){beam(m.dark,[3.8,1.0,z],[3.8,1.7,z],.57,.57,true);cylinder(m.yellow,3.8,2.1,z,.24,1)}
+});
+for(const center of [-650,-450,-170,100]){
+ for(const x of [-916,-844])for(const dz of [-35,22]){if(clearFootprint(x,center+dz,11,30,17)){place('steel-forming-press',x,5.2,center+dz);place('roller-conveyor',x,5.22,center+dz+16)}}
+}
+for(const [x,z] of [[-1040,465],[-1040,650],[-610,470],[-580,640],[-960,760]]){
+ if(clearFootprint(x,z,20,14,13)){for(const off of [-5,5])place('process-pump-skid',x,5.2,z+off);for(const y of [8.3,10.7]){beam(m.steel,[x-10,y,z-6],[x+10,y,z-6],.4,.4,true);beam(m.steel,[x+10,y,z-6],[x+10,y,z+8],.4,.4,true)}pool(x,5.29,z,13)}
+}
+// Connected dock work zones: cargo inspection platform, piping, forklifts and
+// terminal trailers, arranged around existing access paths rather than scattered.
+define('terminal-tractor',()=>{
+ // Yard tractor: short wheelbase, elevated single cab and exposed rear chassis.
+ const body=m.white,paint=m.orange,tire=m.rubber,glass=m.glass.clone();glass.color.setHex(0x25343a);glass.roughness=.16;glass.metalness=.25;
+ const wheelQ=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);
+ for(const x of [-.69,.69])box(m.dark,x,.79,0,.20,.36,5.15);
+ for(let z=-2.3;z<2.5;z+=1.0)box(m.steel,0,.78,z,1.6,.23,.24);
+ for(const z of [-1.55,1.53]){beam(m.steel,[-1.1,.56,z],[1.1,.56,z],.17,.17,true);
+  for(const x of [-1.03,1.03]){
+   const side=Math.sign(x);part(cylGeo,tire,x,.57,z,.57,.35,.57,wheelQ);part(cylGeo,m.dark,x+side*.19,.57,z,.41,.08,.41,wheelQ);part(cylGeo,m.steel,x+side*.24,.57,z,.285,.055,.285,wheelQ);
+   for(let i=0;i<8;i++){const ang=i*Math.PI/4;part(cylGeo,m.dark,x+side*.279,.57+.19*Math.cos(ang),z+.19*Math.sin(ang),.032,.024,.032,wheelQ)}
+   if(z>0)part(cylGeo,tire,x-side*.34,.57,z,.57,.29,.57,wheelQ)
+   for(let i=0;i<16;i++){const ang=i*Math.PI/8,q=new T.Quaternion().setFromAxisAngle(V(1,0,0),ang);part(boxGeo,tire,x,.57+Math.cos(ang)*.565,z+Math.sin(ang)*.565,.29,.025,.105,q)}
+  }
+ }
+ // Cab shell has softened corners, separate window openings, A-pillars and roof cap.
+ box(body,-.12,1.46,-1.35,2.15,1.16,2.12);
+ const shape=new T.Shape();shape.moveTo(-1.08,-.45);shape.lineTo(1.08,-.45);shape.lineTo(1.08,.26);shape.lineTo(.91,.48);shape.lineTo(-.91,.48);shape.lineTo(-1.08,.26);shape.closePath();
+ const shell=new T.ExtrudeGeometry(shape,{depth:1.92,bevelEnabled:true,bevelSize:.055,bevelThickness:.055,bevelSegments:2,steps:1});shell.translate(0,0,-.96);part(shell,body,-.12,2.63,-1.35,1,1,1);
+ box(glass,-.12,2.69,-2.38,1.83,.72,.07);box(m.dark,-.12,2.69,-2.43,.055,.72,.035);
+ for(const x of [-1.23,.99]){box(glass,x,2.68,-1.42,.055,.65,1.56);box(m.dark,x,2.68,-1.42,.074,.69,.055);box(body,x,2.28,-1.42,.1,.14,1.8)}
+ box(body,-.12,3.17,-1.35,2.31,.20,2.19);box(paint,-.12,3.28,-1.35,2.31,.07,2.19);
+ // Bumper, radiator intake, headlamps, wipers, mirror arms and entry steps.
+ box(m.dark,0,.86,-2.47,2.38,.46,.24);box(m.dark,-.12,1.46,-2.43,1.31,.58,.08);
+ for(let y=1.23;y<1.73;y+=.08)box(m.steel,-.12,y,-2.49,1.22,.024,.055);
+ for(const x of [-.89,.75]){box(m.steel,x,1.38,-2.47,.39,.36,.1);box(m.light,x,1.39,-2.535,.29,.24,.055)}
+ for(const x of [-.54,.37])beam(m.dark,[x,2.38,-2.44],[x+.3,2.9,-2.44],.022);
+ for(const side of [-1,1]){const x=-.12+side*1.09;beam(m.dark,[x,2.72,-2.06],[x+side*.39,2.76,-2.06],.045,.045,true);box(m.dark,x+side*.39,2.75,-2.03,.19,.38,.12);box(m.steel,x+side*.13,.91,-1.3,.35,.13,.58);box(m.steel,x+side*.13,.66,-1.3,.35,.12,.56)}
+ for(const x of [-.77,.77]){beam(m.dark,[x,1.17,1.4],[x,1.75,1.4],.23,.23,true);box(m.steel,x,1.3,1.4,.45,.2,.75)}
+ // Fifth wheel plate and hydraulic lift, actual trailer coupling height.
+ box(m.dark,0,1.12,1.36,1.8,.25,1.55);cylinder(m.steel,0,1.43,1.36,.82,.20);box(m.dark,0,1.53,1.78,.19,.045,.68);
+ beam(m.dark,[0,.88,.7],[0,1.35,1.28],.15,.15,true);beam(m.steel,[.93,1.25,-.3],[.93,3.3,-.3],.12,.12,true);beam(m.dark,[.93,3.3,-.3],[.93,3.4,-.56],.13,.13,true);
+ for(const x of [-.98,.98]){box(m.dark,x,1.24,1.53,.44,.16,1.49);box(m.rust,x,.85,2.43,.22,.28,.12)}
+ box(m.yellow,-.48,3.41,-1.34,.22,.18,.22);
+});
+define('cargo-trailer',()=>{
+ box(m.steel,0,1.4,0,2.6,.42,13.0);for(const x of [-1.1,1.1])box(m.dark,x,1.03,0,.25,.42,12.7);
+ for(const z of [3.6,5.05])for(const x of [-1.1,1.1]){const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);part(cylGeo,m.rubber,x,.72,z,.7,.46,.7,rot);part(cylGeo,m.steel,x+(x>0?.24:-.24),.72,z,.28,.12,.28,rot)}
+ for(const x of [-1,1])box(m.steel,x,.85,-3.2,.16,1.45,.18);for(const z of [-6.25,6.25])for(const x of [-1.12,1.12])box(m.yellow,x,1.7,z,.18,.18,.19);
+});
+for(const [x,z] of [[-875,1143],[-570,1140],[-55,1153],[390,1145],[870,1145],[1000,1120]]){
+ if(clearFootprint(x,z,6,23,11)&&openGround(x,z,6,23)){place('terminal-tractor',x,5.22,z,Math.PI/2);place('cargo-trailer',x+9,5.22,z,Math.PI/2)}
+}
+// Northern berth finger piers and loading infrastructure interrupt the overly
+// empty sea corridor; stays clear of the original checkpoint-center route.
+for(const [x,z] of [[500,-1150],[100,-1190],[-340,-1180]]){
+ if(clearFootprint(x,z,90,34,22)){
+  box(m.concrete,x,1.4,z,90,5.5,34);box(m.road,x,4.3,z,88,.2,32);
+  for(const dx of [-40,-20,0,20,40]){place('bollard',x+dx,4.5,z-15);box(m.dark,x+dx,2,z-17,2,3,.5)}
+  for(const dx of [-24,24])lamp(x+dx,4.5,z+7);
+  if(clearFootprint(x,z,24,16,26))place('maintenance-bay',x,4.5,z);
+ }
+}
+// Northwest pier occupies this area; move small craft to real open water rather than through concrete.
+for(const x of [-1050,-800])if(clearFootprint(x,-1360,130,40,36))place('workboat',x,0,-1360,.02,.95);
+// New container-wall placements use segment-versus-inflated-box tests. The
+// conservative 13 m clearance protects the existing ring openings and gives
+// camera users the close walls suggested by the reference. This is not a
+// swept-volume audit of the original world or any particular REDLINE craft.
+function routeBoxClear(x,z,w,d,lo,hi,clearance=13){
+ const mn=[x-w/2-clearance,lo-clearance,z-d/2-clearance],mx=[x+w/2+clearance,hi+clearance,z+d/2+clearance];
+ for(let i=0;i<routePoints.length;i++){
+  const a=routePoints[i],b=routePoints[(i+1)%routePoints.length];let t0=0,t1=1;
+  for(let k=0;k<3;k++){const delta=b[k]-a[k];if(Math.abs(delta)<1e-8){if(a[k]<mn[k]||a[k]>mx[k]){t0=1;t1=0;break}}else{let n=(mn[k]-a[k])/delta,f=(mx[k]-a[k])/delta;if(n>f){const tmp=n;n=f;f=tmp}t0=Math.max(t0,n);t1=Math.min(t1,f);if(t0>t1)break}}
+  if(t0<=t1)return false;
+ }
+ return true
+}
+let corridorStacks=0;
+for(let i=4;i<=6;i++){
+ const a=routePoints[i],b=routePoints[i+1],dx=b[0]-a[0],dz=b[2]-a[2],len=Math.hypot(dx,dz),nx=-dz/len,nz=dx/len,angle=Math.atan2(-dz,dx),w=12.4*Math.abs(Math.cos(angle))+2.6*Math.abs(Math.sin(angle)),d=12.4*Math.abs(Math.sin(angle))+2.6*Math.abs(Math.cos(angle));
+ for(const side of [-1,1])for(const offset of [21,34])for(let k=20;k<len-15;k+=16){
+  const x=a[0]+dx*k/len+nx*offset*side,z=a[2]+dz*k/len+nz*offset*side;
+  if(!openGround(x,z,w,d))continue;
+  let added=false;
+  for(let h=0;h<7+(Math.round(k/16)%3);h++){
+   const y=5+h*2.94;if(!routeBoxClear(x,z,w,d,y,y+2.94))break;
+   if(place('container-'+['rust','blue','green','white'][(i+h+Math.round(k/16))%4],x,y,z,angle))added=true;else break
+  }
+  if(added)corridorStacks++;
+ }
+}
+// Tidal wall equipment: rubber fenders are supported on steel backing plates.
+define('quay-fender',()=>{box(m.steel,0,0,0,2.7,3,.24);box(m.rubber,0,0,.52,2.3,2.7,.82);for(const x of [-.95,.95])for(const y of [-1.12,1.12])box(m.steel,x,y,.98,.18,.18,.12)});
+for(let x=-1160;x<1160;x+=21)place('quay-fender',x,2.6,1200.14);
+for(let z=-1150;z<-830;z+=21)place('quay-fender',330.15,2.6,z,Math.PI/2);
+for(let z=-750;z<-360;z+=21)place('quay-fender',330.15,2.6,z,Math.PI/2);
+// Quay coping, mooring ropes, tidal staining, drain channels and riprap.
+const stain=new T.MeshStandardMaterial({color:0x353b35,roughness:.95,metalness:0}),foam=new T.MeshBasicMaterial({color:0xc3d5d8,transparent:true,opacity:.22,depthWrite:false});
+for(let x=-1160;x<=1160;x+=25){box(stain,x,1.2,1200.05,24.8,1.5,.16);box(rawSteel,x,5.25,1195,24.5,.14,.25);if(x%100===-60)place('bollard',x,5.15,1194);place('breakwater-armour',x,0,-1342);box(foam,x,-.12,-1354,11,.04,1.1)}
+for(const x of [-1178,1178])for(let z=125;z<1200;z+=25){box(stain,x,1.5,z,.15,1.8,24.8);box(rawSteel,x,5.25,z,.25,.12,24.5)}
+for(const x of [655,1045])for(let z=-734;z<-365;z+=15){box(stain,x+(x<850?5.1:-5.1),-4.5,z,.12,4,14.8);box(rawSteel,x+(x<850?6:-6),-2,z,.55,.5,14.8);box(m.dark,x+(x<850?5.2:-5.2),-2.2,z,.25,1.1,1.1)}
+for(const [x,z] of [[-900,1270],[-420,1270],[60,1270],[650,1270],[1020,1270]]){beam(m.dark,[x-12,3,z-4],[x-18,5.5,1195],.12,.12,true);beam(m.dark,[x+12,3,z-4],[x+18,5.5,1195],.12,.12,true)}
+// Hero close-range equipment with believable mechanical assemblies and shared
+// material slots. All modules are exported as native GLB assets.
+define('process-manifold',()=>{
+ const fl=m.steel,pipe=m.green,base=m.dark;
+ for(const x of [-7,7])for(const z of [-3,3]){box(m.concrete,x,.25,z,2,.5,2);box(fl,x,2,z,.35,3.5,.35)}
+ for(const z of [-3,3])beam(fl,[-8,3.6,z],[8,3.6,z],.38);
+ for(const z of [-2.2,0,2.2]){
+  beam(pipe,[-8,4.1,z],[8,4.1,z],.62,.62,true);
+  for(const x of [-6,-2,2,6]){
+   beam(fl,[x-.20,4.1,z],[x+.20,4.1,z],.79,.79,true);
+   for(let i=0;i<8;i++){const a=i*Math.PI/4;beam(base,[x-.26,4.1+.71*Math.cos(a),z+.71*Math.sin(a)],[x+.26,4.1+.71*Math.cos(a),z+.71*Math.sin(a)],.07,.07,true)}
+  }
+  cylinder(m.rust,0,4.65,z,.78,1.5);cylinder(fl,0,5.6,z,.33,.4);cylinder(base,0,6.1,z,.12,.8);
+  const wheel=new T.TorusGeometry(.64,.065,6,20);part(wheel,m.yellow,0,6.6,z,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+  for(const a of [0,Math.PI/3,2*Math.PI/3])beam(m.yellow,[-.56*Math.cos(a),6.6,z-.56*Math.sin(a)],[.56*Math.cos(a),6.6,z+.56*Math.sin(a)],.065);
+ }
+ box(fl,7,1.3,0,2.4,2.2,2.1);box(m.glass,7,1.7,1.1,1.1,.55,.12);box(m.yellow,7,2.55,0,2.6,.3,2.3);
+});
+define('hydraulic-power-unit',()=>{
+ box(m.dark,0,.22,0,5.8,.44,3.2);box(m.steel,-.7,.95,0,3.4,1.4,2.6);box(m.yellow,-.7,1.76,0,3.5,.18,2.7);
+ beam(m.blue,[1,1.05,0],[2.5,1.05,0],.62,.62,true);for(let x=1;x<2.5;x+=.18)beam(m.steel,[x,1.05,0],[x+.06,1.05,0],.67,.67,true);
+ for(const z of [-.7,.7]){beam(m.dark,[-1,1.9,z],[-1,2.7,z],.10,.10,true);beam(m.dark,[-1,2.7,z],[1.65,2.7,z],.10,.10,true);beam(m.dark,[1.65,2.7,z],[1.65,1.55,z],.10,.10,true);cylinder(m.steel,-1,1.9,z,.18,.22)}
+ for(const x of [-2,2])box(m.steel,x,.55,0,.28,.30,3.1);
+});
+define('quay-fender',()=>{
+ box(m.steel,0,2,0,.4,4,3);for(const y of [1,3]){for(const z of [-1,1])beam(m.steel,[-.28,y,z],[.28,y,z],.12,.12,true)}
+ for(const z of [-.9,.9])beam(m.rubber,[.3,.2,z],[1.4,3.8,z],.62);
+ box(m.rubber,1.5,2,0,.65,3.8,2.75);
+});
+define('fabrication-rack',()=>{
+ for(const x of [-6,6])for(const z of [-2.8,2.8]){box(m.steel,x,2.5,z,.38,5,.38);box(m.dark,x,.17,z,.8,.34,.8)}
+ for(const y of [1,2.8,4.5])for(const z of [-2.8,2.8])beam(m.orange,[-6,y,z],[6,y,z],.32);
+ for(const z of [-2.8,2.8])beam(m.steel,[-6,.3,z],[6,5,z],.16);
+ for(let y=1.2;y<5;y+=1.8)for(let z=-2.1;z<=2.1;z+=.8)box(m.steel,0,y,z,11.6,.26,.65);
+});
+for(const z of [390,550,690,790])for(const x of [-1010,-610])if(clearFootprint(x,z,18,9,14)){place('process-manifold',x,5.25,z,Math.PI/2);place('hydraulic-power-unit',x+10,5.25,z+10)}
+for(const center of [-650,-450,-170,100])for(const x of [-920,-840])for(const dz of [-48,12,54]){const z=center+dz;if(clearFootprint(x,z,13,7,11)){place('fabrication-rack',x,5.25,z,Math.PI/2);place('hydraulic-power-unit',x,5.25,z+9)}}
+for(let x=-1150;x<1150;x+=22)place('quay-fender',x,0,1200.4,-Math.PI/2);
+for(const x of [695,1005])for(let z=-710;z<-375;z+=65)place('hydraulic-power-unit',x,-7.8,z);
+// Warm work-light banks, mounted on the actual gantry legs, drydock walls
+// and foundry structural beams; emissive lenses and physically decaying lights.
+ for(const z of [50,-535])for(const x of [788,912])for(const side of [-1,1]){
+  const zz=z+side*12;box(m.dark,x,18,zz,1.35,.85,.8);box(warmGlow,x,17.53,zz,.96,.12,.64);fixturePositions.push([x,17.35,zz]);pool(x,5.32,zz,23);
+ }
+ for(const x of [776,924])for(let z=-700;z<-380;z+=32){
+  box(m.dark,x,3.2,z,.75,.5,1.3);box(warmGlow,x+(x<850?.43:-.43),3.2,z,.1,.35,1.0);fixturePositions.push([x+(x<850?.6:-.6),3.2,z]);pool(x+(x<850?6:-6),-7.7,z,14);
+ }
+ for(const z of [-650,-450,-170,100])for(const x of [-915,-845])for(const dz of [-48,-12,24,60]){
+  const zz=z+dz;box(m.dark,x,19.3,zz,1.2,.42,.6);box(warmGlow,x,19.04,zz,1.0,.1,.4);fixturePositions.push([x,18.9,zz]);pool(x,5.34,zz,19);
+ }
+ // Flight-height density pass: complete work cells rather than scatter props.
+ // Grounded additions are accepted only if their whole transformed model bounds
+ // avoid existing template footprints, stacked cargo and the protected centerline.
+ let newWorkCells=0,newProcessTowers=0;
+ function siteAvailable(name,x,z,angle=0,scale=1){
+  const root=new T.Object3D();root.position.set(x,5.25,z);root.rotation.y=angle;root.scale.setScalar(scale);root.updateMatrix();
+  const bounds=placementBounds.get(name).clone().applyMatrix4(root.matrix),c=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0));
+  if(bounds.min.x<-1175||bounds.max.x>1175||bounds.min.z<105||bounds.max.z>1195)return false;
+  if(!clearFootprint(c.x,c.z,size.x+3,size.z+3,bounds.max.y)||!openGround(c.x,c.z,size.x+2,size.z+2))return false;
+  return !placedSites.some(b=>bounds.min.x<b.max.x+1.5&&bounds.max.x>b.min.x-1.5&&bounds.min.z<b.max.z+1.5&&bounds.max.z>b.min.z-1.5&&bounds.min.y<b.max.y+.5&&bounds.max.y>b.min.y-.5);
+ }
+ define('quayside-workcell',()=>{
+  const W=24,D=19,H=19;
+  box(m.concrete,0,.3,0,W+.5,.6,D+.5);
+  for(const x of [-11.6,11.6])for(const z of [-9,9]){
+   box(m.steel,x,H/2,z,.65,H,.65);box(m.concrete,x,.4,z,1.7,.8,1.7);
+   box(m.steel,x,1,z,1.05,.25,1.05);
+  }
+  for(const z of [-9,9]){
+   box(m.steel,0,H-.7,z,W,1.3,.8);
+   for(let x=-11;x<=8;x+=4)beam(m.steel,[x,H-3,z],[x+3,H-.2,z],.24);
+  }
+  box(cladding,0,13,-9.2,W,11.5,.5);
+  for(let x=-10;x<=10;x+=2)box(m.steel,x,13,-9.47,.12,11.2,.15);
+  for(const side of [-1,1]){
+   const angle=-side*Math.atan2(2.2,W/2);
+   part(boxGeo,roofMetal,side*W/4,H+1.1,0,Math.hypot(W/2,2.2)+.5,.35,D+1,new T.Quaternion().setFromAxisAngle(V(0,0,1),angle));
+   for(let z=-8;z<=8;z+=2)beam(m.steel,[0,H+2.45,z],[side*12,H+.2,z],.1);
+   box(m.orange,side*10.1,14,0,.8,1,D-1);
+  }
+  box(m.orange,0,15,0,W-3,1.6,1.2);box(m.dark,4,14.1,0,2.7,.9,2.1);
+  for(const z of [-.45,.45])beam(m.dark,[4,13.8,z],[4,8,z],.065,.065,true);
+  box(m.yellow,4,7.8,0,2.4,.4,1.1);
+  // Fabrication table, raw steel plates and material racks.
+  for(const x of [-6,6]){box(m.dark,x,1.6,-4,7,3,3);box(m.steel,x,3.2,-4,7.5,.3,3.5);for(let i=0;i<5;i++)box(m.rust,x,3.4+i*.14,-4,6.4,.12,2.8)}
+  for(const x of [-7,7]){box(m.light,x,H-2.2,5,1.6,.22,.65);box(m.dark,x,H-1.9,5,1.8,.4,.8)}
+  box(m.glass,-7,11,-9.52,4,3,.18);box(m.glass,6,11,-9.52,4,3,.18);
+ });
+ define('fractionation-service-tower',()=>{
+  const rad=2.8,H=36,cg=new T.CylinderGeometry(1,1,1,32);
+  box(m.concrete,0,.5,0,9,1,9);
+  part(cg,m.steel,0,H/2+1,0,rad,H,rad);
+  for(let y=4;y<=35;y+=6){
+   const ring=new T.TorusGeometry(rad+.06,.08,5,32);part(ring,m.dark,0,y,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+   for(let a=0;a<Math.PI*2;a+=Math.PI/2){const x=Math.cos(a)*rad,z=Math.sin(a)*rad;box(m.steel,x,y,z,.2,.35,.2)}
+  }
+  for(const y of [11,23,35]){
+   box(m.steel,3.6,y,0,2.6,.3,6);
+   rail(4.8,y+1.1,0,6,'z');beam(m.steel,[2.6,y-2.5,-2.3],[4.6,y,-2.3],.24);beam(m.steel,[2.6,y-2.5,2.3],[4.6,y,2.3],.24);
+   box(m.light,3.4,y+2,0,.4,.2,.45);
+  }
+  for(const z of [-.45,.45])beam(m.yellow,[4,1,z],[4,36,z],.08);
+  for(let y=1.5;y<36;y+=.48)beam(m.steel,[4,y,-.45],[4,y,.45],.055);
+  for(const z of [-1.4,1.4]){beam(m.rust,[-2.5,5,z],[-4,5,z],.34,.34,true);beam(m.rust,[-4,5,z],[-4,30,z],.34,.34,true);beam(m.rust,[-4,30,z],[-2.5,30,z],.34,.34,true);for(let y=6;y<30;y+=5)beam(m.steel,[-4,y,z],[-2.4,y,z],.18)}
+  cylinder(m.steel,0,37.9,0,1.1,1.8);cylinder(m.dark,0,39,0,1.3,.4);
+ });
+ for(const z of [1038,1125])for(let x=-1070;x<=160;x+=47){
+  if(newWorkCells>=22)break;
+  const angle=z<1080?0:Math.PI;
+  if(siteAvailable('quayside-workcell',x,z,angle,.9)){
+   place('quayside-workcell',x,5.25,z,angle,.9);newWorkCells++;
+   for(const dx of [-6,6]){fixturePositions.push([x+dx,20,z]);pool(x+dx,5.33,z,13)}
+  }
+ }
+ for(const x of [-1110,-1020,-980,-930,-780,-730,-590,-515])for(const z of [465,550,630,715,795]){
+  if(newProcessTowers>=16)break;
+  if(siteAvailable('fractionation-service-tower',x,z,Math.PI/2,.88)){place('fractionation-service-tower',x,5.25,z,Math.PI/2,.88);newProcessTowers++;pool(x,5.33,z,11)}
+ }
+ // Drydock floor detailing: longitudinal drainage and segmented keel tracks.
+ // No protrusions above the existing floor clearance envelope.
+ for(const x of [810,890])for(let z=-730;z<-375;z+=14){box(m.dark,x,-7.92,z,1.15,.13,13.8);for(let dz=-5;dz<=5;dz+=2)box(m.steel,x,-7.83,z+dz,1.05,.06,.12)}
+ for(let z=-728;z<-370;z+=9){for(const x of [820,880])box(m.concrete,x,-7.64,z,4,.5,3.2);if(z%27===-8)for(const x of [805,895])box(m.yellow,x,-7.88,z,.12,.025,8.5)}
+ // Small staged steel handling cells are validated against established geometry.
+ let transferStations=0;
+ define('steel-transfer-station',()=>{
+  for(const x of [-8,8])for(const z of [-4,4]){box(m.concrete,x,.35,z,1.7,.7,1.7);box(m.steel,x,2.7,z,.48,4.8,.48)}
+  for(const z of [-4,4]){beam(m.steel,[-8,5.1,z],[8,5.1,z],.55,.8);for(const x of [-6,0,6])beam(m.dark,[x,1,z],[x+1.5,5,z],.2)}
+  for(const x of [-5,0,5]){box(m.dark,x,.5,0,2.8,1,6);for(let y=0;y<5;y++)box(m.rust,x,1.1+y*.15,0,2.6,.12,5.8)}
+  box(m.orange,0,5.3,0,3,.55,8.8);box(m.dark,0,4.8,0,1.4,.55,1.7);beam(m.dark,[0,4.5,0],[0,2.6,0],.075,.075,true);box(m.yellow,0,2.4,0,1.5,.3,1)
+ });
+ for(const z of [1019,1147,405,705,825])for(let x=-1090;x<160;x+=54){
+  if(transferStations>=12)break;
+  if(siteAvailable('steel-transfer-station',x,z,0,.9)){place('steel-transfer-station',x,5.25,z,0,.9);transferStations++}
+ }
+ // Two working pile-supported finger piers on the west shore break the
+ // rectangular silhouette. Their deck connects directly to the main quay.
+ let westernPiers=0;
+ for(const [z,w] of [[-610,52],[-250,38]]){
+  const x=-1260,L=160;
+  if(!clearFootprint(x,z,L,w,7))continue;
+  box(m.concrete,x,4.34,z,L,1.4,w);
+  box(m.road,x,5.07,z,L-2,.08,w-2);
+  pavedSlabs.push([x,z,L,w]);
+  for(let xx=-1334;xx<=-1186;xx+=18)for(const zz of [z-w*.37,z,z+w*.37]){
+   cylinder(m.concrete,xx,1.0,zz,1.55,7.4);
+   box(m.steel,xx,3.46,zz,4,.25,4);
+  }
+  for(const zz of [z-w/2,z+w/2]){
+   box(m.concrete,x,4.5,zz,L,.9,1.1);
+   for(let xx=-1330;xx<-1180;xx+=18){
+    box(m.rubber,xx,2.6,zz,.8,3.4,.8);
+    if(xx%36<0)place('bollard',xx,5.15,zz+(zz<z?1.9:-1.9));
+   }
+   box(m.yellow,x,5.15,zz+(zz<z?2:-2),L-8,.024,.16);
+  }
+  // Protected pier head and shore power station.
+  box(m.concrete,-1340,4.4,z,1.8,1.05,w);
+  rail(-1338,5.3,z,w-3,'z');
+  place('hydraulic-power-unit',-1318,5.15,z-5);
+  place('welding-skid',-1309,5.15,z+6,Math.PI/2);
+  lamp(-1325,5.12,z+8);westernPiers++;
+ }
+ // Workboat berths beside, not inside, the new piers.
+ place('merchant-vessel',-1271,0,-550,0,.72);
+ place('workboat',-1265,0,-205,Math.PI,.8);
+ for(const [x,z,zz] of [[-1271,-550,-584],[-1265,-205,-231]])for(const dx of [-35,35]){
+  beam(m.dark,[x+dx,7,z],[x+dx*1.12,5.45,zz],.10,.10,true);
+  place('bollard',x+dx*1.12,5.15,zz);
+ }
+ // Real shipyard block fabrication: raised adjustable pins, curved shell panels,
+ // welded longitudinal sections and transport cradles. Templates remain GLB-exportable.
+ define('curved-panel-jig',()=>{
+  const L=30,W=14;
+  for(const x of [-12,-6,0,6,12])for(const z of [-5,0,5]){
+   const y=1.3+z*z*.047;box(m.concrete,x,.3,z,2,.6,2);box(m.steel,x,y/2+.3,z,.32,y,.32);box(m.orange,x,y+.32,z,.9,.18,.9)
+  }
+  for(const z of [-5,0,5])beam(m.dark,[-15,.9,z],[15,.9,z],.5);
+  for(let z=-7;z<7;z+=1){const y1=1.65+z*z*.047,y2=1.65+(z+1)*(z+1)*.047;
+   part(boxGeo,m.rust,0,(y1+y2)/2,z+.5,L,.18,Math.hypot(1,y2-y1),new T.Quaternion().setFromAxisAngle(V(1,0,0),-Math.atan2(y2-y1,1)));
+   if(z%2===0)beam(m.steel,[-15,y1+.3,z],[15,y1+.3,z],.18,.44)
+  }
+  for(const x of [-12,0,12])for(let z=-7;z<7;z+=1)beam(m.steel,[x,1.9+z*z*.047,z],[x,1.9+(z+1)*(z+1)*.047,z+1],.32);
+ });
+ define('block-transport-cradle',()=>{
+  for(const z of [-3,3]){box(m.dark,0,.65,z,18,1.3,1.4);for(const x of [-7,0,7])box(m.concrete,x,.25,z,2.5,.5,2)}
+  for(const x of [-7,-3,3,7]){box(m.steel,x,1.7,0,.65,.9,8);for(const z of [-3,3]){beam(m.orange,[x,2,z],[x,5,z*.65],.65);beam(m.steel,[x,2,z],[x,4,0],.4)}}
+  box(m.rust,0,4,0,17,.32,5);for(const z of [-2,-1,0,1,2])beam(m.steel,[-8.5,4.4,z],[8.5,4.4,z],.2,.55);
+  for(const x of [-6,0,6])box(m.rust,x,5.6,0,.3,3.1,5.1);
+ });
+ let fabricationJigs=0;
+ for(const z of [1035,1125,420,705,825])for(let x=-1085;x<=150;x+=43){
+  if(fabricationJigs>=18)break;
+  const name=fabricationJigs%2?'block-transport-cradle':'curved-panel-jig',angle=(fabricationJigs%3)*Math.PI/2;
+  if(siteAvailable(name,x,z,angle,.9)){place(name,x,5.25,z,angle,.9);fabricationJigs++}
+ }
+ // Dense gantry-side block assembly stations. The gantry rails and protected
+ // flight line remain clear; buildings must fit on a single real concrete slab.
+ define('gantry-service-hall',()=>{
+  const W=36,D=54,H=27;
+  box(m.concrete,0,.28,0,W,.56,D);
+  for(const x of [-17,17])for(const z of [-26,-13,0,13,26]){
+   box(m.steel,x,H/2,z,.72,H,.72);box(m.concrete,x,.52,z,1.8,1.04,1.8);
+   beam(m.steel,[x,2,z],[x,10,z+((z===26)?-4:4)],.28)
+  }
+  for(const x of [-17,17]){box(cladding,x,18,0,.4,17,54);box(m.steel,x,26.8,0,.65,1,54);
+   for(let z=-24;z<=24;z+=6)box(m.glass,x*1.015,23,z,.12,3.8,4.5);
+   box(m.orange,x*.92,13.7,0,.65,1.2,52);
+   for(let z=-24;z<=24;z+=12)beam(m.steel,[x,11,z],[x*.92,13.7,z],.3);
+  }
+  for(const z of [-26,-13,0,13,26]){
+   beam(m.steel,[-17,27,z],[0,31,z],.48);beam(m.steel,[0,31,z],[17,27,z],.48);beam(m.steel,[-17,27,z],[17,27,z],.42);
+   for(const x of [-11,0,11])beam(m.steel,[x,27,z],[x,31-Math.abs(x)*4/17,z],.20);
+  }
+  for(const side of [-1,1])part(boxGeo,roofMetal,side*9,29,0,Math.hypot(18,4)+.4,.36,55,new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*Math.atan2(4,18)));
+  // Offset upper service wing: lower wall and asymmetric roof monitor,
+  // cantilevered work gallery carried by the original portal-frame columns.
+  box(cladding,17,4.8,0,.40,9.6,54);
+  for(const z of [-18,0,18]){box(m.dark,17.26,4.7,z,.28,7.4,10.8);box(m.door,17.48,4.7,z,.12,6.8,10.2);for(let y=1.6;y<8.1;y+=.68)box(m.steel,17.58,y,z,.09,.065,10.0);}
+  const sideX=20.4;
+  box(m.concrete,sideX,.30,10,6.5,.60,26);
+  box(oxideCladding,23.6,3.35,10,.32,6.7,26);for(const z of [-3,23])box(cladding,20.3,3.35,z,6.6,6.7,.28);
+  for(const z of [-3,3.5,10,16.5,23]){box(m.steel,23.4,3.3,z,.32,6.6,.32);beam(m.steel,[17,7.55,z],[23.6,6.8,z],.24);}
+  part(boxGeo,roofMetal,20.3,7.12,10,6.9,.3,26.6,new T.Quaternion().setFromAxisAngle(V(0,0,1),-.11));
+  for(const z of [0,8,16]){box(m.dark,23.8,5.15,z,.16,1.8,5);box(m.glass,23.93,5.15,z,.12,1.5,4.6);}
+  // Mounted ventilation risers follow actual support columns, and the
+  // discharge rises above the roofline. Visible elbow and cap detail.
+  for(const z of [-20,20]){
+   beam(m.steel,[18.1,6.9,z],[18.1,28.3,z],.82,.82,true);beam(m.steel,[18.1,28.3,z],[15.4,28.3,z],.82,.82,true);
+   beam(m.steel,[15.4,28.3,z],[15.4,33.2,z],.82,.82,true);cylinder(m.dark,15.4,33.45,z,.72,.25);
+   for(const yy of [11,18,25])beam(m.steel,[17,yy,z],[18.1,yy,z],.25);
+  }
+  // One side of the roof has a high daylighting spine, not mirrored across
+  // the other pitch. Seats extend into the roof surface.
+  box(m.dark,-5,30.15,-6,7.2,.6,30);
+  box(m.blue,-8.3,32.05,-6,.25,3.8,30);box(m.glass,-1.7,32.05,-6,.22,3.5,29.4);
+  for(let z=-19;z<=7;z+=3.2){box(m.steel,-1.52,32.05,z,.12,3.6,.16);beam(m.steel,[-8.2,30.1,z],[-1.7,33.9,z],.18);}
+  for(const z of [-21,9])box(cladding,-5,32.1,z,6.6,3.8,.28);
+  part(boxGeo,roofMetal,-5,34.15,-6,7.5,.3,30.7,new T.Quaternion().setFromAxisAngle(V(0,0,1),-.10));
+  box(m.orange,0,14.4,-7,32,1.5,1.3);box(m.dark,5,13.4,-7,3,.75,2.2);
+  for(const x of [4.65,5.35])beam(m.dark,[x,13,-7],[x,5.5,-7],.075,.075,true);box(m.yellow,5,5.3,-7,2.1,.45,1.15);
+  for(const x of [-11,11])for(const z of [-18,0,18]){
+   box(m.dark,x,.7,z,4.8,1.4,9);box(m.steel,x,1.5,z,5,.20,9);
+   for(let y=0;y<5;y++)box(m.rust,x,1.65+y*.21,z,4.5,.17,8.7);
+   box(m.light,x,25,z,1.8,.24,.55);
+  }
+ });
+ define('winch-service-skid',()=>{
+  box(m.dark,0,.28,0,9,.56,5);for(const x of [-3,3])box(m.steel,x,.8,0,.75,1,4.5);
+  for(const x of [-2.4,2.4]){box(m.steel,x,1.75,0,.55,2.5,3.3);beam(m.dark,[x-1.0,.6,-1.7],[x,2.4,-1.7],.27)}
+  const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);
+  part(cylGeo,m.steel,0,2.35,0,1.25,4.4,1.25,rot);
+  for(const x of [-2.15,2.15])part(cylGeo,m.dark,x,2.35,0,1.68,.24,1.68,rot);
+  for(let x=-1.95;x<2;x+=.16)part(cylGeo,m.wire,x,2.35,0,1.32,.075,1.32,rot);
+  beam(m.steel,[-3.1,2.35,0],[3.4,2.35,0],.32,.32,true);box(m.blue,3.35,2.35,0,1.9,1.6,1.7);
+  box(m.orange,3.35,3.25,0,1.95,.16,1.75);
+  // Motor cooling fins and coupling guard are seated on the housing.
+  for(let x=2.65;x<4.12;x+=.18)box(m.blue,x,2.37,0,.10,1.73,1.84);
+  box(m.steel,2.42,2.35,0,.26,1.32,1.32);box(m.dark,2.17,2.35,0,.28,1.08,1.08);
+  box(m.steel,-3.4,1.2,1.7,1.25,1.6,1.25);
+  box(m.glass,-3.4,1.7,2.36,.75,.38,.09);
+  beam(m.wire,[0,3.67,0],[0,3.2,2.2],.075,.075,true);
+  beam(m.wire,[0,3.2,2.2],[0,.55,2.2],.075,.075,true);
+ });
+ function craneSite(name,x,z,scale=1){
+  const b=placementBounds.get(name).clone().applyMatrix4(new T.Matrix4().makeScale(scale,scale,scale)).translate(V(x,5.25,z));
+  const c=b.getCenter(V(0,0,0)),v=b.getSize(V(0,0,0));
+  const supported=pavedSlabs.some(([sx,sz,w,d])=>b.min.x>=sx-w/2+3&&b.max.x<=sx+w/2-3&&b.min.z>=sz-d/2+3&&b.max.z<=sz+d/2-3);
+  if(!supported||!openGround(c.x,c.z,v.x+3,v.z+3)||!clearFootprint(c.x,c.z,v.x+6,v.z+6,b.max.y))return false;
+  if([788,912].some(rx=>b.min.x<rx+8&&b.max.x>rx-8&&b.min.z<200&&b.max.z>-300))return false;
+  return !placedSites.some(a=>b.min.x<a.max.x+2&&b.max.x>a.min.x-2&&b.min.z<a.max.z+2&&b.max.z>a.min.z-2&&b.min.y<a.max.y+.3&&b.max.y>a.min.y-.3);
+ }
+ let craneServiceSites=0,winchSites=0;
+ for(const z of [190,130,70,10,-50,-110,-170,-230,-290])for(const x of [548,600,698,742,964,1016,1070,1130]){
+  if(craneServiceSites>=10)break;
+  // Keep the Goliath foreground inspection apron open instead of blocking the crane's base.
+  if(x>=964&&z>=90)continue;
+  if(craneSite('gantry-service-hall',x,z,.82)){place('gantry-service-hall',x,5.25,z,0,.82);craneServiceSites++;
+   for(const dx of [-11,11])for(const dz of [-18,18]){fixturePositions.push([x+dx*.82,5.25+24.75*.82,z+dz*.82]);pool(x+dx*.82,5.34,z+dz*.82,15)}
+  }
+ }
+ for(const z of [210,150,90,30,-30,-90,-150,-210,-270])for(const x of [575,675,730,965,1035,1125]){
+  if(winchSites>=18)break;
+  if(craneSite('winch-service-skid',x,z)){place('winch-service-skid',x,5.25,z);winchSites++}
+ }
+ // Physically mounted inside-hull work lamps, in actual world coordinates
+ // matching the shell's local catwalk profile. No freestanding light geometry.
+ let hullWorkLights=0;
+ for(let lx=-138;lx<=138;lx+=16)for(const side of [-1,1]){
+  const u=Math.max(0,(Math.abs(lx)-124)/51),w=32*(1-.58*u*u)*(.91+(.97-.91)/6),z=-920+side*(w-3.4);
+  const x=750+lx;
+  // Register the existing hull template's lens, not a second floating fixture.
+  fixturePositions.push([x,24.75,z+side]);pool(x,21.18,z,4);hullWorkLights++;
+ }
+ // Container-lane work lighting, attached to freestanding steel poles on
+ // existing clear pavement. Avoid obstructing the protected racing corridor.
+ let laneLightCount=0;
+ for(const z of [590,690,790,890,990,1090])for(const x of [370,470,570,670,770,870,970,1070]){
+  if(laneLightCount>=24)break;
+  if(!openGround(x+1,z,7,5)||!clearFootprint(x+1,z,7,5,18))continue;
+  if(placedSites.some(b=>x+4>b.min.x&&x-2<b.max.x&&z+3>b.min.z&&z-3<b.max.z))continue;
+  if(fixturePositions.some(p=>Math.hypot(p[0]-x,p[2]-z)<28))continue;
+  lamp(x,5.22,z);laneLightCount++;
+ }
+ const worldBatches=[];// Connect the process equipment to supported ground-level headers. These
+// are below the visual racing corridor and leave the gate coordinates intact.
+for(const z of [500,675])for(const [xa,xb] of [[-1050,-990],[-560,-490]]){
+ const zz=z+19.2,y=6.5;
+ beam(m.rust,[xa,y,zz],[xb,y,zz],.52,.52,true);
+ for(let x=xa;x<=xb;x+=10){box(m.concrete,x,5.42,zz,1.5,.65,1.5);box(m.steel,x,5.95,zz,.45,.8,.45);beam(m.steel,[x-.15,y,zz],[x+.15,y,zz],.65,.65,true)}
+ for(const x of [xa,xb])beam(m.rust,[x,y,z+17.5],[x,y,zz],.48,.48,true);
+ const x=(xa+xb)/2;place('hydraulic-power-unit',x,5.25,zz+5);place('process-manifold',x,5.25,zz+13);
+}
+// Low industrial equipment and loading bays in the inter-building spaces.
+ for(const {x,z,kind} of districtPlan){for(const dx of [-22,22]){
+  const xx=x+dx,zz=z+66;if(clearFootprint(xx,zz,12,9,13)){place('fabrication-rack',xx,5.25,zz);place('welding-skid',xx+8,5.25,zz+4);place('pallet-load',xx-8,5.25,zz-4)}
+ }if(clearFootprint(x,z+67,5,5,19))lamp(x,5.2,z+67)}
+ // Distant port skyline on the actual far shoreline, outside the racing boundary.
+ // Low silhouettes are intentionally cheaper than detailed playable architecture.
+ // Far-shore buildings form irregular waterfront clusters, seated on terrain.
+ // Baked silhouette materials avoid overexposed white blocks in the HDR light.
+ const horizonMat=new T.MeshBasicMaterial({color:0x17252e,toneMapped:false}),horizonRoof=new T.MeshBasicMaterial({color:0x111e27,toneMapped:false}),horizonWindows=new T.MeshBasicMaterial({color:0x51443b,toneMapped:false});
+ for(let i=0;i<48;i++){
+  const x=-3600+i*148+24*Math.sin(i*2.7),z=shoreline(x)-110-85*Math.abs(Math.sin(i*.73)),ground=coastalHeight(x,z);
+  const w=45+45*Math.abs(Math.sin(i*1.38)),d=36+35*Math.abs(Math.cos(i*.95)),h=14+38*Math.abs(Math.sin(i*1.83));
+  if(i%7===0)continue;box(horizonMat,x,ground+h/2-4,z,w,h+8,d);
+  box(horizonRoof,x,ground+h+.4,z,w+1,1,d+1);
+  if(i%3===0){box(horizonMat,x+w*.25,ground+h+9,z,9,18,10);box(horizonRoof,x+w*.25,ground+h+18,z,10,1,11)}
+  for(let dx=-w*.38;dx<w*.4;dx+=14)if((Math.floor(dx/14)+i)%3===0)box(horizonWindows,x+dx,ground+h*.62,z+d/2+.15,4.5,1.6,.25);
+ }
+ // Distinct far-shore industrial profiles rather than a regular city-block row.
+ for(const cx of [-2460,-1180,1180,2540]){const z=shoreline(cx)-80,y=coastalHeight(cx,z);for(let dx=-50;dx<=50;dx+=50){const x=cx+dx,yy=coastalHeight(x,z);cylinder(horizonMat,x,yy+13,z,17,28);part(sphereGeo,horizonRoof,x,yy+27,z,17,2,17)}
+  for(const dx of [-75,75]){const x=cx+dx,yy=coastalHeight(x,z-60);beam(horizonRoof,[x,yy,z-60],[x,yy+72,z-60],2.8,2.8,true);beam(horizonMat,[x,yy+67,z-60],[x,yy+67,z-5],1.2)}
+ }
+ // Short dock-side industrial service piers, connected to existing perimeter slab.
+ for(const x of [-1160,1180])for(const z of [220,510,870]){
+  const side=Math.sign(x),xx=x+side*13;box(m.concrete,xx,1.65,z,26,6.7,46);box(m.road,xx,5.06,z,24,.08,44);
+  for(const dz of [-17,17]){place('bollard',xx,5.2,z+dz);box(m.dark,xx+side*12,2.2,z+dz,.9,4,3)}
+ }
+ // Port service lanes: painted edge lines, drainage grates, cable covers,
+ // and grounded, directional floodlight structures instead of isolated light blobs.
+ const drainMat=new T.MeshStandardMaterial({color:0x303639,metalness:.55,roughness:.72});
+ define('dock-floodlight',()=>{
+  box(m.concrete,0,.40,0,2.8,.8,2.8);box(m.dark,0,.96,0,1.7,.32,1.7);
+  beam(m.steel,[0,1,0],[0,19,0],.42,.42,true);
+  for(const x of [-.56,.56])beam(m.steel,[x,1.2,0],[x*.5,4.1,0],.15);
+  box(m.steel,0,18.9,0,4.5,.28,.7);
+  for(const x of [-1.55,0,1.55]){
+   box(m.dark,x,18.8,.30,1.25,.78,.65);
+   box(warmGlow,x,18.64,.67,1.06,.46,.10);
+   beam(m.steel,[x-.5,18.4,.1],[x+.5,18.4,.1],.12);
+  }
+  box(m.dark,0,1.7,.36,.65,1.2,.28);
+ });
+ for(const [x,z] of [[-1010,1128],[-730,1128],[-430,1128],[-100,1128],[420,1146],[720,1146],[1105,1146],[640,-235],[1095,-235],[-1100,380],[-1095,810],[-690,850]]){
+  if(!clearFootprint(x,z,5,5,25))continue;
+  place('dock-floodlight',x,5.2,z);
+  fixturePositions.push([x,23.6,z+.72]);pool(x,5.38,z+6,18);
+ }
+ // Thin drain channels are positioned beside the launch roadway, not over
+ // the inspection route. Vary surface marks by location and keep them flat.
+ for(const z of [1045,1118])for(let x=-1140;x<1135;x+=25){
+  box(drainMat,x,5.29,z,19,.055,.56);
+  for(let dx=-8;dx<=8;dx+=2)box(m.steel,x+dx,5.325,z,.10,.025,.48);
+  if(x%100===-40){box(m.yellow,x,5.32,z+2.2,10,.025,.17)}
+ }
+ for(const z of [1010,1150])for(let x=-1130;x<=1130;x+=36){
+  if(clearFootprint(x,z,5,3,6.3)){box(m.dark,x,5.31,z,4,.16,1.4);box(m.yellow,x,5.42,z,3.6,.025,.25)}
+ }
+ // STAGE 3: production-specific buildings, not interchangeable rectangular sheds.
+ // Each kit uses existing packed PBR materials and shared geometry helpers.
+ define('stage3-boiler-house',()=>{
+  const W=46,D=56,H=24;
+  box(m.concrete,0,.35,0,W,.7,D);
+  box(cladding,0,12,0,W-2,23,D-2);
+  box(m.rust,0,2.3,0,W-1,3,D-1);
+  box(roofMetal,0,24,0,W,.55,D);
+  for(const x of [-22,22])for(const z of [-24,-12,0,12,24]){
+   box(m.steel,x,12,z,.6,24,.75);
+   box(m.concrete,x,.6,z,1.6,1.2,1.6);
+   box(m.glass,x*1.006,19,z,.12,3.6,7.2);
+   box(m.steel,x*1.012,19,z,.16,.16,7.3);
+  }
+  for(const x of [-14,0,14]){
+   box(m.dark,x,5,-27.15,9,8,.28);
+   box(m.steel,x,8.9,-27.38,9.4,.42,.45);
+   for(let y=2;y<9;y+=.7)box(m.steel,x,y,-27.35,8.7,.13,.12);
+   box(m.orange,x-4.7,1.25,-27.6,.24,2.5,.24);
+  }
+  for(const x of [-12,12]){
+   cylinder(m.rust,x,31,10,2.2,14);
+   cylinder(m.dark,x,38,10,2.45,.6);
+   for(const y of [26,32,37])cylinder(m.steel,x,y,10,2.35,.34);
+   box(m.steel,x,24.6,10,5.5,1.2,5.5);
+   for(const z of [7.5,12.5])beam(m.steel,[x-3,24.6,z],[x+3,28,z],.38);
+  }
+  // Replaced overlapping earlier vent housings with the single seated equipment family below.
+  for(const x of [-17,17]){box(m.light,x,10,-27.7,1.8,.55,.75);beam(m.steel,[x,10.4,-27.5],[x,11,-26.9],.18)}
+  // Roof service deck sits on the structural roof, with braced handrails,
+  // gridded ventilator housings and pipes that enter the actual wall.
+  box(m.steel,0,24.62,-3,34,.24,5.8);
+  rail(0,25.79,-.35,33);rail(0,25.79,-5.68,33);
+  for(const x of [-15,15])for(const z of [-5.4,-.6]){
+   box(m.dark,x,24.7,z,.8,.22,.8);
+   beam(m.steel,[x,24.72,z],[x,25.7,z],.15);
+  }
+  for(const x of [-13,0,13]){
+   box(m.dark,x,25.05,-15,7,.65,7);
+   box(m.steel,x,26.4,-15,6.6,2.2,6.6);
+   for(let z=-17.7;z<=-12.3;z+=.58)box(m.dark,x,27.52,z,6.8,.11,.19);
+   for(const dx of [-3.4,3.4])beam(m.steel,[x+dx,25.1,-15],[x+dx,24.27,-15],.20);
+   box(m.door,x,26.4,-18.4,6.2,1.8,.14);
+  }
+  // External steam and condensate headers are held by wall brackets.
+  // They turn into the roof riser rather than ending in free space.
+  for(const x of [-19,-17]){
+   beam(m.steel,[x,5,-28.0],[x,22,-28.0],.22,.22,true);
+   for(const y of [8,14,20]){beam(m.dark,[x,y,-28],[x,y,-26.95],.28);box(m.steel,x,y,-27.05,.75,.28,.25)}
+   beam(m.steel,[x,22,-28],[x,24.6,-28],.22,.22,true);
+   beam(m.steel,[x,24.6,-28],[x,24.6,-25.2],.22,.22,true);
+  }
+  for(const x of [-12,12]){
+   // Stack ladders have brackets at each landing and no floating rungs.
+   for(const dx of [-.45,.45])beam(m.steel,[x+dx,24.5,12.6],[x+dx,37.6,12.6],.12);
+   for(let y=24.9;y<37.6;y+=.48)beam(m.dark,[x-.45,y,12.6],[x+.45,y,12.6],.075);
+   for(const y of [27,32,37])beam(m.steel,[x,y,12.6],[x,y,12.0],.15);
+  }
+ });
+ define('stage3-outfitting-annex',()=>{
+  // Stepped roof heights, side clerestory and a recessed transfer/loading bay.
+  box(m.concrete,0,.3,0,64,.6,38);
+  box(cladding,-9,10,0,44,19,36);
+  box(m.white,22,6.5,0,18,12,36);
+  box(roofMetal,-9,19.7,0,45,.5,37);
+  box(roofMetal,22,12.8,0,19,.5,37);
+  for(const z of [-18,18]){
+   for(const x of [-29,-21,-13,-5,3,11,16,24,30]){
+    box(m.steel,x,x<=11?10:6.3,z,.42,x<=11?19:12,.46);
+    if(x<=11){box(m.glass,x+1.6,16.3,z*1.01,4.8,3.1,.12);box(m.steel,x+1.6,16.3,z*1.017,.12,3.1,.15)}
+   }
+   for(const x of [19,26]){box(m.glass,x,8.2,z*1.01,4.6,2.8,.15);box(m.steel,x,8.2,z*1.017,.14,2.9,.15)}
+  }
+  for(const x of [-24,-10,4]){
+   box(m.dark,x,5,-18.25,9,8.5,.28);
+   for(let y=1.2;y<=9;y+=.55)box(m.steel,x,y,-18.45,8.8,.12,.12);
+   box(m.orange,x,9.5,-18.55,9.5,.32,.5);
+   for(const dx of [-4.6,4.6])box(m.yellow,x+dx,1.25,-18.8,.23,2.5,.23);
+   box(m.light,x,11,-18.5,1.6,.4,.6);
+  }
+  box(m.steel,22,12.4,0,17,.35,4);rail(22,13.55,1.8,17);
+  for(const z of [-12,0,12]){
+   box(m.dark,26,13.4,z,5.6,1.5,4);
+   for(let dx=-2;dx<=2;dx+=.5)box(m.steel,26+dx,14.2,z,.15,.16,3.8);
+  }
+  // A mechanically connected stepped-roof access system: top landing,
+  // inclined stringers, individual treads and rails terminate on both roofs.
+  const landing=[13,19.9,9],foot=[19.5,13,9];
+  box(m.steel,landing[0],19.9,landing[2],3.8,.22,3.2);
+  box(m.steel,foot[0],13.06,foot[2],3.8,.22,3.2);
+  for(const z of [7.75,10.25]){
+   beam(m.steel,[13,19.8,z],[19.5,13,z],.28,.28);
+   beam(m.yellow,[13,20.9,z],[19.5,14.1,z],.10,.10,true);
+   for(let k=0;k<=7;k++){
+    const t=k/7,x=13+6.5*t,y=19.9-6.9*t;
+    beam(m.steel,[x,y,z],[x,y+1.1,z],.10);
+   }
+  }
+  for(let k=0;k<=16;k++){
+   const t=k/16,x=13+6.5*t,y=19.9-6.9*t;
+   box(m.steel,x,y-.16,9,.48,.16,2.65);
+  }
+  // Rainwater downpipes are connected to two roof drains, not decorative poles.
+  for(const [x,z,y] of [[-28,18.56,19.6],[30,-18.56,12.7]]){
+   const side=Math.sign(z);
+   beam(m.dark,[x,y,z],[x,.95,z],.26,.26,true);
+   beam(m.dark,[x,y,z],[x,y,side*17.7],.26,.26,true);
+   box(m.steel,x,y,z,.72,.24,.72);
+   for(const yy of [3,7,11])if(yy<y-.5)beam(m.steel,[x,yy,z],[x,yy,side*17.95],.13);
+  }
+  // Asymmetric wall-mounted ventilation and secondary lighting.
+  for(const z of [-12,0,12]){
+   const x=31.22;
+   box(m.dark,x,7.7,z,.6,4.2,4.8);
+   box(m.steel,x+.34,7.7,z,.18,3.9,4.5);
+   for(let zz=z-2;zz<=z+2;zz+=.44)box(m.dark,x+.45,7.7,zz,.10,3.7,.12);
+   box(m.light,31.78,10.7,z,.85,.22,.4);
+   beam(m.steel,[31.78,10.82,z],[30.95,11.15,z],.12);
+  }
+ });
+ define('stage3-electrical-substation',()=>{
+  // Transformer bay: connected bushings, cable bus, cooling fins and plinth.
+  box(m.concrete,0,.3,0,23,.6,16);
+  for(const x of [-6,6]){
+   box(m.dark,x,.85,0,8,.5,8);
+   box(m.blue,x,2.7,0,6.8,3.4,5.4);
+   for(const z of [-3,3])for(let dx=-2.9;dx<=2.9;dx+=.5)box(m.steel,x+dx,2.8,z,.17,2.9,.72);
+   box(m.steel,x,4.45,0,7.1,.3,5.8);
+   for(const dx of [-2,0,2]){
+    cylinder(m.dark,x+dx,5.2,0,.27,1.4);
+    for(let y=4.7;y<5.8;y+=.22)cylinder(m.white,x+dx,y,0,.44,.12);
+    cylinder(m.steel,x+dx,5.98,0,.19,.18);
+    beam(m.wire,[x+dx,6.05,0],[x+dx,7.3,3.6],.12,.12,true);
+    beam(m.wire,[x+dx,7.3,3.6],[x+dx,8.28,5.4],.12,.12,true);
+   }
+  }
+  for(const x of [-10,0,10])for(const z of [4,7])beam(m.steel,[x,.6,z],[x,7.8,z],.23);
+  for(const z of [4,7])beam(m.steel,[-10,7.8,z],[10,7.8,z],.28);
+  for(const x of [-8,0,8])box(m.dark,x,1.7,-6,2.4,2.2,1.0);
+  // Copper bus work remains insulated from the steel support frames.
+  // The cable runs are anchored on the transformer terminals and cabinets.
+  for(const x of [-8,-4,0,4,8]){
+   beam(m.steel,[x,7.55,4],[x,7.55,7],.27);
+   cylinder(m.white,x,7.94,5.4,.23,.72);
+   for(const y of [7.66,7.95,8.18])cylinder(m.dark,x,y,5.4,.34,.10);
+   beam(m.orange,[x,8.28,5.4],[x,8.28,6.8],.09,.09,true);
+  }
+  for(const z of [5.4,6.8])beam(m.orange,[-9.8,8.28,z],[9.8,8.28,z],.11,.11,true);
+  for(const x of [-8,0,8]){
+   box(m.steel,x,.58,-5.4,2.8,.28,1.1);
+   beam(m.dark,[x,.68,-5.4],[x,1.7,-6],.16,.16,true);
+   box(m.door,x,1.85,-6.55,1.85,1.65,.14);
+   for(const dx of [-.68,.68])box(m.steel,x+dx,1.9,-6.66,.10,1.85,.14);
+   box(m.yellow,x+.48,1.68,-6.67,.16,.2,.08);
+  }
+  for(const x of [-6,6])for(const z of [-3,3]){
+   box(m.steel,x,4.48,z,.95,.20,.95);
+   for(const dx of [-.28,.28])for(const dz of [-.28,.28])cylinder(m.steel,x+dx,4.6,z+dz,.07,.12);
+  }
+ });
+
+ // Production look-development kits. All dimensions are metres, all solid
+ // components share the same root, and no geometry crosses its declared bounds.
+ define('stage3-quay-workbay',()=>{
+  box(m.concrete,0,-.065,0,21,.21,12);
+  for(const x of [-9,9])for(const z of [-5,5]){
+   const h=z>0?7.7:6.8;box(m.steel,x,h/2,z,.32,h,.32);box(m.dark,x,.13,z,.7,.26,.7);
+   for(const dx of [-.23,.23])for(const dz of [-.23,.23])cylinder(m.steel,x+dx,.29,z+dz,.075,.07);
+  }
+  for(const z of [-5,5]){const h=z>0?7.7:6.8;beam(m.steel,[-9,h,z],[9,h,z],.38);beam(m.steel,[-9,h-2,z],[-6.5,h,z],.18);beam(m.steel,[9,h-2,z],[6.5,h,z],.18)}
+  for(const x of [-9,-3,3,9])beam(m.steel,[x,6.8,-5],[x,7.7,5],.30);
+  part(boxGeo,roofMetal,0,7.35,0,19.1,.18,10.5,new T.Quaternion().setFromAxisAngle(V(1,0,0),-.0898));
+  // Three solid cladding panels, leaving an open loading frontage.
+  box(oxideCladding,-9,3.3,0,.22,6.2,9.7);
+  for(const x of [-6,0,6]){box(cladding,x,3.2,-5,5.8,6.2,.22);box(m.steel,x-2.8,3.3,-5,.12,6.4,.27)}
+  for(const x of [-5,3]){
+   for(const dx of [-2.3,2.3])for(const dz of [-1.5,1.5])box(m.dark,x+dx,.65,dz,.24,1.3,.24);
+   box(m.steel,x,1.4,0,5,.26,3.4);
+   for(let i=0;i<4;i++)box(m.rust,x,1.65+i*.12,0,4.5,.11,2.9);
+  }
+  // An independently supported wrapped machinery load. Top ridges sit on
+  // the crate, the hanging skirt terminates above the pallet, and the two
+  // lashing belts follow the cloth across top and down the actual sides.
+  const cx=-5,cz=3.15,w=3.8,d=1.85;
+  for(const x of [-1.45,0,1.45])box(m.dark,cx+x,.13,cz,.24,.26,d);
+  box(m.steel,cx,.32,cz,w,.18,d);
+  box(m.dark,cx,.94,cz,w-.32,1.05,d-.25);
+  const clothP=[],clothUV=[],clothI=[],cols=18,rows=18;
+  for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
+   const u=i/cols,v=j/rows,x=(u-.5)*w,z=(v-.5)*d;
+   const drop=Math.pow(Math.abs(2*u-1),9)+Math.pow(Math.abs(2*v-1),9);
+   const fold=Math.sin(u*31+Math.sin(v*8)*1.7)*.038+Math.sin(v*24+u*10)*.022;
+   clothP.push(cx+x,1.59-.46*Math.min(1,drop)+fold,cz+z);clothUV.push(u*1.8,v);
+  }
+  for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const a=j*(cols+1)+i,b=a+1,c=b+cols+1,e=a+cols+1;clothI.push(a,c,b,a,e,c)}
+  const cloth=new T.BufferGeometry();cloth.setAttribute('position',new T.Float32BufferAttribute(clothP,3));cloth.setAttribute('uv',new T.Float32BufferAttribute(clothUV,2));cloth.setIndex(clothI);cloth.computeVertexNormals();cloth.userData.keepUV=true;part(cloth,m.blue,0,0,0,1,1,1);
+  for(const dx of [-1.1,1.1]){
+   box(m.yellow,cx+dx,1.66,cz,.075,.035,d-.24);
+   for(const sign of [-1,1])beam(m.yellow,[cx+dx,1.55,cz+sign*.78],[cx+dx,.32,cz+sign*.90],.06);
+  }
+  // Stock rack and weld-gas bottles are supported and tied down.
+  for(const x of [3.7,7.2])for(const z of [2.45,4.25]){
+   box(m.steel,x,1.1,z,.14,2.2,.14);box(m.dark,x,.08,z,.48,.16,.48);
+  }
+  for(const y of [.40,1.20,1.97])for(const z of [2.45,4.25])box(m.steel,5.45,y,z,3.6,.13,.13);
+  for(const y of [.52,1.32])for(let z=2.55;z<4.2;z+=.32)box(m.rust,5.45,y,z,3.15,.10,.18);
+  for(const z of [2.9,3.55]){
+   cylinder(m.dark,8.25,.12,z,.37,.24);cylinder(m.green,8.25,.88,z,.28,1.52);
+   cylinder(m.steel,8.25,1.69,z,.14,.18);box(m.yellow,8.25,1.82,z,.30,.10,.10);
+  }
+  beam(m.steel,[8.25,1.15,2.9],[8.25,1.15,3.55],.13);
+  box(m.blue,6,1.2,-3.3,3.4,2.4,1.9);box(m.dark,6,2.48,-3.3,3.6,.16,2.05);
+  for(let x=4.6;x<7.5;x+=.24)box(m.steel,x,1.5,-2.28,.075,.85,.1);
+  for(const x of [-5,5]){box(m.dark,x,6.62,0,1.8,.3,.7);box(m.light,x,6.42,0,1.55,.12,.52);beam(m.steel,[x,6.77,0],[x,7.3,0],.14);beam(m.steel,[x,7.3,0],[x,7.7,5],.20)}
+  for(const x of [-8,8]){box(m.yellow,x,.75,4.8,.17,1.5,.17);box(m.dark,x,1.22,4.8,.2,.22,.2)}
+ });
+ define('stage3-forklift',()=>{
+  // Axles, counterweight, chassis, open overhead guard, mast, carriage/forks.
+  box(m.dark,0,.64,0,4.1,.48,1.85);box(m.orange,-1.05,1.2,0,2.3,1.15,1.9);
+  const rot=new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2);
+  for(const x of [-1.35,1.35]){
+   beam(m.steel,[x,.55,-1.1],[x,.55,1.1],.16,.16,true);
+   for(const z of [-1.03,1.03]){part(cylGeo,m.rubber,x,.55,z,.55,.43,.55,rot);part(cylGeo,m.steel,x,.55,z*1.20,.25,.12,.25,rot)}
+  }
+  for(const x of [-.9,.65])for(const z of [-.82,.82])beam(m.dark,[x,1.15,z],[x,2.85,z],.14);
+  box(m.orange,-.12,2.9,0,1.85,.2,1.9);
+  for(let x=-.8;x<=.7;x+=.30)box(m.dark,x,2.77,0,.08,.09,1.7);
+  box(m.dark,-.4,1.55,0,.75,.22,.68);box(m.dark,-.75,1.92,0,.17,.65,.68);
+  beam(m.steel,[.45,1.35,0],[.62,1.95,0],.08,.08,true);
+  part(new T.TorusGeometry(.24,.045,6,16),m.dark,.62,1.97,0,1,1,1,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+  for(const z of [-.65,.65]){box(m.steel,1.65,1.85,z,.27,3.6,.26);beam(m.steel,[1.42,.75,z],[1.42,3.2,z],.12,.12,true);box(m.steel,1.9,.49,z,.18,1.0,.18);box(m.steel,2.65,.11,z,1.7,.15,.18)}
+  box(m.dark,1.84,.93,0,.25,.6,1.6);
+  box(m.light,.69,2.6,.74,.22,.22,.22);box(m.light,.69,2.6,-.74,.22,.22,.22);
+ });
+ define('stage3-hose-skid',()=>{
+  box(m.dark,0,.19,0,5.4,.38,3.4);for(const x of [-2.1,2.1])box(m.steel,x,.13,0,.3,.26,3.6);
+  for(const z of [-.9,.9]){box(m.steel,-.75,1.1,z,.35,1.9,.35);beam(m.steel,[-1.3,.38,z],[-.75,1.7,z],.19)}
+  const rot=new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2);
+  part(cylGeo,m.dark,-.75,1.45,0,1.05,1.55,1.05,rot);
+  for(const z of [-.78,.78])part(cylGeo,m.orange,-.75,1.45,z,1.2,.14,1.2,rot);
+  for(let z=-.65;z<=.65;z+=.13)part(cylGeo,m.rubber,-.75,1.45,z,1.08,.085,1.08,rot);
+  beam(m.steel,[-.75,1.45,-1.1],[-.75,1.45,1.1],.14,.14,true);
+  box(m.blue,1.25,.86,0,1.8,1.34,1.9);
+  for(let x=.5;x<=2;x+=.20)box(m.steel,x,1.03,1.0,.07,.65,.07);
+  beam(m.rubber,[-.75,2.53,0],[.65,1.55,.15],.09,.09,true);
+  beam(m.rubber,[.65,1.55,.15],[.65,1.53,.15],.12,.12,true);
+ });
+ define('stage3-dock-jib',()=>{
+  box(m.concrete,0,.02,0,11,.38,11);box(m.steel,0,.78,0,8,1.4,8);
+  for(const x of [-3.1,3.1])for(const z of [-3.1,3.1]){
+   cylinder(m.steel,x,1.62,z,.32,.28);box(m.dark,x,.83,z,.72,.8,.72)
+  }
+  cylinder(m.dark,0,2.0,0,3.25,1.0);cylinder(m.steel,0,2.65,0,3.45,.35);
+  for(const x of [-2.3,2.3])for(const z of [-2.3,2.3])box(m.orange,x,15.6,z,.68,25.6,.68);
+  for(const y of [3,9,15,21,27]){
+   for(const z of [-2.3,2.3])beam(m.steel,[-2.3,y,z],[2.3,y,z],.33);
+   for(const x of [-2.3,2.3])beam(m.steel,[x,y,-2.3],[x,y,2.3],.33);
+   if(y<27){for(const z of [-2.3,2.3])beam(m.orange,[-2.3,y,z],[2.3,y+6,z],.34);for(const x of [-2.3,2.3])beam(m.steel,[x,y,2.3],[x,y+6,-2.3],.3)}
+  }
+  box(m.steel,0,28,0,7.2,.55,7.2);rail(0,29.12,3.3,6.6);rail(-3.3,29.12,0,6.6,'z');
+  box(m.dark,-1.7,30.1,0,3.1,3.6,3.6);box(m.glass,-.10,30.5,0,.10,2.2,3.2);
+  for(const z of [-1.0,1.0]){beam(m.orange,[0,29.2,z],[30,38,z*.38],.45);beam(m.steel,[0,32.8,z],[30,38,z*.38],.42);
+   for(let x=0;x<28;x+=4){const y=29.2+x*8.8/30,yy=32.8+(x+4)*5.2/30;beam(m.steel,[x,y,z*(1-x*.62/30)],[x+4,yy,z*(1-(x+4)*.62/30)],.18)}
+  }
+  beam(m.orange,[-7,30,0],[0,38,0],.6);beam(m.wire,[0,38,0],[30,38,0],.10,.10,true);box(m.dark,-7,30.1,0,3.3,2.0,3.8);
+  part(cylGeo,m.steel,29.5,37.85,0,.55,1.2,.55,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+  beam(m.wire,[29.5,37.2,0],[29.5,20,0],.075,.075,true);box(m.yellow,29.5,19.8,0,.72,.45,.65);
+  for(const z of [-.4,.4])beam(m.steel,[-2.9,3,z],[-2.9,28.3,z],.08);
+  for(let y=3.2;y<28;y+=.48)beam(m.steel,[-2.9,y,-.4],[-2.9,y,.4],.065);
+  box(m.light,1.7,28.9,3.6,.75,.25,.42);box(m.dark,1.7,29.12,3.6,.9,.18,.55);
+ });
+
+// Stage 3 landmark architecture. Each asset represents a different part of
+// actual shipyard production, rather than recoloring one generic warehouse.
+define('stage3-block-assembly-hall',()=>{
+ const W=92,D=132,H=42;
+ box(m.concrete,0,.35,0,W,.7,D);
+ // Six tied portal frames: base pedestals, verticals, haunches and roof trusses.
+ for(const z of [-63,-42,-21,0,21,42,63]){
+  for(const side of [-1,1]){
+   const x=side*44;
+   box(m.concrete,x,1,z,3.6,2,3.8);box(m.steel,x,H/2,z,1.25,H,1.15);
+   beam(m.steel,[x,H,z],[side*30,H+17,z],1.2,1.4);
+   beam(m.steel,[x,11,z],[side*43,H-1,z],.42);
+   for(const y of [10,22,34])beam(m.steel,[x,y,z],[x-side*4,y+4,z],.30);
+  }
+  beam(m.steel,[-30,H+17,z],[30,H+17,z],1.05);
+  beam(m.dark,[-42,H-4,z],[42,H-4,z],.60);
+  for(let x=-30;x<30;x+=10){beam(m.steel,[x,H-4,z],[x+10,H+17,z],.55);}
+  // Crane runway girders and walking decks are carried by the portal legs.
+  for(const x of [-37,37]){box(m.orange,x,H-6,z,3.2,1.2,20);box(m.dark,x,H-5,z,2.6,.5,19.8);}
+ }
+ // Continuous roof: two broad pitches, vented ridge and large translucent bays.
+ for(const side of [-1,1]){
+  const rot=new T.Quaternion().setFromAxisAngle(V(0,0,1),-side*Math.atan2(17,44));
+  part(boxGeo,m.roof,side*22,H+8.5,0,Math.hypot(44,17),.5,D+2,rot);
+  for(let z=-59;z<65;z+=5){beam(m.steel,[0,H+17.5,z],[side*44,H+.5,z],.10,.18);}
+  for(const zz of [-47,-5,39]){
+   const x=side*22,y=H+17*(1-22/44);
+   box(m.dark,x,y+.45,zz,8,1.4,17);box(m.glass,x,y+.55,zz,6.8,1.0,15.4);
+   for(let dz=-7;dz<=7;dz+=3.5)box(m.steel,x,y+.64,zz+dz,7,.1,.15);
+  }
+  box(m.blue,side*44,H*.56,0,.6,H*.70,D);
+  for(let z=-60;z<65;z+=10){box(m.steel,side*44.4,H*.56,z,.18,H*.7,.28);
+   box(m.glass,side*44.55,H*.79,z,.13,3.2,7);
+  }
+  // High wall-mounted supply/return headers, each anchored to columns.
+  for(const y of [15.0,17.2,18.7]){
+   for(let z=-62;z<62;z+=15)beam(y===17.2?m.orange:m.steel,[side*41.3,y,z],[side*41.3,y,z+15],.24,.24,true);
+   for(const z of [-42,0,42])beam(m.steel,[side*41.3,y,z],[side*44,y,z],.21);
+  }
+ }
+ box(m.dark,0,H+18,0,5,1.2,D);for(let z=-62;z<=62;z+=5)box(m.steel,0,H+19.4,z,5.4,.25,.30);
+ // Two independently seated block fabrication lines, leaving an open center.
+ for(const x of [-25,25]){
+  box(m.concrete,x,.25,0,20,.5,D-14);
+  for(let z=-56;z<=56;z+=8){
+   for(const dx of [-7,7]){box(m.steel,x+dx,.55,z,.8,1.0,4.1);box(m.dark,x+dx,1.18,z,1.3,.35,4.4)}
+   box(m.rust,x,2.0,z,17,.26,4.4);
+   if(z%16===-8){for(const side of [-1,1])beam(m.steel,[x+side*7,1.7,z],[x+side*7,5.8,z],.22);
+    beam(m.steel,[x-7,5.8,z],[x+7,5.8,z],.25)}
+  }
+ }
+ for(const z of [-58,58]){
+  for(const x of [-42,42])box(m.yellow,x,1.0,z,.24,2,.24);
+  for(const x of [-37,37]){box(m.dark,x,24,z,.65,3,4.5);box(m.glass,x,24,z*.99,.14,2.1,3.0)}
+ }
+ // Trolley and its suspended hook attach to the actual runway beams.
+ box(m.orange,0,H-3,-18,18,2.2,8);for(const z of [-22,-14])for(const x of [-8,8]){cylinder(m.dark,x,H-1.6,z,.9,.6);}
+ beam(m.wire,[0,H-3.8,-18],[0,12,-18],.11,.11,true);
+ box(m.yellow,0,11.8,-18,1.7,2.1,1.7);
+});
+define('stage3-ship-lift-portal',()=>{
+ const W=116,D=36,H=94;
+ // Real bridge-gantry legs; A-shaped at the top with paired rail bogies.
+ for(const side of [-1,1])for(const z of [-12,12]){
+  const x=side*W/2;
+  box(m.concrete,x,.4,z,13,.8,16);
+  const wheelRot=new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2);
+  for(const dx of [-4,4]){
+   box(m.steel,x+dx,.88,z,.38,.16,15.8);
+   box(m.dark,x+dx,3.72,z,1.8,.60,10.8);
+   for(const dz of [-3.5,3.5]){
+    part(cylGeo,m.steel,x+dx,2.34,z+dz,1.38,.82,1.38,wheelRot);
+    for(const rim of [-.43,.43])part(cylGeo,m.dark,x+dx+rim,2.34,z+dz,1.47,.13,1.47,wheelRot);
+    beam(m.steel,[x+dx-.9,2.34,z+dz],[x+dx+.9,2.34,z+dz],.27,.27,true);
+    for(const off of [-.8,.8]){box(m.dark,x+dx+off,2.8,z+dz,.38,1.8,1.55);box(m.steel,x+dx+off,3.54,z+dz,.52,.28,1.60)}
+   }
+   box(m.blue,x+dx,3.65,z+4.8,1.7,1.4,1.7);
+  }
+  box(m.dark,x,4.12,z,12.4,.7,9.2);box(gantryPaint,x,4.8,z,8.3,.65,6.6);
+  beam(gantryPaint,[x,5,z],[side*47,H,z*.8],5,4.8);
+  for(const yy of [6,21,36,51,66,81]){
+   const xx=side*(W/2-(W/2-47)*(yy-5)/(H-5)),zz=z*(1-.2*(yy-5)/(H-5));
+   box(m.dark,xx,yy,zz,5.2,.26,4.95);
+   for(const face of [-1,1]){box(m.steel,xx+face*2.55,yy+1.3,zz,.14,2.7,4.7);box(m.yellow,xx+face*2.67,yy+2.7,zz,.12,.11,4.8)}
+  }
+  // Fixed access ladder mounted on the inner side of the inclined leg.
+  const lx=y=>side*(W/2-(W/2-47)*(y-5)/(H-5))-side*2.65,lz=y=>z*(1-.2*(y-5)/(H-5));
+  for(const dz of [-.48,.48])beam(m.steel,[lx(5),5,lz(5)+dz],[lx(H),H,lz(H)+dz],.13);
+  for(let yy=5.5;yy<H;yy+=.48)beam(m.steel,[lx(yy),yy,lz(yy)-.48],[lx(yy),yy,lz(yy)+.48],.075);
+  for(let yy=7;yy<H;yy+=5)beam(m.steel,[lx(yy),yy,lz(yy)],[lx(yy)+side*.65,yy,lz(yy)],.16);
+  for(const y of [17,32,47,62,77]){
+   const xx=side*(W/2-(W/2-47)*(y-3)/(H-3));
+   box(m.steel,xx,y,z*.94,6,.8,6);
+   beam(m.dark,[xx-2.2,y,z*.94-2],[xx+2.2,y+15,z*.84+2],.46);
+  }
+  for(let y=6;y<H-3;y+=2)for(const dz of [-.3,.3]){
+   const xx=side*(W/2-(W/2-47)*(y-3)/(H-3))-side*3;
+   if(y%4<2)beam(m.steel,[xx,y,z*.9+dz],[xx,y+2,z*.9+dz],.12,.12,true);
+  }
+ }
+ for(const side of [-1,1]){const x=side*W/2;box(m.concrete,x,.4,0,13,.8,8.2);for(const dx of [-4,4]){box(m.steel,x+dx,.88,0,.38,.16,8.2);for(let z=-3.6;z<=3.6;z+=1.2)box(m.dark,x+dx,.81,z,.85,.05,.22);}}
+ for(const z of [-10,10]){
+  box(gantryPaint,0,H+2,z,130,7.3,4.6);
+  box(m.dark,0,H-3.9,z,128,.8,4.8);
+  for(const side of [-1,1]){
+   const face=z+side*2.36;
+   box(m.steel,0,H-1.45,face,128,.22,.14);box(m.steel,0,H+5.62,face,128,.18,.13);
+   for(let x=-59;x<=59;x+=7.4){box(m.dark,x,H+2,face,.19,6.9,.16);for(const y of [H-.9,H+4.9])box(m.steel,x+.35,y,face+side*.10,.55,.42,.15)}
+   box(m.steel,0,H+6.1,z+side*2.95,126,.22,1.4);rail(0,H+7.25,z+side*3.57,125);
+   for(let x=-56;x<=56;x+=14)beam(m.steel,[x,H+5.92,z+side*3.6],[x,H+3.45,face],.19);
+  }
+  for(let x=-62;x<=62;x+=7){beam(m.steel,[x,H-3,z],[x+7,H+6,z],.48);beam(m.steel,[x+7,H-3,z],[x,H+6,z],.32)}
+  box(m.steel,0,H+6.1,z,130,.4,4);
+  rail(0,H+7.4,z+2.1,127);
+ }
+ for(const x of [-61,61])box(m.steel,x,H+2,0,2.5,2.5,24);
+ // Full-size access stair towers: staggered flights connect bogie walkways
+ // to the bridge. Treads, stringers and handrails share landings.
+ for(const side of [-1,1]){
+  const legX=y=>side*(58-11*(y-5)/89);
+  for(let k=0;k<11;k++){
+   const ya=5+k*8,yb=ya+8,za=k%2?8:-8,zb=-za;
+   const xa=legX(ya)-side*2.4,xb=legX(yb)-side*2.4;
+   for(let n=0;n<=32;n++){const t=n/32;box(m.steel,xa+(xb-xa)*t,ya+8*t,za+(zb-za)*t,2.05,.13,.52);}
+   for(const dx of [-1.03,1.03]){
+    beam(m.dark,[xa+dx,ya-.18,za],[xb+dx,yb-.18,zb],.23,.32);
+    beam(m.yellow,[xa+dx,ya+1.08,za],[xb+dx,yb+1.08,zb],.095);
+    beam(m.steel,[xa+dx,ya+.52,za],[xb+dx,yb+.52,zb],.08);
+    for(let n=0;n<=8;n++){const t=n/8,x=xa+(xb-xa)*t+dx,y=ya+8*t,z=za+(zb-za)*t;beam(m.yellow,[x,y,z],[x,y+1.08,z],.095);}
+   }
+   box(m.steel,xb,yb,zb,3.1,.24,2.0);
+   beam(m.steel,[xb,yb-.18,zb],[legX(yb),yb-.18,Math.sign(zb)*12*(1-.2*(yb-5)/89)],.35,.38);
+   beam(m.steel,[xb,yb-.18,zb],[legX(yb-2.5),yb-2.5,Math.sign(zb)*12*(1-.2*(yb-7.5)/89)],.23);
+   rail(xb,yb+1.1,zb+Math.sign(zb)*.95,3.0);
+  }
+  const x=side*58;
+  box(gantryPaint,x,4.85,0,7.8,.55,8.4);
+  for(const z of [-4,4])rail(x,6.16,z,7.5);
+  for(const z of [-6.2,6.2]){
+   box(m.dark,x,6.15,z,3.1,2.1,2.1);box(gantryPaint,x,7.28,z,3.35,.17,2.3);
+   for(let d=-1.2;d<=1.2;d+=.30)box(m.steel,x+d,6.3,z+1.11,.10,1.3,.08);
+   beam(m.wire,[x,5.5,z],[x-side*2.6,8.8,z],.14,.14,true);
+  }
+  for(const y of [8,24,40,56,72])for(const z of [-10,10]){
+   const xx=legX(y)-side*3.1;
+   box(m.dark,xx,y+.18,z,.8,.65,.95);box(warmGlow,xx-side*.45,y,z,.11,.42,.74);
+   beam(m.steel,[xx,y+.3,z],[legX(y),y+.3,z],.15);
+  }
+ }
+ // Cable festoons have sagging spans with both ends anchored to the track.
+ for(const z of [-10,10])for(let x=-49;x<46;x+=19){
+  const y=H-4.3;let last=[x,y,z];
+  for(let i=1;i<=14;i++){const t=i/14,next=[x+19*t,y-5.4*4*t*(1-t),z];beam(m.wire,last,next,.10,.10,true);last=next;}
+ }
+ // Two independent lift trolleys, clear of the raced-through gantry span.
+ for(const x of [-19,26]){
+  box(gantryPaint,x,H+8,0,12,4.4,22);
+  for(const z of [-10,10]){
+   for(const dx of [-4,4])part(cylGeo,m.dark,x+dx,H+6.85,z,1.05,.85,1.05,new T.Quaternion().setFromAxisAngle(V(1,0,0),Math.PI/2));
+   for(const dx of [-1.2,1.2])beam(m.wire,[x+dx,H+5,z],[x+dx,27,z],.12,.12,true);
+   box(m.blue,x,H+10.6,z*.74,5.6,.8,3.1);box(m.steel,x,H+10.1,z*.74,6.1,.25,3.3);
+  }
+  box(m.dark,x,26,0,14,1.4,18);
+  for(const z of [-6,6])box(m.yellow,x,24.5,z,3,2.7,3);
+ }
+ // A lateral crane cabin, with proper pilasters and a supported balcony.
+ box(m.steel,65,H-5,9,7,6,8);box(m.dark,65,H-4.8,13.1,5.8,4.3,.18);
+ for(const x of [62.4,65,67.6])box(m.glass,x,H-4.5,13.3,2.1,3.5,.15);
+ box(m.steel,65,H-8.4,13,9,.4,3);
+ for(const x of [61.2,68.8])beam(m.steel,[x,H-8.2,13],[x,H-4,9],.24);
+ rail(65,H-7.25,14.5,9);
+ for(const x of [-58,58])for(const z of [-12,12]){
+  box(m.yellow,x,4.4,z,1.2,.27,4);
+  for(const dx of [-.45,.45])box(m.dark,x+dx,4.45,z,.13,.20,4.1);
+ }
+});
+define('stage3-process-plant',()=>{
+ // Multiple elevations and non-repeating orthogonal pipe paths expose
+ // the silhouette of an industrial cooling/refining facility.
+ const W=76,D=90,H=42;
+ box(m.concrete,0,.28,0,W,.56,D);
+ for(const x of [-32,0,32])for(const z of [-39,0,39]){
+  box(m.steel,x,H/2,z,.9,H,.95);
+  box(m.concrete,x,.7,z,2.2,1.4,2.2);
+ }
+ for(const y of [12,24,38]){
+  box(m.dark,0,y,0,W-5,.5,D-4);
+  for(const z of [-41,41]){rail(0,y+1.2,z,W-5);}
+  for(const x of [-35,35])rail(x,y+1.2,0,D-5,'z');
+  for(let x=-31;x<=31;x+=10)for(const z of [-35,0,35])box(m.steel,x,y-.4,z,1,.25,5);
+ }
+ for(const [x,z,r,hh] of [[-21,-24,6,38],[20,12,8,30],[1,-28,4.3,46]]){
+  box(m.concrete,x,.4,z,r*2.6,.8,r*2.6);
+  cylinder(m.steel,x,hh/2+.8,z,r,hh);
+  for(let y=5;y<hh;y+=4){cylinder(m.rust,x,y,z,r+.15,.18);for(const dx of [-r*.9,r*.9])box(m.steel,x+dx,y+.8,z,.3,1.6,.4);}
+  part(sphereGeo,m.dark,x,hh+.8,z,r,.8,r);
+  for(const dx of [-r/2,r/2])for(let y=6;y<hh-2;y+=.65)beam(m.steel,[x+dx,y,z+r*.8],[x+dx,y+.32,z+r*.8],.075);
+ }
+ // Structured line groups connect feed tanks, elevated process modules, pumps.
+ for(const y of [9,15,28])for(const z of [-18,-12,-5,8,18,27]){
+  for(let x=-31;x<32;x+=9)beam(y===15?m.orange:m.steel,[x,y,z],[x+9,y,z],.25,.25,true);
+  for(const x of [-25,0,25]){box(m.steel,x,y-.7,z,1.1,.4,.8);beam(m.dark,[x,y-2.1,z],[x,y,z],.14);}
+ }
+ for(const [x,z,h] of [[29,31,18],[-27,26,29],[-4,32,36]]){
+  box(m.dark,x,1,z,6,2,6);box(m.blue,x,h/2,z,4.8,h,4.8);
+  for(let y=4;y<h;y+=3.6)box(m.steel,x,y,z,5.1,.34,5.1);
+  for(const side of [-1,1])for(let y=3;y<h;y+=6)beam(m.steel,[x+side*2.6,y,z],[x+side*2.6,y+6,z],.20);
+  box(m.rust,x,h+1,z,6,.8,6);box(m.light,x,h-.8,z+3,.8,.3,.5);
+ }
+});
+define('stage3-repair-barge',()=>{
+ // Lofted rounded pontoon hull: visible flare, inset deck and curved ends,
+ // rather than a rectangular crate placed in the sea.
+ const n=64,L=106,W=21,verts=[],uv=[],idx=[];
+ const levels=[[0,.48,.48],[1.2,.86,.88],[3.8,1,1],[6.0,.95,.93]];
+ function contour(i,j){const [y,wx,wz]=levels[j],ang=i/n*Math.PI*2,c=Math.cos(ang),sn=Math.sin(ang);
+  return [Math.sign(c)*Math.sqrt(Math.abs(c))*L/2*wx,y,Math.sign(sn)*Math.sqrt(Math.abs(sn))*W/2*wz];
+ }
+ for(let j=0;j<levels.length;j++)for(let i=0;i<=n;i++){const p=contour(i,j);verts.push(...p);uv.push((p[0]+L/2)/10,p[1]/5)}
+ for(let j=0;j<levels.length-1;j++)for(let i=0;i<n;i++){
+  const a=j*(n+1)+i,b=a+n+1;idx.push(a,b,a+1,a+1,b,b+1);
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(verts,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.userData.keepUV=true;g.userData.structuralShell='repair-barge';
+ part(g,m.rust,0,0,0,1,1,1);
+ for(const j of [0,levels.length-1]){
+  const p=[],uv=[];
+  for(let i=0;i<n;i++){
+   const a=contour(i,j),b=contour(i+1,j),center=[0,levels[j][0],0],v=j===0?[center,a,b]:[center,b,a];
+   for(const q of v){p.push(...q);uv.push(q[0]/4,q[2]/4)}
+  }
+  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.computeVertexNormals();geo.userData.keepUV=true;geo.userData.structuralShell='repair-barge';part(geo,j===0?m.rust:m.dark,0,0,0,1,1,1);
+ }
+ // Deck edge railing follows the actual deck contour, with a continuous
+ // toe plate and stanchions anchored inside the welded rim.
+ for(let i=0;i<n;i+=2){
+  const a=contour(i,3),b=contour(i+2,3),p=[a[0]*.97,6.12,a[2]*.95],q=[b[0]*.97,6.12,b[2]*.95];
+  beam(m.steel,p,q,.14);beam(m.steel,[p[0],7.18,p[2]],[q[0],7.18,q[2]],.11);
+  beam(m.steel,p,[p[0],7.18,p[2]],.14);
+ }
+ for(const side of [-1,1])for(const x of [-42,42])cylinder(m.dark,x,6.62,side*5.9,1.1,1.2);
+ for(const x of [-26,0,26]){box(m.rust,x,7.8,0,18,2.7,11);box(m.dark,x,9.35,0,18.4,.45,11.4);
+  for(const z of [-5,5])box(m.steel,x,10.1,z,16.6,1.15,.25)}
+ box(m.blue,-34,12.5,0,19,11,12);box(m.dark,-34,18.4,0,19.7,.7,12.6);
+ for(const x of [-40,-34,-28])box(m.glass,x,14,6.15,4.4,2.5,.14);
+ // Mounted pedestal lift with boom, cable and hook landing above the deck.
+ cylinder(m.steel,26,8.0,0,3.5,3.5);cylinder(m.dark,26,10,0,2.2,.9);
+ beam(m.orange,[26,10.4,0],[29,27,0],1.4);
+ beam(m.orange,[29,27,0],[59,39,0],1.1);
+ beam(m.steel,[29,27,0],[59,39,0],.45);
+ beam(m.wire,[59,39,0],[59,17,0],.10,.10,true);
+ box(m.yellow,59,16.5,0,1.2,1.3,1.1);
+ for(const x of [15,30])for(const z of [-4,4])box(m.dark,x,9,z,5,4,4);
+});
+
+ // REFERENCE STAGES 1–2: replace the previous rectangular placement set,
+ // keeping its authored GLB templates and material library. The new civil
+ // geography and ordered gates come from one canonical JSON source.
+ batches.clear();placedSites.length=0;containerSlots.length=0;stackIndex.clear();containerChunks.clear();
+ fixturePositions.length=0;pavedSlabs.length=0;districtPlan.length=0;
+ yardLightCtx.fillStyle='#000';yardLightCtx.fillRect(0,0,2048,2048);bakedLightPools=0;
+ part(coastGeo,coastMat,0,0,0,1,1,1);
+ // A more distant overlapping mountain ridge provides atmospheric depth,
+ // outside the playable envelope and beyond the real port coast.
+ const farCoast=coastGeo.clone();farCoast.scale(1.10,1.50,1.10);farCoast.translate(500,0,-1600);
+ const farColor=farCoast.attributes.color;for(let i=0;i<farColor.count;i++){const k=farColor.getX(i);farColor.setXYZ(i,.045+k*.24,.062+k*.20,.084+k*.18)}
+ part(farCoast,coastMat,0,0,0,1,1,1);
+ // Small distant shore facilities make the surrounding landscape inhabited.
+ for(let i=0;i<21;i++){const x=-3100+i*310,z=shoreline(x)-130-35*Math.sin(i*2.7),y=coastalHeight(x,z),w=52+24*Math.sin(i*1.3),h=16+10*Math.cos(i*.6);
+  box(horizonMat,x,y+h/2-2,z,w,h+4,38);box(horizonRoof,x,y+h+.4,z,w+1,1,39);
+  if(i%4===0){cylinder(horizonRoof,x+24,y+34,z,3,68);cylinder(horizonMat,x+24,y+67,z,3.6,1)}
+ }
+ const referenceSolids=[],referenceHeroes=[],referenceCivil=[],referenceDistricts=new Set();let shoreMeters=0,referenceShips=0,referenceOffshore=0,referenceBridge=0;
+ const land=layout.land,dock=layout.dryDock;
+ function onLand(x,z){return land.some(([a,b,c,d])=>x>=a&&x<=b&&z>=c&&z<=d)}
+ function supported(b){return land.some(([a,c,d,e])=>b.min.x>=a+1&&b.max.x<=c-1&&b.min.z>=d+1&&b.max.z<=e-1)}
+ const segments=routePoints.map((a,i)=>[a,routePoints[(i+1)%routePoints.length]]);
+ for(const alt of layout.alternates){const path=[routePoints[alt.from],...alt.via,routePoints[alt.to]];for(let i=1;i<path.length;i++)segments.push([path[i-1],path[i]])}
+ // Conservative swept-segment vs expanded AABB; solid assets cannot intrude.
+ function intersectsSegment(b,a,c,margin=9){let lo=0,hi=1;for(let k=0;k<3;k++){const axis=['x','y','z'][k],d=c[k]-a[k],mn=b.min[axis]-margin,mx=b.max[axis]+margin;if(Math.abs(d)<1e-8){if(a[k]<mn||a[k]>mx)return false;continue}let u=(mn-a[k])/d,v=(mx-a[k])/d;if(u>v)[u,v]=[v,u];lo=Math.max(lo,u);hi=Math.min(hi,v);if(lo>hi)return false}return true}
+ function footprint(name,x,y,z,angle=0,scale=1){const o=new T.Object3D();o.position.set(x,y,z);o.rotation.y=angle;o.scale.setScalar(scale);o.updateMatrix();return placementBounds.get(name).clone().applyMatrix4(o.matrix)}
+ function routeClear(b){return !segments.some(([a,c])=>intersectsSegment(b,a,c))}
+ function hero(name,x,y,z,angle=0,scale=1){place(name,x,y,z,angle,scale);referenceHeroes.push({name,x,y,z,angle,scale,bounds:footprint(name,x,y,z,angle,scale)})}
+ function civilBox(mat,x,y,z,w,h,d){box(mat,x,y,z,w,h,d);referenceCivil.push(new T.Box3(V(x-w/2,y-h/2,z-d/2),V(x+w/2,y+h/2,z+d/2)))}
+ function safe(name,x,z,angle=0,scale=1,district='yard'){
+  if(!templates[name])throw Error('missing reference asset '+name);
+  const y=name==='stage3-forklift'||name==='stage3-hose-skid'?5.08:5.25;
+  const b=footprint(name,x,y,z,angle,scale);
+  if(!supported(b)||!routeClear(b)||placedSites.some(p=>p.intersectsBox(b))||containerSlots.some(q=>b.min.x<q.x+q.hx&&b.max.x>q.x-q.hx&&b.min.z<q.z+q.hz&&b.max.z>q.z-q.hz))return false;
+  place(name,x,y,z,angle,scale);referenceSolids.push(b);referenceDistricts.add(district);return true
+ }
+ // Separate working peninsulas and true, navigable central water basins.
+ for(const [a,b,c,d] of land){
+  slab((a+b)/2,(c+d)/2,b-a,d-c);
+  // Surface expansion joints, drainage channels and broken painted markings.
+  for(let x=a+18;x<b-8;x+=24)box(tar,x,5.095,(c+d)/2,.07,.015,d-c-8);
+  for(let z=c+18;z<d-8;z+=24)box(tar,(a+b)/2,5.095,z,b-a-8,.015,.07);
+  for(const [edge,sign,axis,lo,hi] of [[a,-1,'x',c,d],[b,1,'x',c,d],[c,-1,'z',a,b],[d,1,'z',a,b]]){
+   for(let p=lo+10;p<hi-4;p+=20){const x=axis==='x'?edge:p,z=axis==='z'?edge:p;if(onLand(x+(axis==='x'?sign*3:0),z+(axis==='z'?sign*3:0)))continue;
+    const dryEdge=x>=dock.minX-1&&x<=dock.maxX+1&&z>=dock.minZ-1&&z<=dock.maxZ+1;if(dryEdge)continue;
+    box(m.dark,x,1.6,z,axis==='x'?.28:19.8,2.0,axis==='z'?.28:19.8);
+    box(m.concrete,x,5.15,z,axis==='x'?.8:19.8,.35,axis==='z'?.8:19.8);
+    box(m.yellow,x-sign*(axis==='x'?1.5:0),5.36,z-sign*(axis==='z'?1.5:0),axis==='x'?.14:19.6,.035,axis==='z'?.14:19.6);
+    if(Math.round(p/20)%3===0)place('bollard',x-sign*(axis==='x'?3:0),5.25,z-sign*(axis==='z'?3:0));
+    shoreMeters+=20;
+   }
+  }
+ }
+ // Central graving dock: genuinely excavated to -20 m, not a painted recess.
+ civilBox(m.concrete,850,-22,-180,320,4,600);
+ for(const x of [695,1005]){civilBox(m.concrete,x,-7.5,-180,10,25,600);rail(x,6.1,-180,600,'z');for(let z=-460;z<115;z+=22){
+  box(m.dark,x+(x<850?5.1:-5.1),-8,z,.28,20,1.2);
+  box(m.steel,x+(x<850?7:-7),-8,z,3.8,.5,16);
+  rail(x+(x<850?8.5:-8.5),-6.8,z,16,'z');
+  box(warmGlow,x+(x<850?5.4:-5.4),-4,z,.25,.5,1.3);fixturePositions.push([x+(x<850?6:-6),-4,z]);
+ }}
+ for(const z of [-475,115])civilBox(m.concrete,850,-7.5,z,310,25,10);
+ for(const x of [810,890])for(let z=-455;z<100;z+=18)box(m.dark,x,-19.88,z,1.1,.15,17.8);
+ // The open hull axis coincides with the low-level Dry Dock racing corridor.
+ hero('ship-hull',850,-19,-120,Math.PI/2);referenceShips++;
+ for(let z=-277;z<=37;z+=13)for(const x of [840,860])place('drydock-keel-block',x,-20,z,0,.7);
+ for(let z=-260;z<=20;z+=24)for(const side of [-1,1]){fixturePositions.push([850+side*20,1.2,z]);pool(850+side*20,-2.5,z,4)}
+ // The center pier is a ship assembly/outfitting spine, with two long berths.
+ for(const [x,z,a,scale] of [[245,-150,Math.PI/2,1.55],[-250,-260,Math.PI/2,1.25],[275,230,Math.PI/2,.92],[-380,600,0,.86],[-1305,160,Math.PI/2,.95]]){
+  place('merchant-vessel',x,0,z,a,scale);referenceShips++;
+ }
+ hero('stage3-outfitting-vessel',-1233,0,870,-Math.PI/2,1.4);referenceShips++;
+ for(const [x,z] of [[-500,440],[400,-420],[455,555],[370,720]]){place('workboat',x,0,z,Math.PI/2,.65);referenceShips++}
+ // Reserve a working foreground lift before generic buildings fill the apron.
+ let frontLift=null;
+ for(const [x,z,angle,scale] of [[-1110,1070,Math.PI/2,.70],[-1100,1050,Math.PI/2,.66],[-1010,910,Math.PI/2,.76],[-1000,945,Math.PI/2,.70],[-1000,1000,Math.PI/2,.64]]){
+  if(safe('stage3-ship-lift-portal',x,z,angle,scale,'heavy-lifting')){frontLift={x,z,angle,scale};fixturePositions.push([x,5.25+scale*102,z]);pool(x,5.3,z,23);break;}
+ }
+ // Reserve a taller, differentiated service hall on the landward side
+ // of the foreground gantry. Choose only a genuinely clear footprint.
+ let shoreHall=null;
+ for(const [x,z,a,scale] of [[-1038,1096,0,1.22],[-1028,1070,0,1.26],[-1012,1038,0,1.35],[-965,1075,0,1.45],[-990,945,0,1.36],[-1010,830,0,1.42]]){
+  if(safe('gantry-service-hall',x,z,a,scale,'shore-hall')){shoreHall={x,z,a,scale};break;}
+ }
+ // Start waterfront: quay road with tightly clustered logistics equipment.
+ for(const x of [-1080,-975,-820,-580,-390,-180])for(const z of [780,980]){
+  if(safe('outfit-workshop',x,z,Math.PI/2,.82,'launch'))lamp(x+36,5.25,z+38);
+ }
+ // Stacks in longitudinal blocks, preserving actual road corridors and altitude.
+ let referenceCargo=0;
+ for(const [cx,cz] of [[-1130,420],[-850,400],[-1120,100],[-790,100],[-1140,-190],[-790,-200],[-1000,640],[-430,925]]){
+  for(let a=-60;a<=60;a+=15)for(let b=-50;b<=50;b+=10){
+   const x=cx+a,z=cz+b,tiers=3+Math.floor(rnd()*4),bb=new T.Box3(V(x-6.2,5,z-1.3),V(x+6.2,5+tiers*2.94,z+1.3));
+   if(!supported(bb)||!routeClear(bb)||placedSites.some(p=>p.intersectsBox(bb)))continue;
+   const col=['rust','blue','green','white'][Math.floor(rnd()*4)];
+   for(let j=0;j<tiers;j++)place('container-'+col,x,5.25+j*2.94,z);
+   referenceSolids.push(bb);referenceCargo++;
+  }
+ }
+ referenceDistricts.add('container');
+ for(const [x,z] of [[-1110,545],[-850,240],[-800,-70],[-1160,-350]])safe('rtg-crane',x,z,0,.72,'container');
+ // Crane ascent: hero gantry and supporting shops sit on the western quay.
+ hero('heavy-gantry-detail',-900,5.25,-575);referenceDistricts.add('crane');
+ for(const rx of [-962,-838])for(const dx of [-3.8,3.8])box(m.steel,rx+dx,5.62,-575,.55,.72,118);
+ for(const [x,z] of [[-1170,-850],[-750,-950],[-1150,-440],[-750,-390]])safe('gantry-service-hall',x,z,0,.8,'crane');
+ for(const [x,z] of [[-1130,-780],[-730,-730],[-1100,-1030],[-740,-540]])safe('winch-service-skid',x,z,0,1,'crane');
+ // Sky bridge is a deliberately stylized high-level race landmark, constructed
+ // with supported steel towers, X bracing and an open upper transfer deck.
+ define('reference-sky-bridge',()=>{
+  const W=360,H=207;
+  for(const x of [-150,150])for(const z of [-12,12]){
+   box(m.concrete,x,1.5,z,12,3,12);beam(m.steel,[x,3,z],[x,H,z],2.8,3.4);
+   for(let y=12;y<H-10;y+=18)beam(m.orange,[x,y,z],[x,y+18,-z],.75);
+  }
+  for(const z of [-9,9]){
+   beam(m.orange,[-180,H,z],[180,H,z],2.4,3.4);
+   beam(m.steel,[-180,H-10,z],[180,H-10,z],1.8,2.1);
+   for(let x=-180;x<180;x+=18){beam(m.steel,[x,H-10,z],[x+18,H,z],.8);beam(m.orange,[x,H,z],[x+18,H-10,z],.6)}
+  }
+  box(roofMetal,0,H+.4,0,W,.8,39);rail(0,H+1.7,-19,W);rail(0,H+1.7,19,W);
+  // Open rectangular flight passage above the service deck, with actual
+  // transfer-frame connections. 40 m clear width, 43 m clear height.
+  for(const z of [-22,22]){
+   for(const x of [-168,-112,-56,0,56,112,168]){
+    beam(m.steel,[x,H,z],[x,H+44,z],1.3,1.6);
+    beam(m.steel,[x,H,z],[x,H-7,z*.41],.75);
+   }
+   beam(m.orange,[-180,H+44,z],[180,H+44,z],1.9,2.1);
+   beam(m.steel,[-180,H+30,z],[180,H+30,z],.75);
+   for(let x=-168;x<168;x+=28)beam(m.orange,[x,H+30,z],[x+28,H+44,z],.55);
+  }
+  for(const x of [-168,-112,-56,0,56,112,168]){
+   beam(m.steel,[x,H+44,-22],[x,H+44,22],1.4,1.7);
+   for(const z of [-18,18]){box(m.light,x,H+41,z,1.25,.25,.7);beam(m.steel,[x,H+41,z],[x,H+44,z],.19)}
+  }
+  for(let x=-160;x<=160;x+=40){box(m.light,x,H-9,0,2.5,.6,2);box(m.steel,x,H-8.5,0,3,.4,2.4)}
+  for(const z of [-17,17]){
+   for(let x=-175;x<175;x+=14){
+    beam(m.steel,[x,H+2,z],[x+14,H+2,z],.45,.55);
+    beam(m.dark,[x,H-2,z],[x+14,H-2,z],.40,.40,true);
+    beam(m.steel,[x,H-2,z],[x,H+.1,z],.19);
+   }
+   for(let x=-168;x<168;x+=28){beam(m.steel,[x,H+2,z],[x+5,H+11,z],.18);box(m.dark,x,H+1.15,z,.8,.5,.8)}
+  }
+  for(const x of [-150,150])for(let y=18;y<H-5;y+=18)for(const z of [-12,12]){box(m.steel,x,y,z,4,.3,4);beam(m.steel,[x,y,z],[x,y-3,z*.8],.25)}
+ 
+ });
+ hero('reference-sky-bridge',-270,5.25,-1070);referenceBridge=1;referenceDistricts.add('sky');
+ // North and central production quarters follow material receiving -> plate
+ // preparation -> coating -> outfitting, facing the central deep-water quays.
+ const shopKinds=['plate-processing-hall','coating-shop','outfit-workshop','cargo-shed'];
+ for(const [x,z] of [[-570,-880],[-390,-830],[-180,-830],[45,-850],[250,-850],[450,-1050],[650,-900],[1040,-1000],[1040,-780],[-90,-500],[80,-330],[-90,-100],[75,100],[-90,330],[110,420]]){
+  const kind=shopKinds[districtPlan.length%shopKinds.length];if(safe(kind,x,z,0,1.08,'fabrication')){districtPlan.push({x,z,kind});lamp(x+36,5.25,z+50)}
+ }
+ for(const [x,z] of [[-550,-1150],[170,-1150],[380,-740],[740,-730],[1120,-560]])safe('lattice-boom-crane',x,z,0,.8,'fabrication');
+ // East-side foundry and pipe grid, using aligned service corridors.
+ // Traversable open-ended foundry. Centerline passes above the overhead
+ // lifting trolley and below the roof structure; actual mesh rays verify it.
+ hero('warehouse',1080,5.25,340,0,1.10);referenceDistricts.add('foundry');
+ for(const [x,z] of [[740,300],[730,500],[1140,665]]){if(safe('warehouse',x,z,0,.84,'foundry'))lamp(x,5.25,z+48)}
+ for(const x of [1040,1120])for(let z=270;z<=410;z+=22){
+  fixturePositions.push([x,56.5,z]);pool(x,5.36,z,20);
+ }
+ for(const [x,z] of [[740,640],[1160,760],[790,870],[1070,1000]])safe('pipe-rack',x,z,Math.PI/2,.85,'pipes');
+ for(const [x,z] of [[725,730],[760,775],[1190,840],[1110,870],[900,930],[1130,590]])safe('tank',x,z,0,.72,'pipes');
+ for(const [x,z] of [[1100,280],[1150,380],[780,570],[770,800],[1050,850]])safe('process-manifold',x,z,0,1,'pipes');
+ // Offshore platform on piles in open water, not a concrete island.
+ define('reference-offshore-platform',()=>{
+  // Fixed jacket structure with two service levels and topside machinery.
+  // Local bounds stay within the original deck width and height envelope.
+  for(const x of [-24,24])for(const z of [-19,19]){
+   cylinder(m.steel,x,5,z,2.3,22);
+   for(const y of [1,9,15])cylinder(m.rust,x,y,z,2.48,.65);
+   beam(m.orange,[x,-3,z],[x,15,-z],.75);
+   beam(m.steel,[x,-3,z],[-x,15,z],.75);
+  }
+  for(const y of [5,14]){for(const x of [-24,24])beam(m.steel,[x,y,-19],[x,y,19],.62);for(const z of [-19,19])beam(m.steel,[-24,y,z],[24,y,z],.62)}
+  box(m.steel,0,16,0,58,2.0,48);box(m.dark,0,17.2,0,56,.45,46);
+  for(const z of [-22,22]){rail(0,18.5,z,56);box(m.rust,0,15.8,z,58,1.2,.55)}
+  for(const x of [-28,28]){rail(x,18.5,0,44,'z');box(m.rust,x,15.8,0,.55,1.2,46)}
+  // Underdeck access walkways and structural supports.
+  for(const side of [-1,1]){
+   const x=side*23;
+   box(m.steel,x,10.5,0,4,.35,39);rail(x-side*1.8,11.65,0,38,'z');
+   for(const z of [-16,0,16])beam(m.steel,[x-side*1.9,10.3,z],[x,7,z],.35);
+   for(const z of [-15,15]){
+    const y0=10.7,y1=17.45;
+    for(const dx of [-.85,.85])beam(m.steel,[x+dx,y0,z],[x+dx,y1,z-6],.19);
+    for(let k=1;k<=30;k++)box(m.steel,x,y0+(y1-y0)*k/30,z-6*k/30,1.7,.12,.23);
+   }
+  }
+  for(const x of [-16,16]){
+   box(m.blue,x,22,-8,13,9,15);box(m.steel,x,26.7,-8,14,.5,16);box(m.glass,x,23,.05,10,2.2,.12);
+   for(const dx of [-4,0,4])box(m.steel,x+dx,23,.13,.14,2.3,.14);
+   box(m.dark,x,18.2,-8,13.2,.7,15.2);
+   box(m.dark,x,27.75,-10,5,1.6,4);
+   for(let dx=-2;dx<=2;dx+=.5)box(m.steel,x+dx,28.6,-10,.13,.12,3.8);
+   for(const z of [-14,-4])box(m.light,x,20,z,1.1,.3,.6);
+  }
+  // Raised pipe/service deck, supported by posts and gusseted beams.
+  for(const x of [-18,0,18])for(const z of [7,18]){
+   box(m.steel,x,21,z,.6,7.5,.6);box(m.dark,x,17.5,z,1.4,.32,1.4);
+   beam(m.steel,[x,21,z],[x+2.2,24.5,z],.30);
+  }
+  box(m.steel,0,24.8,12.5,40,.4,13);
+  for(const z of [6.5,18.5])rail(0,26,z,39);
+  for(const z of [9,14]){
+   beam(m.rust,[-18,26.2,z],[18,26.2,z],.65,.65,true);
+   for(const x of [-16,-6,6,16])beam(m.steel,[x-.22,26.2,z],[x+.22,26.2,z],.83,.83,true);
+   for(const x of [-17,17])beam(m.steel,[x,26.2,z],[x,18.2,z],.46,.46,true);
+  }
+  // Topsides process units: paired horizontal pressure vessels on saddles,
+  // bolted skids, attached manifolds and a distinct elevated control module.
+  for(const x of [-11,11]){
+   const z=13,yy=28.1;
+   box(m.dark,x,25.12,z,10.2,.24,5.2);
+   for(const dx of [-3,3]){box(m.steel,x+dx,26.1,z,.85,1.8,3.4);box(m.steel,x+dx,26.95,z,1.1,.20,3.5);}
+   part(cylGeo,m.white,x,yy,z,1.45,8,1.45,new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2));
+   for(const dx of [-4,4])part(sphereGeo,m.white,x+dx,yy,z,.95,1.45,1.45);
+   for(const dx of [-2.8,2.8])part(cylGeo,m.dark,x+dx,yy,z,1.51,.17,1.51,new T.Quaternion().setFromAxisAngle(V(0,0,1),Math.PI/2));
+   beam(m.steel,[x,yy+1.45,z],[x,31.0,z],.36,.36,true);beam(m.steel,[x,31.0,z],[x,31.0,z+3.7],.36,.36,true);beam(m.steel,[x,31.0,z+3.7],[x,26.5,z+3.7],.36,.36,true);
+   for(const y of [27.0,29.8])beam(m.dark,[x,y,z+3.7],[x,y,z+2.2],.18);
+   box(m.blue,x+3.8,26.0,z-3.6,2.8,2,2.6);box(m.dark,x+3.8,27.06,z-3.6,3,.13,2.8);
+  }
+  box(m.steel,0,17.48,-8,13,.3,10);
+  for(const x of [-5.8,5.8])for(const z of [-12,-4]){box(m.steel,x,20.8,z,.3,6.4,.35);beam(m.steel,[x,18,z],[x,23.9,z+1.3],.18);}
+  box(m.dark,0,24.05,-8,12.1,.35,8.8);box(m.blue,0,26.1,-8,11.7,3.75,8.2);box(m.steel,0,28.1,-8,12.5,.3,8.8);
+  for(const x of [-3.5,0,3.5]){box(m.glass,x,26.6,-3.84,3,1.4,.12);box(m.steel,x-1.55,26.6,-3.72,.13,1.6,.16);}
+  // Upper lifting portal and hoist remain clear above the work deck.
+  for(const x of [-22,22]){beam(m.steel,[x,18,14],[x,34,14],.65);beam(m.steel,[x,27,14],[x+(x<0?3:-3),33,14],.45)}
+  beam(m.orange,[-22,34,14],[22,34,14],1.2);
+  box(m.dark,10,33.2,14,3,1.0,2);
+  beam(m.wire,[10,32.7,14],[10,26.8,14],.12,.12,true);box(m.yellow,10,26.5,14,2,.65,2);
+  // Access ladder cage, hose reels and attached floodlights.
+  for(const z of [-.65,.65])beam(m.yellow,[-27.2,17.45,z],[-27.2,26,z],.10);
+  for(let y=17.7;y<25;y+=.42)beam(m.steel,[-27.2,y,-.65],[-27.2,y,.65],.065);
+  box(m.steel,-24,24.8,0,8,.4,2.5);box(m.steel,-20.1,24.8,3.5,2.3,.4,7);
+  beam(m.steel,[-26,24.6,0],[-24,17.45,0],.35);
+  rail(-24,26,-1.15,8);rail(-19.1,26,3.5,7,'z');
+  for(const x of [-22,22])for(const z of [-18,18]){
+   beam(m.steel,[x,17.45,z],[x,20,z],.18);box(m.light,x,20,z,1.2,.4,1.1);box(m.dark,x,20.3,z,1.4,.23,1.2)
+  }
+ });
+
+ for(const [x,z] of [[850,1230],[440,1340]]){hero('reference-offshore-platform',x,0,z,0,1.5);referenceOffshore++;for(const dx of [-33,33])fixturePositions.push([x+dx,28.5,z+27])}
+ referenceDistricts.add('offshore');
+ // Stage 3 macro-composition comes BEFORE generic infill: bespoke production
+ // buildings and prominent lift equipment take precedence over shed grids.
+ // Every terrestrial candidate uses the same land, 3D route, and overlap tests.
+ function registerLiftFixtures(site){
+  const {x,z,angle,scale}=site,c=Math.cos(angle),s=Math.sin(angle);
+  for(const side of [-1,1])for(const y of [8,24,40,56,72])for(const lz of [-10,10]){
+   const lx=side*(58-11*(y-5)/89-3.56),xx=x+scale*(lx*c+lz*s),zz=z+scale*(-lx*s+lz*c);
+   fixturePositions.push([xx,5.25+y*scale,zz]);
+   if(y===8)pool(xx,5.32,zz,12*scale+6);
+  }
+ }
+ if(frontLift)registerLiftFixtures(frontLift);
+ const macroSites={assemblyHalls:0,shipLifts:frontLift?1:0,processPlants:0,repairBarges:0};
+ const macroEvidence={hall:[],lift:frontLift?[frontLift]:[],plant:[],barge:[]};
+ for(const [x,z,a,scale] of [
+  [-430,-1040,0,.95],[130,-1080,0,.98],[-560,-1035,Math.PI/2,.82],
+  [520,-1040,0,.88],[-1090,-1010,0,.78],[-65,400,Math.PI/2,.84],
+  [-430,910,0,.84],[1090,690,0,.90]
+ ]){
+  if(macroSites.assemblyHalls>=3)break;
+  if(safe('stage3-block-assembly-hall',x,z,a,scale,'block-assembly')){
+   macroSites.assemblyHalls++;macroEvidence.hall.push({x,z,angle:a,scale});districtPlan.push({x,z,kind:'stage3-block-assembly-hall'});
+   const lz=z+scale*45;if(onLand(x,lz))lamp(x,5.25,lz);
+  }
+ }
+ for(const [x,z,a,scale] of [
+  // Foreground skyline counterpart to the 280-m launch vessel: a genuine
+  // scale landmark on the right, not another distant background crane.
+  // The warehouse pair leaves an equipment alley between x=-975 and -820.
+  // Position the real gantry in that gap, near the camera's visible skyline.
+  ...(!frontLift?[[-900,880,0,.70],[-895,870,0,.68]]:[]),
+  [-1000,-1030,0,.80],[-1010,-920,0,.80],[-1130,-1000,Math.PI/2,.76],
+  [-1090,1010,Math.PI/2,.68],[-760,-1020,0,.77],
+  [1120,-980,Math.PI/2,.77],[1000,-1060,0,.76],[-380,-1010,0,.70]
+ ]){
+  if(macroSites.shipLifts>=2)break;
+  if(safe('stage3-ship-lift-portal',x,z,a,scale,'heavy-lifting')){
+   macroSites.shipLifts++;registerLiftFixtures({x,z,angle:a,scale});macroEvidence.lift.push({x,z,angle:a,scale});fixturePositions.push([x,5.25+scale*102,z]);pool(x,5.3,z,23);
+  }
+ }
+ for(const [x,z,a,scale] of [
+  [885,1030,0,.85],[990,730,0,.83],[1100,750,Math.PI/2,.83],
+  [735,870,0,.76],[835,660,0,.78],[1100,980,0,.77],
+  [-520,-1120,0,.73],[-1050,-900,0,.70],[980,-850,0,.72]
+ ]){
+  if(macroSites.processPlants>=3)break;
+  if(safe('stage3-process-plant',x,z,a,scale,'process-plant')){
+   macroSites.processPlants++;macroEvidence.plant.push({x,z,angle:a,scale});fixturePositions.push([x,5.25+scale*39,z]);pool(x,5.3,z,20);
+  }
+ }
+ // Four full-size waterside service craft introduce genuinely varied foreground
+ // vessel silhouettes; none modifies the course or the sea-floor collision mesh.
+ for(const [x,z,a,scale] of [[480,835,0,1.06],[-380,355,Math.PI/3,.9],
+  [-410,-140,-Math.PI/5,1.0],[80,600,Math.PI/2,.88]]){
+  const bb=footprint('stage3-repair-barge',x,0,z,a,scale);
+  if(!onLand(x,z)&&routeClear(bb)&&!placedSites.some(p=>p.intersectsBox(bb))){
+   hero('stage3-repair-barge',x,0,z,a,scale);referenceShips++;macroSites.repairBarges++;macroEvidence.barge.push({x,z,angle:a,scale});
+  }
+ }
+ // Stage 3: distinctive utility buildings and service yards placed before infill.
+ // Use the same supported-footprint and main/alternate swept-AABB rejection
+ // as the canonical layout; no hardcoded route changes or remote mesh dependency.
+ const stage3Sites={boiler:0,annex:0,substation:0},steamOutlets=[];
+ for(const [x,z,a] of [[-1160,-720,0],[-745,-820,Math.PI/2],[-470,-980,0],[285,-990,Math.PI/2],[1020,-870,0],[735,440,0],[1175,600,Math.PI/2]]){
+  if(safe('stage3-boiler-house',x,z,a,.85,'utilities')){stage3Sites.boiler++;for(const lx of [-12,12])steamOutlets.push([x+.85*(lx*Math.cos(a)+10*Math.sin(a)),5.25+.85*38.4,z+.85*(10*Math.cos(a)-lx*Math.sin(a))]);}
+ }
+ for(const [x,z,a] of [[-1170,-530,0],[-740,-470,Math.PI/2],[-1130,870,0],[-520,850,0],[75,-1150,0],[1060,-590,0],[760,260,Math.PI/2],[1150,485,0]]){
+  if(safe('stage3-outfitting-annex',x,z,a,.86,'outfitting')){stage3Sites.annex++;}
+ }
+ for(const [x,z,a] of [[-1200,-625,0],[-700,-730,0],[-1220,620,0],[-470,-1180,0],[470,-1170,0],[1180,-740,0],[1170,160,0],[730,590,0],[1170,895,0],[-95,490,0]]){
+  if(safe('stage3-electrical-substation',x,z,a,1,'utilities'))stage3Sites.substation++;
+ }
+
+ // Cluster functional assets beside the lower racing segments, not in
+ // random background rows. Every solid is checked against both route sets,
+ // land support, cargo stacks and pre-existing hero bounds.
+ const lookdevSites={workbays:0,forklifts:0,hoseSkids:0,litBays:0,dockJibs:0};
+ for(const [x,z,angle] of [[-1015,1005,0],[-955,855,Math.PI],[-970,740,0],[-1150,605,Math.PI/2],[-740,-330,Math.PI/2],[-345,990,0],[1120,850,Math.PI]]){
+  if(safe('stage3-dock-jib',x,z,angle,1,'quays')){lookdevSites.dockJibs++;const lx=x+1.7*Math.cos(angle)+3.6*Math.sin(angle),lz=z-1.7*Math.sin(angle)+3.6*Math.cos(angle);fixturePositions.push([lx,34.15,lz]);pool(lx,5.37,lz,18)}
+ }
+ for(const [x,z,angle] of [[-1140,1040,0],[-1040,855,Math.PI/2],[-1160,745,0],[-1010,630,0],[-980,305,0],[-1140,140,Math.PI/2],[-930,-130,0],[-1100,-460,0],[-820,-650,Math.PI/2],[-1020,-800,0],[740,-550,0],[1115,190,Math.PI/2],[1180,420,0],[830,600,0],[990,730,0],[1140,970,0],[-100,1020,0],[-420,1020,0],[-700,1030,0]]){
+  if(safe('stage3-quay-workbay',x,z,angle,1,'work-zones')){
+   lookdevSites.workbays++;lookdevSites.litBays++;
+   for(const lx of [-5,5]){const xx=x+lx*Math.cos(angle),zz=z-lx*Math.sin(angle);fixturePositions.push([xx,11.66,zz]);pool(xx,5.37,zz,12)}
+   for(const [dx,dz] of [[14,4],[-14,5],[0,10]]){const xx=x+dx*Math.cos(angle)+dz*Math.sin(angle),zz=z-dx*Math.sin(angle)+dz*Math.cos(angle);
+    if(safe('stage3-forklift',xx,zz,angle,1,'work-zones')){lookdevSites.forklifts++;break}
+   }
+   for(const [dx,dz] of [[-14,-3],[14,-4],[4,9]]){const xx=x+dx*Math.cos(angle)+dz*Math.sin(angle),zz=z-dx*Math.sin(angle)+dz*Math.cos(angle);
+    if(safe('stage3-hose-skid',xx,zz,angle,1,'work-zones')){lookdevSites.hoseSkids++;break}
+   }
+  }
+ }
+ // Foreground production aprons: keep the traffic lane free, group fitted
+ // equipment by work operation and use the existing supported placement audit.
+ const foregroundWork={transport:0,winches:0,jigs:0,power:0};
+ const workAprons=[[-1140,1110],[-1135,1055],[-1125,920],[-1115,835],[-1080,1040],[-1060,940],[-1040,780],[-1000,1095],[-940,1050],[-900,1010],[-1190,700],[-1160,660],[-1125,-410],[-1100,-465],[-1000,-520],[740,325],[760,440],[1130,620],[850,695],[1080,850]];
+ const kits=[['block-transport-cradle','transport',.64],['winch-service-skid','winches',1.05],['curved-panel-jig','jigs',.65],['hydraulic-power-unit','power',1.03]];
+ for(const [x,z] of workAprons){
+  for(let k=0;k<kits.length;k++){
+   const [name,key,scale]=kits[k];if(foregroundWork[key]>=5)continue;
+   for(const [dx,dz] of [[0,0],[6,7],[-6,-7],[0,12]]){
+    if(safe(name,x+dx,z+dz,k%2?Math.PI/2:0,scale,'foreground-production')){
+     foregroundWork[key]++;break;
+    }
+   }
+  }
+ }
+ // Long working lane, flush drainage grates and quayside service props.
+ for(const z of [715,755,795,835,875,915,955,995,1035,1075,1115]){
+  box(m.yellow,-1182,5.095,z,.14,.018,37.6);box(m.yellow,-1152,5.095,z,.14,.018,37.6);box(m.white,-1167,5.097,z,.15,.020,10.5);
+  box(m.dark,-1188.5,5.104,z,.75,.035,37.8);for(let q=-17;q<=17;q+=1.2)box(m.steel,-1188.5,5.127,z+q,.74,.018,.085);
+ }
+ const quayEdgeKits=['pallet-load','pipe-bundle','utility-cart','welding-skid','stage3-hose-skid'];let quayService=0;
+ for(let i=0;i<18;i++){const z=728+i*22.5,x=i%2===0?-1194:-1145;if(safe(quayEdgeKits[i%quayEdgeKits.length],x,z,Math.PI/2,.62,'quay-edge-service'))quayService++;}
+ // Pack each production district with staggered, large-scale buildings and
+ // connected service roads. Avoid the centerline and existing model bounds.
+ let additionalHalls=0,additionalTanks=0,additionalRacks=0,additionalCranes=0;
+ const facadeKinds=['cargo-shed','plate-processing-hall','outfit-workshop','coating-shop','gantry-service-hall'];
+ for(const [a,b,c,d] of land){
+  for(let x=a+54;x<b-53;x+=106)for(let z=c+67;z<d-60;z+=134){
+   if(additionalHalls>=104)break;
+   const ix=Math.round((x+1400)/53),iz=Math.round((z+1400)/67),k=facadeKinds[(ix*3+iz*7)%facadeKinds.length],angle=(ix+iz)%3===0?Math.PI/2:0;
+   if(safe(k,x,z,angle,.80+((ix+iz)%4)*.085,'fabrication')){
+    additionalHalls++;districtPlan.push({x,z,kind:k});
+    const lx=x+40,lz=z+45;if(onLand(lx,lz)&&routeClear(new T.Box3(V(lx-2,5,lz-2),V(lx+4,18,lz+2))))lamp(lx,5.25,lz);
+   }
+  }
+ }
+ // Actual refinery blocks flank the southeastern flight corridor.
+ for(const z of [615,690,765,840,915,990,1065])for(const x of [715,770,825,885,945,1005,1065,1125,1190]){
+  if(additionalTanks>=25)break;
+  if(safe('tank',x,z,0,.82,'pipes'))additionalTanks++;
+ }
+ for(const x of [740,810,910,1010,1100,1195])for(const z of [600,735,870,1000]){
+  if(additionalRacks>=16)break;
+  if(safe('pipe-rack',x,z,Math.PI/2,1.05,'pipes'))additionalRacks++;
+ }
+ // Pair the outer and inner berth with real quayside lifting equipment.
+ for(const [x,z,angle] of [[-1190,735,Math.PI/2],[-1200,1030,Math.PI/2],[-690,-320,Math.PI/2],[-685,230,Math.PI/2],[600,-550,Math.PI/2],[680,290,Math.PI/2],[1150,-820,0],[-310,-690,0],[150,-710,0]])if(safe('quay-container-crane',x,z,angle,.75,'quays'))additionalCranes++;
+ // Land-edge access roads and rail tracks connect fabrication to dock aprons.
+ for(const [a,b,c,d] of land){
+  if(b-a<95||d-c<90)continue;
+  const x=(a+b)/2,z=(c+d)/2;
+  box(asphalt,x,5.105,z,10,.018,d-c-10);
+  for(let zz=c+10;zz<d-10;zz+=18)box(m.yellow,x,5.126,zz,.13,.014,7.8);
+  for(const zz of [c+14,d-14]){
+   box(asphalt,x,5.11,zz,b-a-10,.018,8);
+   for(let xx=a+12;xx<b-12;xx+=18)box(m.yellow,xx,5.13,zz,7.8,.014,.13);
+  }
+ }
+ // Populate the narrow quays with connected equipment and practical light poles.
+ for(const [a,b,c,d] of land){for(let x=a+35;x<b-25;x+=80)for(let z=c+35;z<d-25;z+=100){
+  if(referenceSolids.length>1300)break;
+  const kind=['fabrication-rack','hydraulic-power-unit','welding-skid','pipe-bundle','curved-panel-jig','steel-transfer-station'][Math.abs(Math.floor(x+z))%6];safe(kind,x,z,0,.85,'services');
+  const lb=new T.Box3(V(x-2,5,z-2),V(x+4,18,z+2));
+  if(supported(lb)&&routeClear(lb)&&!placedSites.some(p=>p.intersectsBox(lb))&&!containerSlots.some(q=>Math.abs(q.x-x)<q.hx+4&&Math.abs(q.z-z)<q.hz+3)&&!fixturePositions.some(p=>Math.hypot(p[0]-x,p[2]-z)<40)){lamp(x,5.25,z);referenceSolids.push(lb)}
+ }}
+ // Explicit start reference, with attached quay fixtures and visible light pools.
+ for(const x of [-1140,-1020,-900,-780])lamp(x,5.25,1075);
+ // Quay furniture and cargo handling equipment adjacent to the launch vessel.
+ for(let z=735;z<=1060;z+=25){const x=-1188;place('bollard',x,5.25,z);if(z%50===35)lamp(x+8,5.25,z);if(z%75===60)safe('terminal-tractor',x+30,z,Math.PI/2,.85,'launch')}
+ for(let z=760;z<=1050;z+=35){box(m.steel,-1198,5.35,z,.45,.25,34);if(z%70===60)box(m.dark,-1199,2.1,z,1.0,3.2,4.5)}
+ // Continuous foreground quay edge protection, inset drainage grates and
+ // attached fenders. Skip drydock openings and keep clear of ground access.
+ let quayDetails=0;
+ for(const [x,a,b,sign] of [[-1197,710,1120,-1],[-1257,275,675,-1],[-647,-620,-270,1],[1013,-450,95,-1]]){
+  if(x===1013)continue;
+  for(let z=a;z<b;z+=12){
+   const z2=Math.min(b,z+10.6),mid=(z+z2)/2;
+   if(!onLand(x-sign*3,mid))continue;
+   if(!(x===-1197&&z<845&&z2>825))rail(x-sign*.5,6.32,mid,z2-z,'z');
+   box(m.dark,x-sign*3.4,5.103,mid,.52,.038,z2-z);
+   for(let zz=z+.5;zz<z2;zz+=1.25)box(m.steel,x-sign*3.4,5.139,zz,.49,.035,.11);
+   if(quayDetails%3===0){box(m.steel,x,2.75,mid,.32,3.5,2.2);box(m.rubber,x+sign*.58,2.75,mid,.86,3.1,1.85)}
+   quayDetails++;
+  }
+ }
+ // Launch ship mooring ropes connect existing deck bitts to the quay.
+ for(const lx of [-95,90]){
+  const a=[-1233+5*1.4,13.8*1.4,870+lx*1.4],b=[-1195,7.0,870+lx*1.4+(lx<0?18:-18)],mid=[(a[0]+b[0])/2,Math.min(a[1],b[1])-2,(a[2]+b[2])/2];
+  if(onLand(b[0],b[2])){place('bollard',b[0],5.08,b[2]);beam(m.wire,a,mid,.10,.10,true);beam(m.wire,mid,b,.10,.10,true)}
+ }
+ // Stepped shore gangway terminates on the actual ship deck and quay.
+ const ga=[-1194,5.20,836],gb=[-1210.7,16.52,849];
+ const dx=gb[0]-ga[0],dz=gb[2]-ga[2],dy=gb[1]-ga[1],run=Math.hypot(dx,dz),rot=new T.Quaternion().setFromAxisAngle(up,Math.atan2(-dz,dx));
+ for(let i=0;i<=45;i++){const t=i/45,x=ga[0]+dx*t,y=ga[1]+dy*t,z=ga[2]+dz*t;part(boxGeo,m.steel,x,y,z,run/45+.06,.15,1.45,rot)}
+ for(const side of [-1,1]){const ox=side*dz/run*.69,oz=-side*dx/run*.69;beam(m.steel,[ga[0]+ox,ga[1]-.2,ga[2]+oz],[gb[0]+ox,gb[1]-.2,gb[2]+oz],.24,.35);beam(m.yellow,[ga[0]+ox,ga[1]+1.1,ga[2]+oz],[gb[0]+ox,gb[1]+1.1,gb[2]+oz],.08);for(let i=0;i<=10;i++){const t=i/10,x=ga[0]+dx*t+ox,y=ga[1]+dy*t,z=ga[2]+dz*t+oz;beam(m.steel,[x,y,z],[x,y+1.1,z],.07)}}
+
+ // Working harbor walls, built from the exact exposed union of land rectangles.
+ // No artificial 35m shelf between quay and water. Slabs and road markings stay put.
+ const wallP=[],wallUV=[],wallC=[],wallI=[],quayEdges=[];let shorelineSegments=0,rockCount=0;
+ const quayMat=m.concrete.clone();quayMat.vertexColors=true;quayMat.color.setHex(0xa9a295);quayMat.roughness=.91;
+ const seen=new Set();
+ for(const [a,b,c,d] of land)for(const e of [{axis:'x',fixed:a,sign:-1,lo:c,hi:d},{axis:'x',fixed:b,sign:1,lo:c,hi:d},{axis:'z',fixed:c,sign:-1,lo:a,hi:b},{axis:'z',fixed:d,sign:1,lo:a,hi:b}]){
+  const cuts=new Set([e.lo,e.hi]);for(const r of land)for(const k of (e.axis==='x'?r.slice(2):r.slice(0,2)))if(k>e.lo&&k<e.hi)cuts.add(k);
+  const cut=[...cuts].sort((a,b)=>a-b);
+  const pt=(t,offset,y)=>e.axis==='x'?[e.fixed+e.sign*offset,y,t]:[t,y,e.fixed+e.sign*offset];
+  for(let j=0;j<cut.length-1;j++){
+   const lo=cut[j],hi=cut[j+1],mid=(lo+hi)/2,probe=pt(mid,.15,0),p0=pt(mid,0,0);
+   if(onLand(probe[0],probe[2]))continue;
+   if(p0[0]>=dock.minX-.1&&p0[0]<=dock.maxX+.1&&p0[2]>=dock.minZ-.1&&p0[2]<=dock.maxZ+.1)continue;
+   const key=[e.axis,e.fixed,e.sign,lo,hi].join(':');if(seen.has(key))continue;seen.add(key);
+   quayEdges.push({axis:e.axis,fixed:e.fixed,sign:e.sign,lo,hi});
+   const count=Math.ceil((hi-lo)/12),levels=[-5,-1.0,-.30,.40,1.4,3.5,5.0],tones=[[.22,.25,.23],[.27,.33,.27],[.32,.37,.28],[.40,.43,.34],[.58,.54,.46],[.76,.71,.64],[.88,.83,.76]];
+   for(let i=0;i<count;i++){
+    const ta=lo+(hi-lo)*i/count,tb=lo+(hi-lo)*(i+1)/count,base=wallP.length/3;
+    for(const t of [ta,tb])for(let k=0;k<levels.length;k++){
+     wallP.push(...pt(t,.035,levels[k]));wallUV.push(t/8,levels[k]/8);
+     const tone=tones[k],v=.90+.10*Math.sin(t*.19+e.fixed*.11);wallC.push(...tone.map(x=>x*v));
+    }
+    for(let k=0;k<levels.length-1;k++){
+     const a=base+k,b=a+1,c=a+levels.length,d=c+1;
+     // Winding faces the water on all four sides.
+     if((e.axis==='x'&&e.sign>0)||(e.axis==='z'&&e.sign<0))wallI.push(a,b,c,b,d,c);else wallI.push(a,c,b,b,c,d);
+    }
+    shorelineSegments++;
+   }
+   // Rubber fenders anchored to the vertical concrete face, no seaward shelf.
+   for(let t=lo+7;t<hi-3;t+=18){const q=pt(t,.19,1.55);box(m.rubber,q[0],q[1],q[2],e.axis==='x'?.42:1.0,2.8,e.axis==='x'?1.0:.42);}
+  }
+ }
+ if(wallI.length){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(wallP,3));g.setAttribute('uv',new T.Float32BufferAttribute(wallUV,2));g.setAttribute('color',new T.Float32BufferAttribute(wallC,3));g.setIndex(wallI);g.computeVertexNormals();g.userData.keepUV=true;part(g,quayMat,0,0,0,1,1,1);}
+ // The only rock armor retained is the preexisting outer-coast headland group below.
+ // Riprap and irregular sea-facing headlands add a non-rectangular silhouette.
+ for(const [cx,cz,axis] of [[-1265,440,'z'],[-1285,-425,'z'],[-420,-1240,'x'],[485,-1225,'x'],[1245,-565,'z'],[1265,720,'z'],[1000,1125,'x']])for(let i=-5;i<=5;i++){const x=cx+(axis==='x'?i*11:0),z=cz+(axis==='z'?i*11:0);if(!onLand(x,z)){const a=(i*2.399+cx*.01);part(sphereGeo,m.concrete,x,.5,z,5.5+Math.abs(Math.sin(a))*3,2.4+Math.abs(Math.cos(a))*2,5.0+Math.abs(Math.sin(a+1))*3,new T.Quaternion().setFromAxisAngle(up,a))}}
+ // Inspect actual hero meshes using a center ray and four radial offsets.
+ // This finite sample is not continuous collision certification.
+ function heroClearance(){const hits=[],ray=new T.Raycaster(),radius=2.5;let tested=0;for(const item of referenceHeroes){const root=templates[item.name].clone();root.position.set(item.x,item.y,item.z);root.rotation.y=item.angle;root.scale.setScalar(item.scale);root.updateMatrixWorld(true);const sides=new Map();for(const m of root.children){if(!sides.has(m.material))sides.set(m.material,m.material.side);m.material.side=T.DoubleSide;}try{for(let i=0;i<segments.length;i++){const [a,b]=segments[i];if(!intersectsSegment(item.bounds,a,b,radius))continue;const start=V(...a),end=V(...b),dir=end.clone().sub(start),len=dir.length();dir.normalize();const u=V(0,1,0).cross(dir);if(u.lengthSq()<.001)u.set(1,0,0);u.normalize();const v=dir.clone().cross(u).normalize();for(const [du,dv] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius],[radius*.707,radius*.707],[-radius*.707,radius*.707],[radius*.707,-radius*.707],[-radius*.707,-radius*.707]]){tested++;ray.set(start.clone().addScaledVector(u,du).addScaledVector(v,dv),dir);ray.near=.04;ray.far=len-.04;const h=ray.intersectObject(root,true)[0];if(h)hits.push({asset:item.name,segment:i+1,offset:[du,dv],distance:Math.round(h.distance*10)/10})}}}finally{for(const [m,side] of sides)m.side=side;}}const civilHits=referenceCivil.flatMap((b,i)=>segments.map(([a,c],j)=>intersectsSegment(b,a,c,radius)?{wall:i,segment:j+1}:null).filter(Boolean));return {tested,radius,hits,civilHits}}
+ const referenceAudit={sectors:layout.sectors.length,gates:routePoints.length,landPieces:land.length,landArea:land.reduce((sum,[a,b,c,d])=>sum+(b-a)*(d-c),0),shoreMeters,centralBasins:[[-420,-350],[420,-350],[-420,150],[420,150]].every(([x,z])=>!onLand(x,z)),dryDockFloor:dock.floor,ships:referenceShips,offshorePlatforms:referenceOffshore,skyBridges:referenceBridge,districts:[...referenceDistricts],solidPlacements:referenceSolids.length,solidRouteConflicts:referenceSolids.filter(b=>!routeClear(b)).length,alternateCorridors:layout.alternates.length,containerStacks:referenceCargo,additionalHalls,additionalTanks,additionalRacks,additionalCranes,stage3Sites,lookdevSites,macroSites,macroEvidence,foregroundWork,quayService,shoreHall,quayDetails,shorelineSegments,rockCount,quayWallMeters:quayEdges.reduce((sum,e)=>sum+e.hi-e.lo,0)};
+
+ // Production asset bridge: actual artist-authored CC0 PBR meshes are cached
+ // offline at build time, loaded as native scene geometry and supported by
+ // pre-existing gantry/plant assemblies. The procedural templates remain the
+ // deterministic collision fallback and fully offline scene architecture.
+ const importedPhotoreal={loaded:[],placed:{},rejected:[],errors:[]};
+ const authoredModels=window.IRON_TIDE_MODELS||{};
+ if(T.GLTFLoader&&Object.keys(authoredModels).length){
+  const loader=new T.GLTFLoader();
+  for(const [key,data] of Object.entries(authoredModels)){
+   try{
+    const gltf=await new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
+    const template=gltf.scene;
+    template.updateMatrixWorld(true);
+    const bounds=new T.Box3().setFromObject(template),size=bounds.getSize(V(0,0,0)),center=bounds.getCenter(V(0,0,0));
+    if(!Number.isFinite(size.x+size.y+size.z)||Math.max(size.x,size.y,size.z)<.01)throw Error('invalid bounds');
+    const clean=new T.Group();
+    template.position.sub(center);
+    clean.add(template);
+    const targets=key==='crane_hoist'
+      ?macroEvidence.lift.map(p=>({p,y:5.25+p.scale*97,span:14})).slice(0,2)
+      :macroEvidence.plant.map(p=>({p,y:5.25+p.scale*22,span:8})).slice(0,3);
+    let placed=0;
+    for(const {p,y,span} of targets){
+     const root=clean.clone(true);
+     root.scale.setScalar(span/Math.max(size.x,size.y,size.z));
+     root.rotation.y=p.angle||0;
+     root.position.set(p.x,y,p.z);
+     root.updateMatrixWorld(true);
+     const box=new T.Box3().setFromObject(root);
+     if(!routeClear(box)){importedPhotoreal.rejected.push({key,x:p.x,z:p.z,reason:'route-clearance'});continue}
+     root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=true;}});
+     scene.add(root);referenceSolids.push(box);
+     placed++;
+    }
+    importedPhotoreal.loaded.push(key);
+    importedPhotoreal.placed[key]=placed;
+   }catch(error){importedPhotoreal.errors.push({key,message:String(error)})}
+  }
+ }
+
+  // Bounded, deterministic ground-contact approximation (not ray-traced AO).
+ // Rasterize supported footprints only, so boats and the drydock void do not
+ // darken the surrounding pavement. One texture sample, no extra scene pass.
+ let contactFootprints=0;
+ function stampContact(x,z,w,d,height){
+  if(height<.3||w<.3||d<.3||w>400||d>400)return;
+  const k=2048/3000,pad=Math.min(7,1.3+height*.06),px=(x+1500)*k,py=(z+1500)*k;
+  // Four inexpensive nested footprints avoid a per-object full-canvas blur.
+  for(const [f,alpha] of [[1,.035],[.7,.055],[.4,.075],[.12,.11]]){
+   const r=pad*f;contactCtx.fillStyle='rgba(0,0,0,'+alpha+')';
+   contactCtx.fillRect(px-(w/2+r)*k,py-(d/2+r)*k,(w+2*r)*k,(d+2*r)*k);
+  }contactFootprints++;
+ }
+ for(const b of placedSites){if(b.min.y<4.7||b.min.y>6.0)continue;const c=b.getCenter(V(0,0,0)),v=b.getSize(V(0,0,0));stampContact(c.x,c.z,v.x,v.z,v.y)}
+ for(const q of containerSlots)stampContact(q.x,q.z,q.hx*2,q.hz*2,q.next-5);
+ contactCtx.filter='none';contactMap.needsUpdate=true;yardLightMap.needsUpdate=true;
+ // Compact only off-frustum instances inside each existing material batch.
+ // Never reduce geometry detail or change its transform. Large individual pieces
+ // retain their complete transformed bounds, including off-origin meshes.
+ for(const [key,b] of batches){
+  const mesh=new T.InstancedMesh(b.g,b.mat,b.matrices.length);mesh.name='batch-'+key;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+  mesh.castShadow=b.mat!==glowMat&&b.mat!==warmGlow;mesh.receiveShadow=b.mat!==glowMat;scene.add(mesh);
+  b.g.computeBoundingBox();const bounds=new T.Box3(),tiles=new Map(),temp=new T.Box3();
+  for(const matrix of b.matrices){const bb=temp.copy(b.g.boundingBox).applyMatrix4(matrix);bounds.union(bb);const e=matrix.elements,id=Math.floor(e[12]/120)+':'+Math.floor(e[14]/120);if(!tiles.has(id))tiles.set(id,{bounds:new T.Box3(),matrices:[]});const tile=tiles.get(id);tile.bounds.union(bb);tile.matrices.push(matrix);}
+  const chunks=[];for(const tile of tiles.values()){const data=new Float32Array(tile.matrices.length*16);tile.matrices.forEach((m,i)=>m.toArray(data,i*16));chunks.push({bounds:tile.bounds,data,count:tile.matrices.length});}
+  let offset=0;for(const tile of chunks){mesh.instanceMatrix.array.set(tile.data,offset);offset+=tile.data.length;}mesh.instanceMatrix.needsUpdate=true;
+  worldBatches.push({mesh,bounds,chunks,lastKey:null});
+ }
+ batches.clear();
+// Build container LODs in spatial chunks. Every container keeps the exact same
+// transform and color when changing mesh detail. Low models cast the static shadow.
+// All colors within a spatial tile use a single LOD decision. Far rail
+// geometry is identical across cargo liveries, so submit it once per tile.
+const lodTiles=new Map();let sharedRailBatches=0;
+for(const [key,chunk] of containerChunks){const id=key.slice(0,key.lastIndexOf(':'));if(!lodTiles.has(id))lodTiles.set(id,{chunks:[],bounds:new T.Box3()});const tile=lodTiles.get(id);tile.chunks.push(chunk);tile.bounds.union(chunk.bounds)}
+function makeContainerMesh(model,matrices,lod){
+ const mesh=new T.InstancedMesh(model.geometry,model.material,matrices.length);mesh.frustumCulled=false;
+ for(let i=0;i<matrices.length;i++)mesh.setMatrixAt(i,matrices[i]);mesh.instanceMatrix.needsUpdate=true;
+ mesh.castShadow=lod==='low';mesh.receiveShadow=true;mesh.visible=lod==='low';scene.add(mesh);return mesh
+}
+for(const tile of lodTiles.values()){
+ const variants={high:[],low:[]},rails=[];let railModel=null;
+ for(const chunk of tile.chunks){
+  for(const model of templates['container-'+chunk.col].children)variants.high.push(makeContainerMesh(model,chunk.matrices,'high'));
+  for(const model of templates['container-far-'+chunk.col].children){
+   if(model.material===m.steel){railModel=railModel||model;rails.push(...chunk.matrices)}
+   else variants.low.push(makeContainerMesh(model,chunk.matrices,'low'))
+  }
+ }
+ if(railModel){variants.low.push(makeContainerMesh(railModel,rails,'low'));sharedRailBatches++}
+ containerLOD.push({bounds:tile.bounds,center:tile.bounds.getCenter(V(0,0,0)),high:variants.high,low:variants.low});
+}
+const lodFrustum=new T.Frustum(),lodMatrix=new T.Matrix4();let lodInitialized=false;
+let compactCulling=true,culledInstances=0;
+function updateContainerLOD(cam,reflectionLowDetail=false){
+ cam.updateMatrixWorld();lodFrustum.setFromProjectionMatrix(lodMatrix.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));
+ // During a shadow refresh, keep all casters within the previously selected
+ // batch bounds; avoid changing the established shadow coverage. A later main
+ // pass compacts only after the shadow map has been populated.
+ const compact=compactCulling&&lodInitialized&&!renderer.shadowMap.needsUpdate;culledInstances=0;
+ for(const batch of worldBatches){const {mesh,bounds,chunks}=batch;mesh.visible=!lodInitialized||lodFrustum.intersectsBox(bounds);if(!mesh.visible)continue;
+  const chosen=compact?chunks.map((c,i)=>lodFrustum.intersectsBox(c.bounds)?i:-1).filter(i=>i>=0):chunks.map((c,i)=>i),key=chosen.join(',');
+  if(batch.lastKey!==key){let at=0;for(const i of chosen){mesh.instanceMatrix.array.set(chunks[i].data,at);at+=chunks[i].data.length;}mesh.count=at/16;mesh.instanceMatrix.updateRange.offset=0;mesh.instanceMatrix.updateRange.count=at;if(at)mesh.instanceMatrix.needsUpdate=true;batch.lastKey=key;}
+  culledInstances+=chunks.reduce((n,c)=>n+c.count,0)-mesh.count;mesh.visible=mesh.count>0;
+ }
+ for(const item of containerLOD){const visible=!lodInitialized||lodFrustum.intersectsBox(item.bounds),detail=!reflectionLowDetail&&lodInitialized&&cam.position.distanceToSquared(item.center)<520**2;for(const mesh of item.high)mesh.visible=visible&&detail;for(const mesh of item.low)mesh.visible=visible&&!detail}lodInitialized=true;
+}
+const waterMat=new T.MeshStandardMaterial({color:0x142b32,roughness:.28,metalness:0,envMapIntensity:.60});
+const shoreCanvas=document.createElement('canvas');shoreCanvas.width=shoreCanvas.height=2048;const shoreCtx=shoreCanvas.getContext('2d',{alpha:false});shoreCtx.fillStyle='#000';shoreCtx.fillRect(0,0,2048,2048);
+const shoreK=2048/3000;
+for(const [width,alpha] of [[8,.13],[4,.30],[2.4,.65]]){shoreCtx.strokeStyle='rgba(255,255,255,'+alpha+')';shoreCtx.lineWidth=width*shoreK;for(const e of quayEdges){const pt=t=>e.axis==='x'?[(e.fixed+1500)*shoreK,(t+1500)*shoreK]:[(t+1500)*shoreK,(e.fixed+1500)*shoreK];shoreCtx.beginPath();shoreCtx.moveTo(...pt(e.lo));shoreCtx.lineTo(...pt(e.hi));shoreCtx.stroke();}}
+shoreCtx.fillStyle='#000';for(const [a,b,c,d] of land)shoreCtx.fillRect((a+1500)*shoreK,(c+1500)*shoreK,(b-a)*shoreK,(d-c)*shoreK);
+const shoreRGBA=shoreCtx.getImageData(0,0,2048,2048).data,shoreBytes=new Uint8Array(2048*2048);for(let i=0;i<shoreBytes.length;i++)shoreBytes[i]=shoreRGBA[i*4];
+const shoreMap=new T.DataTexture(shoreBytes,2048,2048,renderer.capabilities.isWebGL2?T.RedFormat:T.LuminanceFormat);shoreMap.minFilter=T.LinearFilter;shoreMap.magFilter=T.LinearFilter;shoreMap.flipY=true;shoreMap.needsUpdate=true;shoreCanvas.width=shoreCanvas.height=1;
+const seaTime={value:0},seaSun={value:sun.position.clone().normalize()};
+// Deep-water dispersion omega=sqrt(g*k), with bounded harbor amplitudes.
+// Three independent long wave trains deform the mesh; fine ripples remain shading-only.
+const swellGLSL=String.raw`
+ vec3 waveTerm(vec2 p,float t,vec2 d,float k,float a,float phase){float f=dot(p,d)*k-sqrt(9.81*k)*t+phase;return vec3(a*sin(f),-a*k*cos(f)*d);}
+ vec3 harborSwell(vec2 p,float t){float fade=1.-smoothstep(1380.,1660.,max(abs(p.x),abs(p.y)));return fade*(waveTerm(p,t,vec2(.819,.574),.151,.31,.9)+waveTerm(p,t,vec2(-.342,.940),.196,.18,2.4)+waveTerm(p,t,vec2(.985,-.174),.242,.12,4.7));}
+`;
+const seaWaves=String.raw`
+ float waveHash(vec2 q){return fract(sin(dot(q,vec2(91.17,227.31)))*43758.5453);}
+ // Gradient of interpolated stochastic wave height; nonperiodic world field.
+ vec2 waveGrad(vec2 q){vec2 i=floor(q),f=fract(q),u=f*f*(3.-2.*f),du=6.*f*(1.-f);float a=waveHash(i),b=waveHash(i+vec2(1.,0.)),c=waveHash(i+vec2(0.,1.)),d=waveHash(i+vec2(1.));return vec2(mix(b-a,d-c,u.y)*du.x,mix(c-a,d-b,u.x)*du.y);}
+ vec2 seaSlope(vec2 p,float t){
+  const mat2 r=mat2(.82,.57,-.57,.82);vec2 drift=vec2(.83,.56)*t;
+  vec2 w=waveGrad(p*.045)*1.7;
+  vec2 q=r*(p-drift*.85)*vec2(.41,.19)+w;
+  vec2 q2=vec2(p.x*.62+p.y*.47,p.y*.69-p.x*.35)-drift*.64+w*.64;
+  vec2 q3=vec2(p.x*.87-p.y*.57,p.x*.55+p.y*.90)-drift*.40;
+  float aa=1.-smoothstep(.35,2.0,length(fwidth(q))),bb=1.-smoothstep(.35,2.0,length(fwidth(q2))),cc=1.-smoothstep(.35,2.0,length(fwidth(q3)));
+  return mat2(.82,-.57,.57,.82)*(waveGrad(q)*vec2(.27,.13))*aa+waveGrad(q2)*.15*bb+waveGrad(q3)*.095*cc;
+ }
+`;
+waterMat.onBeforeCompile=shader=>{
+ shader.uniforms.uShore={value:shoreMap};shader.uniforms.uSeaTime=seaTime;shader.uniforms.uSeaSun=seaSun;
+ shader.uniforms.uPortReflection=reflectionPlanes.sea.map;shader.uniforms.uPortProjection=reflectionPlanes.sea.projection;shader.uniforms.uSeaReflect=reflUniforms.uSeaReflect;
+ shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nuniform float uSeaTime;'+swellGLSL).replace('#include <begin_vertex>','#include <begin_vertex>\nvec2 seaXZ=(modelMatrix*vec4(position,1.)).xz;transformed.z+=harborSwell(seaXZ,uSeaTime).x;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvSea=(modelMatrix*vec4(transformed,1.0)).xyz;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vSea;\nuniform sampler2D uShore;\nfloat seaHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float seaNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(seaHash(i),seaHash(i+vec2(1.,0.)),f.x),mix(seaHash(i+vec2(0.,1.)),seaHash(i+vec2(1.,1.)),f.x),f.y);}\nuniform float uSeaTime;\nuniform vec3 uSeaSun;\nuniform float uSeaReflect;'+seaWaves+swellGLSL+reflectionCommon).replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nvec2 seaP=vSea.xz;vec2 rip=seaSlope(seaP,uSeaTime)*.78+harborSwell(seaP,uSeaTime).yz;vec2 f=seaP*2.1;float aa=1.-smoothstep(.5,2.,length(fwidth(f)));rip+=vec2(seaNoise(f+vec2(.2,0.))-seaNoise(f-vec2(.2,0.)),seaNoise(f+vec2(0.,.2))-seaNoise(f-vec2(0.,.2)))*.11*aa;float nearWave=1.-smoothstep(400.,2500.,distance(cameraPosition,vSea));normal=normalize(normal+mat3(viewMatrix)*vec3(rip.x,0.,rip.y)*nearWave);').replace('#include <color_fragment>','#include <color_fragment>\nfloat seaRip=seaNoise(vSea.xz*.027);diffuseColor.rgb*=.82+.22*seaRip;vec2 shoreUV=vSea.xz/3000.+.5;float inMap=step(0.,shoreUV.x)*step(shoreUV.x,1.)*step(0.,shoreUV.y)*step(shoreUV.y,1.);float shore=texture2D(uShore,vec2(shoreUV.x,1.-shoreUV.y)).r*inMap;float runup=harborSwell(vSea.xz,uSeaTime).x;float foamNoise=seaNoise(vSea.xz*.83+vec2(-.16,.10)*uSeaTime)*.67+seaNoise(vSea.xz*.21+vec2(.08,-.06)*uSeaTime)*.33;float froth=shore*smoothstep(.40,.84,foamNoise+runup*.22);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.47,.57,.54),froth*.65);').replace('#include <tonemapping_fragment>','vec3 seaN=normalize(vec3(rip.x,1.,rip.y));vec3 seaV=normalize(cameraPosition-vSea);vec3 halfDir=normalize(seaV+uSeaSun);float ndh=max(0.,dot(seaN,halfDir));float facet=exp(-(1.-ndh)*460.);float grazing=pow(1.-max(0.,dot(seaN,seaV)),5.);float baseLum=dot(gl_FragColor.rgb,vec3(.2126,.7152,.0722));vec3 broad=gl_FragColor.rgb/(1.+max(0.,baseLum-.05)*5.4);gl_FragColor.rgb=broad*.82+vec3(1.0,.62,.27)*facet*(.45+.55*grazing);if(uSeaReflect>.5){vec4 reflected=portSample(vec3(vSea.x,-.25,vSea.z),rip*.052);vec3 col=reflected.rgb*vec3(.82,.91,.95);float lum=dot(col,vec3(.2126,.7152,.0722));col/=1.+max(0.,lum-.09)*3.4;float alpha=clamp(.018+grazing*.64,0.,.66)*reflected.a*smoothstep(.012,.065,seaV.y)*mix(.50,1.,smoothstep(.20,.72,foamNoise));gl_FragColor.rgb=mix(gl_FragColor.rgb,col,alpha);}\n#include <tonemapping_fragment>');
+
+};
+// A nonuniform mesh covers the exact former water rectangles, excluding the
+// dry dock. Dense near-shore grid, very coarse offshore: no extra draw calls.
+function waterTile(x,z,w,d){
+ const axis=(lo,hi)=>{const set=new Set([lo,hi]);for(const bound of [-1700,-1500,1500,1700])if(bound>lo&&bound<hi)set.add(bound);for(let p=-1500;p<=1500;p+=10)if(p>lo&&p<hi)set.add(p);return [...set].sort((a,b)=>a-b)};
+ const xs=axis(x-w/2,x+w/2),zs=axis(z-d/2,z+d/2),p=[],n=[],uv=[],idx=[];
+ for(const zz of zs)for(const xx of xs){p.push(xx-x,z-zz,0);n.push(0,0,1);uv.push((xx-x)/w+.5,(z-zz)/d+.5);}
+ for(let j=0;j<zs.length-1;j++)for(let i=0;i<xs.length-1;i++){const a=j*xs.length+i,b=a+1,c=a+xs.length,e=c+1;idx.push(a,c,b,b,c,e);}
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('normal',new T.Float32BufferAttribute(n,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeBoundingBox();g.boundingBox.min.z=-.7;g.boundingBox.max.z=.7;g.computeBoundingSphere();g.boundingSphere.radius+=.7;
+ const water=new T.Mesh(g,waterMat);water.rotation.x=-Math.PI/2;water.position.set(x,-.25,z);waterSurfaces.push(water);scene.add(water);
+}
+waterTile(-9655,0,20690,40000);waterTile(10505,0,18990,40000);waterTile(850,-10240,320,19520);waterTile(850,10060,320,19880);
+// Thin dielectric films above the existing PBR substrate, not a fake
+// sky-only highlight. The world-projected capture contains the actual scene.
+// Explicit separate mesh visibility also makes reflection A/B tests reliable.
+const filmVertex='varying vec3 vFilm;void main(){vFilm=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vFilm,1.);}';
+const filmNoise='float fh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}';
+function filmMaterial(sea){
+ const frag='varying vec3 vFilm;\n'+reflectionCommon+filmNoise+(sea?'uniform float uSeaTime;'+seaWaves:'')+'\nvoid main(){vec3 v=normalize(cameraPosition-vFilm);float f=.025+.975*pow(1.-clamp(v.y,0.,1.),5.);vec2 p=vFilm.xz;float m=fn(p*.044)*.72+fn(p*.20)*.28;vec2 noise=vec2(fn(p*.33),fn(p.yx*.37))-.5;'+
+ (sea?'float alpha=clamp(.018+f*.64,0.,.66);vec2 swell=seaSlope(p,uSeaTime);vec4 reflected=portSample(vFilm,noise*.006+swell*.058);float crest=smoothstep(.27,.78,fn(vec2(p.x*.20,p.y*.78))*.64+fn(p*.91)*.36);alpha*=reflected.a*smoothstep(.012,.065,v.y)*mix(.44,1.,crest);vec3 col=reflected.rgb*vec3(.82,.91,.95);float lum=dot(col,vec3(.2126,.7152,.0722));col/=1.+max(0.,lum-.09)*3.4;':'float fine=fn(p*.57);float wet=smoothstep(.45,.63,m*.78+fine*.22);float alpha=wet*clamp(.075+f*.88,0.,.91);vec4 reflected=portSample(vec3(vFilm.x,5.14,vFilm.z),noise*.0018);alpha*=reflected.a;if(alpha<.008)discard;vec3 col=reflected.rgb*vec3(.98,.99,.99);')+
+ '\ngl_FragColor=vec4(col,alpha);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}';
+ return new T.ShaderMaterial({uniforms:{uPortReflection:reflectionPlanes[sea?'sea':'road'].map,uPortProjection:reflectionPlanes[sea?'sea':'road'].projection,uSeaTime:seaTime},vertexShader:filmVertex,fragmentShader:frag,transparent:true,depthWrite:false,side:T.FrontSide,polygonOffset:true,polygonOffsetFactor:-1});
+}
+const pavementFilmMaterial=filmMaterial(false);
+function addFilm(group,mat,x,y,z,w,d){const mesh=new T.Mesh(new T.PlaneGeometry(w,d),mat);mesh.rotation.x=-Math.PI/2;mesh.position.set(x,y,z);mesh.renderOrder=4;group.add(mesh)}
+for(const [x,z,w,d] of pavedSlabs)addFilm(roadFilm,pavementFilmMaterial,x,5.145,z,w-8,d-8);
+// Water reflections are now combined in the displaced water material itself.
+// Aircraft gates are free-standing in the air, not arches with ground legs.
+const gates=layout.sectors.flatMap((s,i)=>s.gates.map(p=>({p:V(...p),sector:i}))).map((g,i)=>({...g,index:i+1}));
+const guide=new T.Group();guide.name='aerial-route';scene.add(guide);
+// A single instanced set of industrial beacons replaces 64 individual ring
+// submissions. Inner radius remains 9.65 m (5.79 m for confined sectors).
+const edgeGeo=new T.TorusGeometry(10.5,.65,10,64);
+const edgeMat=new T.MeshStandardMaterial({color:0x27323a,metalness:.55,roughness:.48});
+const stripes=[];
+for(const z of [-.58,.58]){const g=new T.TorusGeometry(10.35,.18,8,64);g.translate(0,0,z);stripes.push(g)}
+// Solid red inner edge remains within the original opening envelope.
+stripes.push(new T.TorusGeometry(10,.35,8,64));
+const stripeGeo=T.BufferGeometryUtils.mergeBufferGeometries(stripes);
+const gateMat=new T.MeshBasicMaterial({color:new T.Color().setRGB(1.45,.018,.012),toneMapped:true});
+const fittings=[];
+for(let k=0;k<8;k++){const theta=k*Math.PI/4;const g=new T.BoxGeometry(1.25,1.7,1.5);g.rotateZ(theta-Math.PI/2);g.translate(10.62*Math.cos(theta),10.62*Math.sin(theta),0);fittings.push(g)}
+const fittingGeo=T.BufferGeometryUtils.mergeBufferGeometries(fittings),fittingMat=new T.MeshStandardMaterial({color:0x9c6440,metalness:.45,roughness:.68});
+const gateMeshes=[[edgeGeo,edgeMat],[stripeGeo,gateMat],[fittingGeo,fittingMat]].map(([g,m])=>{const mesh=new T.InstancedMesh(g,m,gates.length);mesh.frustumCulled=false;guide.add(mesh);return mesh});
+const gateTransform=new T.Object3D();
+for(let i=0;i<gates.length;i++){const g=gates[i],next=gates[(i+1)%gates.length],prev=gates[(i+gates.length-1)%gates.length],tangent=next.p.clone().sub(prev.p).normalize();gateTransform.position.copy(g.p);gateTransform.quaternion.setFromUnitVectors(V(0,0,1),tangent);gateTransform.scale.setScalar(g.sector===5||g.sector===6||g.sector===7?.6:1);gateTransform.updateMatrix();for(const mesh of gateMeshes)mesh.setMatrixAt(i,gateTransform.matrix)}
+for(const mesh of gateMeshes)mesh.instanceMatrix.needsUpdate=true;
+const route=new T.LineLoop(new T.BufferGeometry().setFromPoints(gates.map(g=>g.p)),new T.LineBasicMaterial({color:0xff4935,fog:false,toneMapped:false,transparent:true,opacity:.96}));guide.add(route);for(const alt of layout.alternates){const pts=[gates[alt.from].p,...alt.via.map(p=>V(...p)),gates[alt.to].p];const line=new T.Line(new T.BufferGeometry().setFromPoints(pts),new T.LineDashedMaterial({color:0xffc05d,fog:false,toneMapped:false,dashSize:12,gapSize:8,transparent:true,opacity:.85}));line.computeLineDistances();guide.add(line)}
+// Separate asset inspection scene shares the exact merged source models and lighting.
+const assetScene=new T.Scene();assetScene.background=new T.Color(0x303941);assetScene.environment=scene.environment;assetScene.add(new T.HemisphereLight(0xc0d8ed,0x49413c,1.35));const assetSun=new T.DirectionalLight(0xffcf99,3.1);assetSun.position.set(-160,100,80);assetScene.add(assetSun);const assetFloor=new T.Mesh(new T.PlaneGeometry(2000,2000),new T.MeshStandardMaterial({color:0x45494b,roughness:.8}));assetFloor.rotation.x=-Math.PI/2;assetFloor.position.y=-.1;assetScene.add(assetFloor);let inspected=null;const assetCamera=new T.PerspectiveCamera(42,1,.1,4000);
+function assetView(name,angle=0){const source=templates[name];if(!source)throw Error('unknown asset '+name);if(inspected)assetScene.remove(inspected);inspected=source.clone();assetScene.add(inspected);const bounds=new T.Box3().setFromObject(inspected),center=bounds.getCenter(V(0,0,0)),size=bounds.getSize(V(0,0,0)),r=Math.max(size.x,size.y,size.z);assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();const elongated=size.x>size.z*2.5;const delta=(elongated?V(r*.34,r*.40,r*.93):V(r*.85,r*.58,r*.95)).applyAxisAngle(up,angle);assetCamera.position.copy(center).add(delta);assetCamera.lookAt(center);active=assetCamera;mode='asset-'+name;tour=false;render()}
+// Keep only a small fixed-size set of real practical point lights active near
+// the camera. Distant fixtures retain their emissive meshes and baked glow pools.
+// Soft optical highlights are a single depth-tested world-space point batch.
+ // They are not photographic overlays and disappear behind opaque geometry.
+ const fixtureGeo=new T.BufferGeometry();
+ fixtureGeo.setAttribute('position',new T.Float32BufferAttribute(fixturePositions.flat(),3));
+ const fixtureHaloMat=new T.ShaderMaterial({uniforms:{uViewportHeight:{value:900}},vertexShader:`
+ uniform float uViewportHeight;
+ varying float vFade;
+ void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;
+ float d=max(1.,-p.z);gl_PointSize=clamp(uViewportHeight*1.8/d,1.,28.);
+ vFade=1.-smoothstep(350.,1800.,d);}
+ `,fragmentShader:`
+ varying float vFade;
+ void main(){float r=length(gl_PointCoord-.5)*2.;float a=exp(-r*r*7.)*vFade*.26;
+ if(r>1.)discard;gl_FragColor=vec4(1.,.51,.19,a);}
+ `,transparent:true,depthWrite:false,blending:T.AdditiveBlending});
+ const fixtureHalos=new T.Points(fixtureGeo,fixtureHaloMat);fixtureHalos.frustumCulled=false;fixtureHalos.renderOrder=5;scene.add(fixtureHalos);
+ const practical=Array.from({length:6},()=>{const p=new T.PointLight(0xffb771,0,95,2);scene.add(p);return p});
+function updatePractical(camera){
+ const pos=camera.position,dir=camera.getWorldDirection(V(0,0,0));
+ const nearby=fixturePositions.map(p=>{const dx=p[0]-pos.x,dy=p[1]-pos.y,dz=p[2]-pos.z,d=dx*dx+dy*dy+dz*dz,dot=(dx*dir.x+dy*dir.y+dz*dir.z)/Math.max(1,Math.sqrt(d));return {p,d,score:d*(dot<-.25?2.5:1)}});
+ if(guide.visible)for(const g of gates){
+  if(g.p.y<8||g.p.y>65)continue;
+  const p=[g.p.x,g.p.y-(g.sector>=5&&g.sector<=7?5.5:9),g.p.z];
+  const dx=p[0]-pos.x,dy=p[1]-pos.y,dz=p[2]-pos.z,d=dx*dx+dy*dy+dz*dz;
+  if(d<155*155)nearby.push({p,d,score:d*.68,gate:true});
+ }
+ nearby.sort((a,b)=>a.score-b.score);
+ for(let i=0;i<practical.length;i++){const f=nearby[i],light=practical[i];if(f&&f.d<160**2){
+  light.position.set(...f.p);const [x,y,z]=f.p,insideHull=Math.abs(x-850)<32&&z>-305&&z<75&&y<15;
+  // Tight hull fixtures need less output than tall exterior floodlights.
+  light.intensity=f.gate?2450:insideHull?390:1280;light.distance=f.gate?85:insideHull?35:98;light.color.setHex(f.gate?0xff2719:insideHull?0xffaa64:0xffb771);
+ }else light.intensity=0}
+}
+// Localized water-vapor plumes, anchored to actual boiler stack outlets.
+// One depth-tested point batch; no screen overlay and no extra light objects.
+const steamPos=[],steamAttrib=[];
+for(let i=0;i<steamOutlets.length;i++)for(let j=0;j<18;j++){
+ const t=(j+.5)/18,o=steamOutlets[i],phase=i*5.3+j*2.399;
+ steamPos.push(o[0]+t*t*25+Math.sin(phase)*t*5,o[1]+t*29,o[2]+t*t*11+Math.cos(phase)*t*5);
+ steamAttrib.push(2+t*9,Math.sin(t*Math.PI)*(.28-t*.12),phase);
+}
+const steamGeo=new T.BufferGeometry();steamGeo.setAttribute('position',new T.Float32BufferAttribute(steamPos,3));steamGeo.setAttribute('aSteam',new T.Float32BufferAttribute(steamAttrib,3));
+const steamMat=new T.ShaderMaterial({uniforms:{uSteamHeight:{value:720}},vertexShader:`
+ attribute vec3 aSteam;uniform float uSteamHeight;varying vec2 vSteam;
+ void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;
+ gl_PointSize=clamp(aSteam.x*uSteamHeight*projectionMatrix[1][1]/max(1.,-p.z),1.,100.);vSteam=vec2(aSteam.y,aSteam.z);}
+ `,fragmentShader:`
+ varying vec2 vSteam;
+ void main(){vec2 q=gl_PointCoord-.5;float r=length(q)*2.;float n=.78+.12*sin(q.x*19.+q.y*11.+vSteam.y)+.10*cos(q.x*11.-q.y*21.-vSteam.y);
+ float a=smoothstep(1.,.15,r)*n*vSteam.x;if(a<.002)discard;gl_FragColor=vec4(.68,.70,.72,a);}
+ `,transparent:true,depthWrite:false,depthTest:true});
+const steamPlumes=new T.Points(steamGeo,steamMat);steamPlumes.frustumCulled=false;steamPlumes.renderOrder=4;scene.add(steamPlumes);
+const camera=new T.PerspectiveCamera(57,1,.5,12000),top=new T.OrthographicCamera(-1650,1650,1650,-1650,1,10000);let active=camera,mode='overview',tour=false,dist=0,drag=false,yaw=0,pitch=0;const keys=new Set(),tmp=V(0,0,0);let last=performance.now();const presets={overview:[[-1700,1420,1720],[0,30,0]],north:[[1620,1320,-1700],[0,25,0]],top:[[0,4200,0],[0,0,0]],'1-launch':[[-1164,28,1110],[-1098,24,780]],'2-containers':[[-1030,28,420],[-950,32,100]],'3-crane':[[-1100,39,-395],[-900,85,-575]],'4-skybridge':[[-500,236,-1070],[-140,236,-1070]],'5-drop':[[850,285,-650],[850,-3,-315]],'6-drydock':[[850,-2,-308],[850,-4,-50]],'7-foundry':[[1080,44,230],[1080,43,490]],'8-pipes':[[850,38,690],[1070,50,950]],'9-offshore':[[1050,45,1320],[440,26,1290]],'10-final':[[100,28,1110],[-900,35,1080]]};
+function resize(){const a=innerWidth/innerHeight;renderer.setSize(innerWidth,innerHeight);fixtureHaloMat.uniforms.uViewportHeight.value=renderer.domElement.height;steamMat.uniforms.uSteamHeight.value=renderer.domElement.height;camera.aspect=a;camera.updateProjectionMatrix();const h=1580*Math.max(1,1/a);top.left=-h*a;top.right=h*a;top.top=h;top.bottom=-h;top.updateProjectionMatrix()}
+function angles(){camera.rotation.order='YXZ';yaw=camera.rotation.y;pitch=camera.rotation.x}
+function setView(id){if(!presets[id])throw Error('unknown view '+id);tour=false;mode=id;active=id==='top'?top:camera;if(active===camera){camera.fov=id==='1-launch'?62:57;camera.updateProjectionMatrix()}scene.fog.density=id==='top'?0:.00012;const [p,l]=presets[id];active.position.set(...p);active.up.set(0,id==='top'?0:1,id==='top'?-1:0);active.lookAt(...l);if(active===camera)angles();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));render()}
+
+// Shadow focus for a 3 km game world: one stabilized high-resolution local
+// map follows the actual inspection view. One 2048² camera-framed shadow map
+// gives markedly better world-space texel density at 20-80 m flight height
+// than a single once-baked 4096² shadow for the entire harbor. Distant
+// overviews retain a whole-world cascade surrogate. Preserve light direction.
+const sunWorldAxis=sun.position.clone().sub(sun.target.position).normalize();
+const shadowFocus=V(1e8,0,1e8);let shadowSpan=0,shadowUpdates=0;
+function updateShadowFocus(cam){
+ const high=cam.isOrthographicCamera||cam.position.y>310;
+ const span=high?1900:cam.position.y>180?1150:410;
+ const focal=high?V(0,0,0):cam.position.clone().addScaledVector(cam.getWorldDirection(V(0,0,0)),115);
+ focal.y=0;
+ focal.x=T.MathUtils.clamp(focal.x,-1260,1260);
+ focal.z=T.MathUtils.clamp(focal.z,-1260,1260);
+ const tolerance=high?95:48;
+ if(shadowSpan===span&&shadowFocus.distanceToSquared(focal)<tolerance*tolerance)return;
+ sun.target.position.copy(focal);
+ sun.position.copy(focal).addScaledVector(sunWorldAxis,2400);
+ sun.target.updateMatrixWorld(true);sun.updateMatrixWorld(true);
+ Object.assign(sun.shadow.camera,{left:-span,right:span,top:span,bottom:-span});
+ sun.shadow.camera.updateProjectionMatrix();
+ renderer.shadowMap.needsUpdate=true;
+ shadowFocus.copy(focal);shadowSpan=span;shadowUpdates++;
+}
+
+let lastPreparedKey='',waterAnimation=true,lastWaterFrame=-Infinity;
+function render(){if(active!==assetCamera){const key=cameraKey(active);const prep=key!==lastPreparedKey||renderer.shadowMap.needsUpdate||tour||keys.size||drag;if(prep){updateShadowFocus(active);scene.fog.density=active.isOrthographicCamera?0:T.MathUtils.lerp(.00036,.00014,T.MathUtils.clamp(active.position.y/280,0,1));fixtureHalos.visible=active.isPerspectiveCamera&&active.position.y<260;steamPlumes.visible=active.isPerspectiveCamera&&active.position.y<310;updatePractical(active);updateContainerLOD(active);lastPreparedKey=key;}
+ updatePortReflection(active);if(prep&&!renderer.shadowMap.needsUpdate)updateContainerLOD(active);}
+ const refreshPending=active!==assetCamera&&renderer.shadowMap.needsUpdate;renderer.render(active===assetCamera?assetScene:scene,active);if(refreshPending&&!renderer.shadowMap.needsUpdate)lastPreparedKey='';document.getElementById('readout').textContent=mode.toUpperCase()+' / '+active.position.toArray().map(Math.round).join(' · ')+' m';lastWaterFrame=performance.now();}
+const lengths=gates.map((g,i)=>g.p.distanceTo(gates[(i+1)%gates.length].p)),total=lengths.reduce((a,b)=>a+b,0);
+function coursePoint(s){s=((s%total)+total)%total;let i=0;while(s>=lengths[i]&&i<lengths.length-1){s-=lengths[i++]};return gates[i].p.clone().lerp(gates[(i+1)%gates.length].p,s/lengths[i])}
+function sampleCourse(s){active=camera;mode='course';camera.position.copy(coursePoint(s));camera.lookAt(coursePoint(s+28));angles()}
+function tick(t){const elapsed=Math.max(0,(t-last)/1000),dt=Math.min(.05,elapsed);last=t;if(waterAnimation&&!document.hidden)seaTime.value+=Math.min(.25,elapsed);if(tour){dist=(dist+dt*42)%total;sampleCourse(dist)}else if(active===camera&&keys.size){const step=dt*(keys.has('ShiftLeft')||keys.has('ShiftRight')?160:45);camera.getWorldDirection(tmp);if(keys.has('KeyW'))camera.position.addScaledVector(tmp,step);if(keys.has('KeyS'))camera.position.addScaledVector(tmp,-step);tmp.cross(up).normalize();if(keys.has('KeyD'))camera.position.addScaledVector(tmp,step);if(keys.has('KeyA'))camera.position.addScaledVector(tmp,-step);if(keys.has('KeyE'))camera.position.y+=step;if(keys.has('KeyQ'))camera.position.y-=step;camera.position.x=T.MathUtils.clamp(camera.position.x,-1385,1385);camera.position.z=T.MathUtils.clamp(camera.position.z,-1385,1385);camera.position.y=T.MathUtils.clamp(camera.position.y,layout.minAltitude,layout.ceiling);mode='free'}if(!document.hidden&&(tour||keys.size||drag||waterAnimation&&active!==assetCamera&&t-lastWaterFrame>=1000/30))render();requestAnimationFrame(tick)}
+addEventListener('resize',()=>{resize();assetCamera.aspect=innerWidth/innerHeight;assetCamera.updateProjectionMatrix();render()});addEventListener('keydown',e=>{if(e.code==='KeyH'&&!e.repeat)document.body.classList.toggle('clean');keys.add(e.code)});addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>{keys.clear();drag=false});renderer.domElement.addEventListener('pointerdown',e=>{if(active!==camera)return;drag=true;tour=false;renderer.domElement.setPointerCapture(e.pointerId)});renderer.domElement.addEventListener('pointerup',()=>drag=false);renderer.domElement.addEventListener('pointercancel',()=>drag=false);renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;yaw-=e.movementX*.003;pitch=T.MathUtils.clamp(pitch-e.movementY*.003,-1.5,1.5);camera.rotation.set(pitch,yaw,0,'YXZ');mode='free';render()});renderer.domElement.addEventListener('wheel',e=>{if(active!==camera)return;e.preventDefault();camera.fov=T.MathUtils.clamp(camera.fov+e.deltaY*.025,28,88);camera.updateProjectionMatrix();render()},{passive:false});
+for(const id of Object.keys(presets)){const b=document.createElement('button');b.dataset.view=id;b.textContent=id; b.onclick=()=>setView(id);document.getElementById('views').append(b)}
+document.getElementById('tour').onclick=()=>{tour=!tour;if(tour){dist=0;sampleCourse(0)}};document.getElementById('route').onclick=()=>{guide.visible=!guide.visible;render()};document.getElementById('capture').onclick=()=>{render();const a=document.createElement('a');a.download='iron-tide-'+mode+'.png';a.href=renderer.domElement.toDataURL('image/png');a.click()};
+delete window.IRON_TIDE_MODELS;delete window.IRON_TIDE_TEXTURES;renderer.shadowMap.needsUpdate=true;resize();setView('overview');requestAnimationFrame(tick);
+// Native model audit checks finite mesh data, non-empty geometry, bounds, and
+// material usage. It does not substitute for engineering or gameplay clearance validation.
+function assetAudit(){const out={};for(const [name,group] of Object.entries(templates)){const bounds=new T.Box3().setFromObject(group),size=bounds.getSize(V(0,0,0));let verts=0,tris=0,bad=0,degenerate=0;
+ for(const mesh of group.children){const g=mesh.geometry,p=g.getAttribute('position'),n=g.getAttribute('normal'),uv=g.getAttribute('uv'),idx=g.index;verts+=p.count;tris+=(idx?idx.count:p.count)/3;
+ for(const attr of [p,n,uv])if(attr){for(const v of attr.array)if(!Number.isFinite(v))bad++}
+ const a=V(0,0,0),b=V(0,0,0),c=V(0,0,0);for(let i=0;i<(idx?idx.count:p.count);i+=3){const k=idx?idx.getX(i):i,l=idx?idx.getX(i+1):i+1,m=idx?idx.getX(i+2):i+2;a.fromBufferAttribute(p,k);b.fromBufferAttribute(p,l);c.fromBufferAttribute(p,m);if(b.sub(a).cross(c.sub(a)).lengthSq()<1e-14)degenerate++}
+ }out[name]={vertices:verts,triangles:tris,nonfinite:bad,degenerate,meters:size.toArray(),materials:group.children.length}}return out}
+// Sample functional geometry, not just aggregate complexity. These probes
+// test real triangles in local model coordinates; they are not a full CAD
+// certification. Single-sided probes also detect incorrect hull winding.
+function architectureAudit(){
+ const shop=templates['outfit-workshop'],hull=templates['merchant-vessel'],annex=templates['stage3-outfitting-annex'],boiler=templates['stage3-boiler-house'],sub=templates['stage3-electrical-substation'],ray=new T.Raycaster();
+ const hit=(root,origin,dir,len,twoSided=true)=>{
+  root.updateMatrixWorld(true);const sides=new Map();
+  if(twoSided)for(const o of root.children){if(!sides.has(o.material))sides.set(o.material,o.material.side);o.material.side=T.DoubleSide;}
+  try{ray.set(V(...origin),V(...dir).normalize());ray.near=.005;ray.far=len;return ray.intersectObject(root,true).length>0}
+  finally{for(const [mat,side] of sides)mat.side=side;}
+ };
+ return {
+  openFront:!hit(shop,[0,4,46],[0,0,-1],8),
+  openRear:!hit(shop,[0,4,-46],[0,0,1],8),
+  closedFront:hit(shop,[19,4,46],[0,0,-1],8),
+  closedSide:hit(shop,[34,5,0],[-1,0,0],6),
+  roofCovered:hit(shop,[7,26,5],[0,-1,0],9),
+  floorSupported:hit(shop,[4,2,4],[0,-1,0],3),
+  hullKeelClosed:hit(hull,[0,-6,0],[0,1,0],3,false),
+  hullBowClosed:hit(hull,[106,9.3,0],[-1,0,0],9,false),
+  hullSternClosed:hit(hull,[-106,4,0],[1,0,0],4,false),
+  stairFullWidth:hit(annex,[16.25,17.2,8.1],[0,-1,0],1.3)&&hit(annex,[16.25,17.2,9.9],[0,-1,0],1.3),
+  exteriorDrain:hit(annex,[-28,9,19.3],[0,0,-1],.95),
+  mountedVent:hit(annex,[32.3,7.7,0],[-1,0,0],1.9),
+  boilerPipe:hit(boiler,[-19,14,-29],[0,0,1],1.3),
+  busSupport:hit(sub,[-4,7.75,6.1],[0,-1,0],.5),
+  serviceAnnexWall:hit(shop,[40,3,-22],[-1,0,0],2),
+  serviceAnnexRoof:hit(shop,[35,9,-22],[0,-1,0],3),
+  galleryDeck:hit(shop,[34,11,-22],[0,-1,0],2),
+  galleryStair:hit(shop,[33.35,6.2,-2.46],[0,-1,0],2),
+  serviceHallWing:hit(templates['gantry-service-hall'],[20.3,8.8,10],[0,-1,0],2),
+  serviceHallMonitor:hit(templates['gantry-service-hall'],[-5,36,-6],[0,-1,0],3),
+  pressureVessel:hit(templates['reference-offshore-platform'],[-11,30,13],[0,-1,0],1.1),
+  pressureSaddle:hit(templates['reference-offshore-platform'],[-14,27.5,13],[0,-1,0],2.5),
+  continuousLiftRail:hit(templates['stage3-ship-lift-portal'],[62,1.2,0],[0,-1,0],.45)
+ };
+}
+// glTF 2.0 emissiveFactor components must be within [0,1]. Preserve HDR
+// emission using the ratified extension instead of clipping model lighting.
+function portableGLB(buffer){
+ const view=new DataView(buffer),len=view.getUint32(12,true),src=new Uint8Array(buffer);
+ if(view.getUint32(16,true)!==0x4e4f534a)throw Error('missing GLB JSON chunk');
+ const doc=JSON.parse(new TextDecoder().decode(src.subarray(20,20+len)));
+ let changed=false;
+ for(const mat of doc.materials||[]){
+  if(!mat.emissiveFactor)continue;
+  const gain=Math.max(...mat.emissiveFactor);
+  if(gain>1){
+   mat.emissiveFactor=mat.emissiveFactor.map(x=>x/gain);
+   mat.extensions={...mat.extensions,KHR_materials_emissive_strength:{emissiveStrength:gain*(mat.extensions?.KHR_materials_emissive_strength?.emissiveStrength||1)}};
+   changed=true;
+  }
+ }
+ if(!changed)return src;
+ doc.extensionsUsed=[...new Set([...(doc.extensionsUsed||[]),'KHR_materials_emissive_strength'])];
+ const enc=new TextEncoder().encode(JSON.stringify(doc)),padded=(enc.length+3)&~3;
+ const tail=src.subarray(20+len),out=new Uint8Array(20+padded+tail.length),v=new DataView(out.buffer);
+ v.setUint32(0,0x46546c67,true);v.setUint32(4,2,true);v.setUint32(8,out.length,true);v.setUint32(12,padded,true);v.setUint32(16,0x4e4f534a,true);
+ out.fill(32,20,20+padded);out.set(enc,20);out.set(tail,20+padded);return out;
+}
+window.IRON_TIDE={assetView,assetAudit,architectureAudit,
+ animateWater(v){waterAnimation=!!v;last=performance.now();},waterTime(t){seaTime.value=t;render()},
+ waterAudit(){return {animated:waterAnimation,time:seaTime.value,triangles:waterSurfaces.reduce((n,w)=>n+w.geometry.index.count/3,0),quayWallMeters:referenceAudit.quayWallMeters,quaySegments:shorelineSegments,reflectionInWater:true}},
+ optimizeCulling(v){compactCulling=!!v;lastPreparedKey='';lastReflectionKey='';render()},
+ benchmarkFrame(){const gl=renderer.getContext(),start=performance.now();render();gl.finish();return performance.now()-start;},
+shellAudit:()=>JSON.parse(JSON.stringify(shellAudits)),referenceAudit(){return {...referenceAudit,lapMeters:total}},heroClearance,bakedLights(v){yardLightEnabled.value=v?1:0;render()},detailView(id){const views={quayBasin:[[-420,260,110],[-360,0,0]],waterline:[[-1190,10,1060],[-1205,0,1010]],gantryBase:[[-900,18,-530],[-962,10,-575]],hullServices:[[850,-2,-280],[868,0,-165]],craneWorkshops:[[-1120,35,-740],[-1040,22,-575]],yardLight:[[-1050,12,1088],[-1020,5,1075]],quaySurface:[[-1178,11,1010],[-1170,8,850]],offshoreDetail:[[925,34,1300],[850,31,1230]]};if(id.startsWith('authored-')){
+  const crane=id==='authored-crane',site=(crane?macroEvidence.lift:macroEvidence.plant)[0];
+  if(!site)throw Error('no supporting assembly for '+id);
+  const yy=5.25+site.scale*(crane?97:22);
+  views[id]=[[site.x+(crane?19:14),yy+(crane?9:6),site.z+(crane?20:17)],[site.x,yy,site.z]];
+ }
+ if(id.startsWith('macro-')){
+  const type=id.slice(6),site=macroEvidence[type]&&macroEvidence[type][0];
+  if(!site)throw Error('no placed site for '+id);
+  const rise={hall:32,lift:62,plant:30,barge:20}[type];
+  const distance={hall:130,lift:160,plant:112,barge:115}[type];
+  const turn=site.angle||0,forward=Math.cos(turn),side=Math.sin(turn);
+  views[id]=[[site.x+distance*forward+distance*.22*side,rise+15,site.z-distance*side+distance*.22*forward],
+              [site.x,rise*.53+(type==='barge'?0:5),site.z]];
+ }
+ if(!views[id])throw Error('unknown detail view '+id);tour=false;mode='detail-'+id;active=camera;camera.position.set(...views[id][0]);camera.up.set(0,1,0);camera.lookAt(...views[id][1]);angles();render()},reflections(v){reflectionsEnabled=!!v;render()},projectGates(){return gates.map(g=>{const p=g.p.clone().project(active);return {index:g.index,sector:g.sector,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,altitude:g.p.y}})},views:Object.keys(presets),setView,clean(v){document.body.classList.toggle('clean',v);for(const o of guide.children)if(o.isLine)o.visible=!v;render()},route(v){guide.visible=v;render()},course(s){tour=false;sampleCourse(s);render()},stats(){return {gates:gates.length,lapMeters:total,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,assets:Object.keys(templates),containerStacks:containerSlots.length,containerChunks:containerChunks.size,containerLODTiles:containerLOD.length,sharedRailBatches,referenceAudit,photoMaterials:loadedMaterials.slice(),skySource,districtBuildings:districtPlan.length,contactFootprints,freightStamps,bakedLightPools,reflectionPasses,reflectionCalls,reflectionTriangles,dualReflection,shadowUpdates,shadowSpan,importedPhotoreal,fixtureCount:fixturePositions.length,haloCount:fixtureGeo.attributes.position.count,sunDirection:sun.position.clone().normalize().toArray(),reflectionActive:(lastReflectionPlane<0?reflUniforms.uSeaReflect.value:reflUniforms.uRoadReflect.value)?(lastReflectionPlane<0?'water':'pavement'):'off',culledInstances,waterSeconds:seaTime.value,view:mode,position:active.position.toArray(),revision:T.REVISION}},async exportAsset(name){const group=templates[name];if(!group)throw Error('unknown asset');return new Promise((resolve,reject)=>{try{new T.GLTFExporter().parse(group,buffer=>{if(!(buffer instanceof ArrayBuffer)){reject(Error('not binary'));return}const bytes=portableGLB(buffer);let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));resolve(btoa(s))},{binary:true,maxTextureSize:['merchant-vessel','stage3-outfitting-vessel'].includes(name)?2048:['ship-hull','stage3-ship-lift-portal','heavy-gantry-detail','outfit-workshop','stage3-repair-barge','plate-processing-hall','coating-shop','gantry-service-hall'].includes(name)?1024:name.startsWith('container-')?512:256,onlyVisible:true})}catch(e){reject(e)}})}};
+})().catch(e=>{console.error(e);const el=document.getElementById('error');el.style.display='block';el.textContent=String(e.stack||e)});
