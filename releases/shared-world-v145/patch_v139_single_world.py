@@ -98,7 +98,8 @@ def patch(source, client):
         "async function rankQueue(){showError('Ranked racing is disabled until the shared-world authoritative ranked rules are certified.');return;if(rankBusy||partyBusy)return;")
     if '<head>' not in text:raise RuntimeError('Missing HTML head')
     text=text.replace('<head>', '<head><script src="./authority-config.js"></script>', 1)
-    return text
+    from ensure_three_utils import patch as supply_geometry_utils
+    return supply_geometry_utils(text)
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser()

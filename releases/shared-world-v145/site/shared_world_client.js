@@ -105,7 +105,8 @@ function createRedlineSharedWorld(){
  function onSnapshot(msg){
    if(!state.connected || msg.world!==state.world||msg.course!==state.course || !Number.isInteger(msg.tick)||msg.tick<=state.tick)return;
    const routeRevision=state.course==='iron'?136:37;
-   if(msg.revision!==routeRevision){state.status='ROUTE REVISION MISMATCH';disconnect();return;}
+   if(msg.revision!==routeRevision){disconnect();state.status='ROUTE REVISION MISMATCH';return;}
+   if(msg.collisionVerified!==true||msg.collisionHash!==window.REDLINE_COLLISION_HASHES?.[state.course]){disconnect();state.status='TERRAIN MESH MISMATCH';return;}
    if(!Array.isArray(msg.players)||msg.players.some(p=>!Array.isArray(p.p)||p.p.length!==3||!p.p.every(Number.isFinite)))return;
    state.tick=msg.tick;state.startTick=msg.startTick;state.lastSeen=state.lastTickWall=gameNow();
    state.currentSelf=msg.players.find(p=>p.id===state.id)||null;
@@ -142,7 +143,8 @@ function createRedlineSharedWorld(){
  // No independent client physics or position publication occurs.
  function sampled(id){
    const history=state.snapshots;if(!history.length)return null;
-   const renderTick=state.tick-6;let a=history[0],b=history.at(-1);
+   const elapsed=limit((gameNow()-state.lastTickWall)/1000,0,.06);
+   const renderTick=state.tick-6+elapsed*60;let a=history[0],b=history.at(-1);
    for(let i=0;i<history.length-1;i++)if(history[i].tick<=renderTick&&history[i+1].tick>=renderTick){a=history[i];b=history[i+1];break;}
    if(renderTick>=history.at(-1).tick)a=b=history.at(-1);
    const p=a.players.find(p=>p.id===id),q=b.players.find(p=>p.id===id);

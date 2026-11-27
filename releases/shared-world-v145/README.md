@@ -1,4 +1,4 @@
-# REDLINE v145 — One Shared World (v139 graphical game + v140 authoritative engine)
+# REDLINE v146 — One Shared World (v139 graphical game + v140 authoritative engine)
 
 ## What this changes
 
@@ -10,13 +10,19 @@ Supabase remains the source of truth for room membership. The Python aiohttp Web
 
 ## Deployment (two separate services)
 
-1. Deploy `authority/` as a **persistent** Docker WebSocket server (Render, Fly.io, a VM, etc.), never a Vercel serverless function. `authority/render.yaml` is an example for a GitHub checkout at `releases/shared-world-v145/authority` and may require a paid Render plan; no such hosting is provisioned by this package.
+1. Deploy `authority/` as a **persistent** Docker WebSocket server (Render, Fly.io, a VM, etc.), never a Vercel serverless function. `authority/render.yaml` is an example for a GitHub checkout at `authority` and may require a paid Render plan; no such hosting is provisioned by this package.
 2. Set `REDLINE_REQUIRE_AUTH=1`, `SUPABASE_URL=https://gudzbisvhrvmduvbtcrh.supabase.co`, `SUPABASE_PUBLISHABLE_KEY=<your publishable key>`, and **server-side only** `SUPABASE_SERVICE_ROLE_KEY=<your service-role key>`. Never put the service-role key in client HTML, Vercel public variables or GitHub. Use a private secret manager. Keep exactly one persistent deployment active for reliable ownership; Supabase lease fencing still protects against split-brain.
 3. Apply `supabase/migrations/redline_single_authority_lease_v145.sql` if deploying to a different database. **This migration has already been applied to the supplied REDLINE Supabase project**, so do not reapply it unnecessarily.
 4. Change `site/authority-config.js` to `window.REDLINE_AUTHORITY_WSS = 'wss://YOUR-AUTHORITY-HOST/ws';` and deploy the complete `site/` folder to your existing static site. The included `iron-tide.pack` must remain next to `index.html`. The authority deployment MUST include `authority/collision_exports/*.f32.gz` and the corresponding JSON manifests, not merely GitHub’s source-only branch.
 5. The public gateway `/health` endpoint should return `ok: true`; test two real devices against the **same** lobby. Host and guest should see one world UUID and consistent snapshots. Test both courses, all four aircraft, reconnect, race completion, shooting, shields, network interruptions and mobile controls.
 
 The default WSS address is blank **intentionally**. Multiplayer fails closed rather than falling back to v139's divergent client-owned pose mirroring.
+
+## Baked geometry and runtime evidence
+
+The original v139 source was booted in local Chromium with SwiftShader WebGL (Grand Gorge and Iron Tide). Runtime instrumentation exported actual world-space triangle arrays from the original collider systems, with SHA-256 archived in `authority/collision_exports/{grand,iron}.json`. Grand: 281,300 triangles, 421-by-421 sampled heightfield. Iron: 2,836,700 triangles from 19,619 collision instances. A separate Iron Tide boot blocker was fixed by injecting the original embedded BufferGeometryUtils implementation into the active Three.js runtime. No visual snapshots or performance measurements were returned by the remote Atelier viewer; its queued actions are not a certification.
+
+The release uses a bounded **sampled** swept-sphere approach, not a proved continuous time-of-impact solution. Dynamic/destructible state and all original flight control settings are not fully parity-tested. The server has measured ~425 MB peak memory for both colliders in the collision test; choose a host with headroom above this.
 
 ## Automated verification
 
@@ -54,7 +60,7 @@ To reproduce the modified HTML from the **included original v139 HTML**:
 python patch_v139_single_world.py --source original/REDLINE_v139_DEPLOY/index.html --out site/index.html
 ```
 
-The patcher asserts exact source anchors before modification, so it will refuse to mutate a different game revision silently. The downloadable archive includes the untouched v139 source in `original/`, the v145 game in `site/`, and the full patcher. The GitHub branch stores source and tests, but does not duplicate the large original embedded visual assets, full game HTML, or collision binary exports; use the downloadable archive for the static site AND mandatory authority collision assets. GitHub CI exercises the source-only network and flight regressions; the downloadable archive additionally runs `test_collision.cjs` against original geometry.
+The patcher asserts exact source anchors before modification, so it will refuse to mutate a different game revision silently. The downloadable archive includes the untouched v139 source in `original/`, the v146 game in `site/`, and the full patcher. The GitHub branch stores source and tests, but does not duplicate the large original embedded visual assets, full game HTML, or collision binary exports; use the downloadable archive for the static site AND mandatory authority collision assets. GitHub CI exercises the source-only network and flight regressions; the downloadable archive additionally runs `test_collision.cjs` against original geometry.
 
 ## Research and rationale
 
@@ -64,3 +70,9 @@ The patcher asserts exact source anchors before modification, so it will refuse 
 - Supabase, **Realtime quotas and rate limits**: https://supabase.com/docs/guides/realtime/quotas
 
 A central fixed-rate simulation with input-only upstream traffic is the correct architectural response to the reported split-world behavior. Supabase is used for validated membership and authority fencing, not for frame-by-frame motion replication.
+
+- three-mesh-bvh / world-space transform guidance: https://github.com/gkjohnson/three-mesh-bvh
+- Pantel and Wolf (2002), dead reckoning for racing and action games: https://scispace.com/papers/on-the-suitability-of-dead-reckoning-schemes-for-games-1ynky6o9mf
+- Decoupled Edge Physics for collaborative XR: https://www.alphaxiv.org/abs/2407.12486
+- `aiohttp` production WebSocket/backpressure API: https://docs.aiohttp.org/en/stable/web_reference.html
+- Open source racing game with offline collision baking: https://github.com/szabolevi98/apex-overdrive

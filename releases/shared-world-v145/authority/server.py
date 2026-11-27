@@ -307,8 +307,8 @@ def create_app():
     app.on_startup.append(gateway.launch)
     app.on_cleanup.append(gateway.cleanup)
     app.router.add_get('/ws',gateway.socket)
-    app.router.add_get('/health',lambda _:web.json_response({'ok':gateway.proc is not None and gateway.proc.returncode is None,'rooms':len(gateway.rooms),'version':145}))
-    app.router.add_get('/',lambda _:web.json_response({'service':'REDLINE shared authority','version':145}))
+    app.router.add_get('/health',lambda _:web.json_response({'ok':gateway.proc is not None and gateway.proc.returncode is None,'rooms':len(gateway.rooms),'version':146}))
+    app.router.add_get('/',lambda _:web.json_response({'service':'REDLINE shared authority','version':146}))
     return app
 
 if __name__=='__main__':
