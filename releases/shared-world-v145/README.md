@@ -47,13 +47,13 @@ Do not claim production readiness on the basis of passing local tests alone.
 
 ## Source regeneration
 
-To reproduce the modified HTML from the exact uploaded v139 deployment:
+To reproduce the modified HTML from the **included original v139 HTML**:
 
 ```bash
-python patch_v139_single_world.py --source /path/to/REDLINE_v139_DEPLOY/index.html --out site/index.html
+python patch_v139_single_world.py --source original/REDLINE_v139_DEPLOY/index.html --out site/index.html
 ```
 
-The patcher asserts exact source anchors before modification, so it will refuse to mutate a different game revision silently. This release package includes both the preserved playable HTML and the patch source.
+The patcher asserts exact source anchors before modification, so it will refuse to mutate a different game revision silently. The downloadable archive includes the untouched v139 source in `original/`, the v145 game in `site/`, and the full patcher. The GitHub branch stores source and tests, but does not duplicate the large original embedded visual assets or game HTML; use the downloadable archive for an immediately deployable static directory.
 
 ## Research and rationale
 
