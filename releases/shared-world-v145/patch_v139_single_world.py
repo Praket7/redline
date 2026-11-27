@@ -52,7 +52,25 @@ def patch(source, client):
         ' function captureCheckpoint(previous,current,dt){if(SHARED.enabled)return;if(!racing)return;')
     one(" function ability(kind){\n  if(!racing||ranked()||kind!=='pulse')return;",
         " function ability(kind){\n  if(SHARED.enabled){if(kind==='pulse')SHARED.queueAbility('emp');return;}\n  if(!racing||ranked()||kind!=='pulse')return;")
-    one(' function drawRemote(now){\n  if(!racing)return;', ' function drawRemote(now){\n  if(!racing&&!SHARED.racing)return;')
+    one(' function drawRemote(now){\n  if(!racing)return;', ''' function drawRemote(now){
+  // Every aircraft, including the local one, is drawn against the SAME tick.
+  // Bypass v139's second interpolation buffer so rivals never lag a different world.
+  if(SHARED.enabled){
+   for(const [id,r] of remote){
+    const pilot=SHARED.sampled(id),member=SHARED.members.find(p=>p.id===id);
+    const visible=!!(pilot&&member?.connected&&pilot.finished==null);
+    r.model.visible=visible;
+    if(r.shield)r.shield.visible=visible&&pilot.shield===true;
+    if(!visible)continue;
+    r.model.position.set(...pilot.p);
+    r.model.rotation.set(pilot.pitch,pilot.yaw,pilot.roll,'YXZ');
+    const distance=Math.hypot(st.p.x-pilot.p[0],st.p.y-pilot.p[1],st.p.z-pilot.p[2]);
+    updateRemoteDetail(r,distance);
+    if(distance<350)for(const rotor of r.rotors)rotor.rotation.y+=.45;
+   }
+   return;
+  }
+  if(!racing)return;''')
     one(' function broadcastVolley(rays){',
         ' function broadcastVolley(rays){if(SHARED.enabled)return;')
     one('rankLobbyModels.set(cred.id,model);updateRoom(d);rankRefresh(true).catch(()=>{});',

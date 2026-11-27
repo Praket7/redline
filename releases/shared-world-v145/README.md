@@ -10,7 +10,7 @@ Supabase remains the source of truth for room membership. The Python aiohttp Web
 
 ## Deployment (two separate services)
 
-1. Deploy `authority/` as a **persistent** Docker WebSocket server (Render, Fly.io, a VM, etc.), never a Vercel serverless function. `authority/render.yaml` is an example that may require a paid Render plan; no such hosting is provisioned by this package.
+1. Deploy `authority/` as a **persistent** Docker WebSocket server (Render, Fly.io, a VM, etc.), never a Vercel serverless function. `authority/render.yaml` is an example for a GitHub checkout at `releases/shared-world-v145/authority` and may require a paid Render plan; no such hosting is provisioned by this package.
 2. Set `REDLINE_REQUIRE_AUTH=1`, `SUPABASE_URL=https://gudzbisvhrvmduvbtcrh.supabase.co`, `SUPABASE_PUBLISHABLE_KEY=<your publishable key>`, and **server-side only** `SUPABASE_SERVICE_ROLE_KEY=<your service-role key>`. Never put the service-role key in client HTML, Vercel public variables or GitHub. Use a private secret manager. Keep exactly one persistent deployment active for reliable ownership; Supabase lease fencing still protects against split-brain.
 3. Apply `supabase/migrations/redline_single_authority_lease_v145.sql` if deploying to a different database. **This migration has already been applied to the supplied REDLINE Supabase project**, so do not reapply it unnecessarily.
 4. Change `site/authority-config.js` to `window.REDLINE_AUTHORITY_WSS = 'wss://YOUR-AUTHORITY-HOST/ws';` and deploy the complete `site/` folder to your existing static site. The included `iron-tide.pack` must remain next to `index.html`.
@@ -38,7 +38,7 @@ The `REDLINE_REQUIRE_AUTH=0` override is **local fixture testing only** and must
 - No public persistent WSS server has been provisioned or tested against this package, so the static site cannot yet serve working multiplayer until `authority-config.js` is configured.
 - The authoritative server currently uses coarse world-boundary and floor collision, **not** the full original Grand Gorge and Iron Tide 3D collision meshes. Complex terrain/dam/wall/contact and weapon-occlusion parity must be exported and verified before competitive release.
 - Runtime Three.js multiplayer, visuals, mobile and FPV behavior have not been verified using two real devices. The automated tests verify source insertion and protocol behavior, not a visual parity certificate.
-- The input path is server-authoritative with buffer/interpolation; visual jitter may remain under high latency. The full predictive reconciliation layer is not enabled (that is a deliberate trade-off against client-side divergent physics).
+- The input path is server-authoritative with a shared tick interpolation buffer for local and remote aircraft; visual jitter may remain under high latency. The full predictive reconciliation layer is not enabled (that is a deliberate trade-off against client-side divergent physics).
 - No full-match server-generated leaderboard/finish persistence end-to-end fixture has been run, and `public.redline_authority_matches_v140` only records fully completed worlds. The in-game result overlay reads snapshots and is not a substitute for complete server-side results settlement.
 - **Ranked mode is disabled** until full authoritative physics parity and replay abuse resistance are established.
 - Supabase's existing older `SECURITY DEFINER` RPC exposure advisories predate this change and warrant a separate permission/security audit. The new v145 RPCs have no anon/auth execute grants.

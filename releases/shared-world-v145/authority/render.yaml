@@ -2,6 +2,7 @@ services:
   - type: web
     name: redline-shared-authority
     runtime: docker
+    rootDir: releases/shared-world-v145/authority
     dockerfilePath: ./Dockerfile
     plan: starter
     healthCheckPath: /health
