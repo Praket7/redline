@@ -31,6 +31,7 @@ jobs:
           python -m pip install -r requirements.txt
           REDLINE_COLLISION_STRICT=1 node test_collision.cjs
           REDLINE_COLLISION_STRICT=1 node test_world.cjs
+          REDLINE_COLLISION_STRICT=1 node test_delorean.cjs
           REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_network.py
           REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_shared_world.py
           REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_readiness.py

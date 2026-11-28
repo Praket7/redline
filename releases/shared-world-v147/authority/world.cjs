@@ -3,7 +3,7 @@ const {randomUUID}=require('node:crypto');
 const F=require('./flight.cjs'),routes=require('./routes.json'),COLLISION=require('./collision.cjs');
 const HZ=60,dt=1/HZ,MAX=6;const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0),sub=(a,b)=>a.map((x,i)=>x-b[i]);
-const pos=f=>[f.x,f.y,f.z];const models=new Set(['kestrel','blade','copper','spirit']);
+const pos=f=>[f.x,f.y,f.z];const models=new Set(['kestrel','blade','copper','spirit','delorean']);
 function crossing(a,b,g){const u=dot(sub(a,g.center),g.normal),v=dot(sub(b,g.center),g.normal);if(u>=0||v<0||v===u)return null;const t=-u/(v-u),p=a.map((x,i)=>x+(b[i]-x)*t);return Math.hypot(...sub(p,g.center))<g.radius*.96?t:null;}
 function input(v){if(!v||typeof v!=='object'||!Number.isSafeInteger(v.seq)||v.seq<1)return null;const a={seq:v.seq};for(const k of ['throttle','steer','strafe','lift','pitch']){if(v[k]!==undefined&&!Number.isFinite(v[k]))return null;a[k]=clamp(v[k]||0,k==='pitch'?-.31:-1,k==='pitch'?.31:1);}if(v.headingTarget!==undefined){if(!Number.isFinite(v.headingTarget))return null;a.headingTarget=Math.atan2(Math.sin(v.headingTarget),Math.cos(v.headingTarget));}for(const k of ['boost','brake','fire','shield','emp'])a[k]=v[k]===true;return a;}
 class World{

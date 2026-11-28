@@ -18,6 +18,9 @@
     copper:Object.freeze({id:'copper',name:'COPPER WRAITH',role:'ION INTERCEPTOR',description:'Aggressive directional turns with the hardest burst. Strong boost, weaker strafe.',
       cruise:1.14,boost:1.25,accel:1.13,turn:1.13,turnG:1.07,yawResponse:1.25,grip:.94,lateral:1.03,
       strafe:.67,strafeTau:.125,vertical:1.03,bank:1.25,brake:.98,coast:1.07,boostDrain:.285,boostRegen:.31,accent:'#f0a46e'}),
+    delorean:Object.freeze({id:'delorean',name:'DELOREAN DMC-12',role:'REAR-BIASED VECTOR HOVER',description:'Four wheel-mounted ion jets. Heavy turn-in, deliberate drift, powerful strafing and a strong time-drive boost.',
+      cruise:1.04,boost:1.30,accel:.92,turn:.84,turnG:.97,yawResponse:.78,grip:.99,lateral:.96,
+      strafe:1.34,strafeTau:.15,vertical:.91,bank:.58,brake:1.18,coast:1.19,boostDrain:.18,boostRegen:.32,accent:'#72dfff'}),
     spirit:Object.freeze({id:'spirit',name:'SPIRIT NOCTURNE',role:'LONG-RANGE FLYING WING',description:'Highest sustained straight-line speed; responsive banking and tighter directional control.',
       cruise:1.28,boost:.71,accel:.77,turn:1.04,turnG:1.18,yawResponse:1.36,grip:1.32,lateral:1.24,
       strafe:.48,strafeTau:.18,vertical:.67,bank:.43,brake:.74,coast:1.35,boostDrain:.10,boostRegen:.27,accent:'#a6c3cb'})

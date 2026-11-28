@@ -240,7 +240,7 @@ class Gateway:
             code = msg.get('room'); course = msg.get('course'); model = msg.get('model','kestrel')
             if not isinstance(code,str) or not code.isascii() or not code.isalnum() or not 3<=len(code)<=20:
                 raise ValueError('invalid room code')
-            if course not in ('grand','iron') or model not in ('kestrel','blade','copper','spirit'):
+            if course not in ('grand','iron') or model not in ('kestrel','blade','copper','spirit','delorean'):
                 raise ValueError('invalid course or aircraft')
             auth = await self.authenticate(msg)
             async with self.lock:
@@ -306,7 +306,7 @@ class Gateway:
                     await self.command({'op':'input','room':code,'id':p['id'],'input':data.get('input')})
                 elif data.get('op')=='model' and not room['started']:
                     model_choice=data.get('model')
-                    if model_choice not in ('kestrel','blade','copper','spirit'):raise ValueError('unknown model')
+                    if model_choice not in ('kestrel','blade','copper','spirit','delorean'):raise ValueError('unknown model')
                     if self.production:
                         fresh=await self.authenticate(msg)
                         if fresh['stage']!='lobby':raise ValueError('model selection locked')
@@ -361,7 +361,7 @@ def create_app():
         headers={'Cache-Control':'no-store'}
         if _.headers.get('Origin') and gateway.origin_allowed(_):
             headers.update({'Access-Control-Allow-Origin':_.headers['Origin'],'Vary':'Origin'})
-        return web.json_response({'ok':ok,'rooms':len(gateway.rooms),'version':147,'protocol':145,'maps':gateway.maps,'authenticated':gateway.production and gateway.db_ready},status=200 if ok else 503,headers=headers)
+        return web.json_response({'ok':ok,'rooms':len(gateway.rooms),'version':147,'protocol':145,'airframes':['kestrel','blade','copper','spirit','delorean'],'maps':gateway.maps,'authenticated':gateway.production and gateway.db_ready},status=200 if ok else 503,headers=headers)
     app.router.add_get('/health',health)
     app.router.add_get('/',lambda _:web.json_response({'service':'REDLINE shared authority','version':147}))
     return app
