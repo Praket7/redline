@@ -1,8 +1,0 @@
-'use strict';
-const readline=require('node:readline');const {World,HZ}=require('./world.cjs');const worlds=new Map(),out=v=>process.stdout.write(JSON.stringify(v)+'\n');let last=performance.now(),acc=0;
-const collision=require('./collision.cjs');
-const strict=process.env.REDLINE_COLLISION_STRICT==='1';
-const maps={};for(const course of ['grand','iron','frost']){const c=collision.load(course,strict);maps[course]=c?.hash||null;}
-out({type:'ready',maps});last=performance.now();
-setInterval(()=>{const now=performance.now();acc+=Math.min(250,now-last);last=now;let steps=0;while(acc>=1000/HZ&&steps++<15){acc-=1000/HZ;for(const w of worlds.values()){w.step();if(w.tick%3===0)out({type:'snapshot',...w.snapshot()});}}},4);
-readline.createInterface({input:process.stdin}).on('line',line=>{try{const m=JSON.parse(line);let w=worlds.get(m.room);if(m.op==='join'){if(!w){w=new World(m.course,m.room);worlds.set(m.room,w);}if(w.course!==m.course)throw Error('course mismatch');const p=w.add(m.id,m.model,m.name,m.slot);out({type:'reply',rid:m.rid,ok:true,world:w.id,ack:p.seq});}else if(!w)throw Error('room missing');else if(m.op==='start'){w.start();out({type:'reply',rid:m.rid,ok:true});}else if(m.op==='input')w.accept(m.id,m.input);else if(m.op==='model'){const p=w.players.get(m.id);if(!p||w.startTick!==null||!['kestrel','blade','copper','spirit','delorean'].includes(m.model))throw Error('model locked');p.model=m.model;out({type:'reply',rid:m.rid,ok:true});}else if(m.op==='disconnect')w.disconnect(m.id);else if(m.op==='delete'){worlds.delete(m.room);out({type:'reply',rid:m.rid,ok:true});} }catch(e){let rid;try{rid=JSON.parse(line).rid}catch{};out({type:'reply',rid,ok:false,error:e.message});}});

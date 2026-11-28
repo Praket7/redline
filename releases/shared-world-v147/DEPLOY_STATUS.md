@@ -1,2 +1,0 @@
-# REDLINE v147 cloud recovery
-The original Vercel deployment dpl_6yV1x9rcpacvRwtTXwdLiNXvpwHR has exact file SHA-1 identifiers matching the user-supplied v139. The recovery workflow requires exact SHA-256 source and collision hashes before committing assets. The public server must use strict maps, a dedicated Supabase authority token, and one free Render instance. No fallback to approximate terrain or unauthenticated production. Public WebSocket verification is separate from CI.

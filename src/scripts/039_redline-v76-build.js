@@ -1,1 +1,0 @@
-window.REDLINE_PATCH_VERSION='v77-forward-laser-arc';

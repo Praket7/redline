@@ -1,9 +1,0 @@
-
-/* Transparent, non-blocking instruments. Existing photo gauges remain beneath. */
-body.rl-play.rl-cockpit #rl68Telemetry{bottom:clamp(14px,2vh,22px)!important;width:min(410px,64vw)!important;padding:7px 12px!important;border-radius:8px!important;background:rgba(3,9,17,.82)!important;box-shadow:0 4px 16px #0008!important;z-index:70!important}
-body.rl-play.rl-cockpit #rl68Telemetry .rl68Value{font-size:17px!important}
-/* Navigation is readable and doesn't sit behind the canopy. */
-body.rl-play.rl-cockpit #rlPositions{top:clamp(96px,13vh,126px)!important;left:12px!important;max-height:28vh!important;overflow:hidden!important;z-index:80!important}
-body.rl-play.rl-cockpit #rlMouseUnlock{top:clamp(58px,8vh,76px)!important;bottom:auto!important;max-width:240px!important;background:rgba(3,9,16,.6)!important;border-radius:6px!important;z-index:80!important}
-body.rl-play.rl-cockpit #rlGameTop,body.rl-play.rl-cockpit #rlGameButtons{z-index:80!important}
-@media(max-width:650px){body.rl-play.rl-cockpit #rl68Telemetry{width:min(340px,86vw)!important;padding:6px 8px!important}body.rl-play.rl-cockpit #rl68Telemetry .rl68Value{font-size:14px!important}body.rl-play.rl-cockpit #rlPositions{top:94px!important;max-width:130px!important}}
