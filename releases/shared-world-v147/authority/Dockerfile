@@ -7,5 +7,6 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN REDLINE_COLLISION_STRICT=1 node test_collision.cjs
+RUN REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python -m py_compile server.py test_gateway_hardening.py && REDLINE_REQUIRE_AUTH=0 REDLINE_COLLISION_STRICT=1 python test_gateway_hardening.py
 EXPOSE 8787
 CMD ["python3","server.py"]
