@@ -84,7 +84,7 @@ class Gateway:
                 room = self.rooms.get(message.get('room'))
                 if not room: continue
                 if (message.get('type')=='snapshot' and room.get('started') and not room.get('result_saved')
-                      and not room.get('saving') and message.get('players')
+                      and not room.get('saving') and time.monotonic() >= room.get('save_retry_at', 0) and message.get('players')
                       and all(p.get('finished') is not None for p in message['players'])):
                     room['saving']=True
                     asyncio.create_task(self.persist_match(room,message))
@@ -166,8 +166,13 @@ class Gateway:
             if not await self.lease_rpc('redline_authority_save_v147',payload):
                 raise RuntimeError('authority match persistence failed')
             room['result_saved']=True
+            room.pop('save_retry_at', None)
+            room.pop('save_failures', None)
         except Exception as exc:
-            print('[AUTHORITY] match persistence failed',type(exc).__name__,flush=True)
+            failures = min(6, room.get('save_failures', 0) + 1)
+            room['save_failures'] = failures
+            room['save_retry_at'] = time.monotonic() + min(30, 2 ** failures)
+            print('[AUTHORITY] match persistence failed',type(exc).__name__, 'retry_seconds', min(30, 2 ** failures), flush=True)
         finally:room['saving']=False
 
     async def lease_rpc(self, function, payload):
@@ -268,7 +273,10 @@ class Gateway:
                         'ws':None,'queue':None}
                     room['players'][pid]=p
                     if room['host'] is None:room['host']=pid
-                if p['ws'] is not None: await p['ws'].close(code=4000, message=b'reconnected')
+                if p['ws'] is not None:
+                    previous = p['ws']
+                    p.update(ws=None,queue=None)
+                    await previous.close(code=4000, message=b'reconnected')
                 reply = await self.command({'op':'join','room':code,'course':course,'id':p['id'],
                     'model':p['model'],'name':p['name'],'slot':p['slot']},True)
                 room['world']=reply['world']
@@ -294,6 +302,7 @@ class Gateway:
                 writer=asyncio.create_task(write(q))
             last=0;window=time.monotonic();count=0
             async for item in ws:
+                if p.get('ws') is not ws: break
                 if item.type != WSMsgType.TEXT: continue
                 now = time.monotonic()
                 if now-window>=1:count=0;window=now
