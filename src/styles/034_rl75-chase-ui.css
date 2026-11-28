@@ -1,9 +1,0 @@
-
-/* Center laser reticle never follows the visible drone; projectile rays come from camera center. */
-body.rl-play:not(.rl-cockpit) #rlReticle {left:50%!important;top:50%!important;z-index:93!important}
-body.rl-play:not(.rl-cockpit) #rlAimHint {left:50%!important;top:calc(50% + 30px)!important;z-index:93!important}
-/* Navigation and race telemetry stay in the corners rather than over the reticle. */
-body.rl-play:not(.rl-cockpit) #rlPositions{left:16px!important;right:auto!important;top:93px!important;bottom:auto!important;max-width:216px!important}
-body.rl-play:not(.rl-cockpit) #maphud {right:15px!important;top:86px!important;z-index:81!important}
-body.rl-play:not(.rl-cockpit) #rlFlowModule {left:auto!important;right:clamp(12px,1.5vw,24px)!important;bottom:clamp(14px,1.8vw,24px)!important;width:min(290px,30vw)!important;z-index:80!important}
-@media(max-width:740px){body.rl-play:not(.rl-cockpit) #rlPositions{max-width:150px!important;top:85px!important}body.rl-play:not(.rl-cockpit) #maphud{right:7px!important;top:90px!important}body.rl-play:not(.rl-cockpit) #rlFlowModule{right:8px!important;bottom:10px!important;width:min(172px,42vw)!important}}
