@@ -120,7 +120,7 @@ class Collider{
  }
  stats(){return {course:this.course,triangles:this.triangles,cells:this.cells.size,oversized:this.oversized.length,hash:this.metadata.float32_sha256};}
 }
-function get(course){if(!CACHE.has(course))CACHE.set(course,new Collider(course));return CACHE.get(course);}
+function get(course){if(course==='frost')return require('./frost.cjs').load();if(!CACHE.has(course))CACHE.set(course,new Collider(course));return CACHE.get(course);}
 function load(course,strict=false){
  try{return get(course);}catch(err){
   if(!strict && err && err.code==='ENOENT')return null; // source-only CI has no baked binary assets

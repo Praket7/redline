@@ -53,7 +53,7 @@ class Gateway:
             self.stderr_task = asyncio.create_task(self.drain_stderr())
             raw = await asyncio.wait_for(self.proc.stdout.readline(), 45)
             ready = json.loads(raw)
-            if ready.get('type') != 'ready' or (self.production and not all(ready.get('maps',{}).get(c) for c in ('grand','iron'))):
+            if ready.get('type') != 'ready' or (self.production and not all(ready.get('maps',{}).get(c) for c in ('grand','iron','frost'))):
                 raise RuntimeError('collision worker readiness check failed')
             self.maps = ready['maps']
             if self.production:
@@ -215,7 +215,8 @@ class Gateway:
         member = next((x for x in players if str(x.get('id')) == uid), None)
         if room.get('code') != code or not member:
             raise ValueError('room membership rejected')
-        course = 'iron' if room.get('course') == 'iron' else 'grand'
+        course = room.get('course')
+        if course not in ('grand','iron','frost'):raise ValueError('unknown course')
         if course != join['course']:
             raise ValueError('course mismatch')
         if room.get('stage') not in ('lobby','countdown','racing'):
@@ -240,7 +241,7 @@ class Gateway:
             code = msg.get('room'); course = msg.get('course'); model = msg.get('model','kestrel')
             if not isinstance(code,str) or not code.isascii() or not code.isalnum() or not 3<=len(code)<=20:
                 raise ValueError('invalid room code')
-            if course not in ('grand','iron') or model not in ('kestrel','blade','copper','spirit','delorean'):
+            if course not in ('grand','iron','frost') or model not in ('kestrel','blade','copper','spirit','delorean'):
                 raise ValueError('invalid course or aircraft')
             auth = await self.authenticate(msg)
             async with self.lock:
@@ -275,7 +276,7 @@ class Gateway:
                     try:
                         claimed=await self.lease_rpc('redline_authority_claim_v145',
                             {'p_code':code,'p_world':room['world'],'p_course':course,
-                             'p_revision':136 if course=='iron' else 37,'p_host':room['host'],
+                             'p_revision':{'grand':37,'iron':136,'frost':149}[course],'p_host':room['host'],
                              'p_instance':self.instance_id})
                     except Exception: claimed=False
                     if not claimed:

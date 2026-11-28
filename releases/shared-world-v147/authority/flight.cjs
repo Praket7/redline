@@ -217,8 +217,9 @@
     f.vy=damp(f.vy,wantedY,1/((5.3+stability*6)*profile.vertical*(ranked?1:.88)),dt);
     f.x+=f.vx*dt;f.z+=f.vz*dt;
     const minAltitude=Number.isFinite(settings.minAltitude)?settings.minAltitude:4.5;
-    f.y=clamp(f.y+f.vy*dt,minAltitude,430);
-    if((f.y===minAltitude&&f.vy<0)||(f.y===430&&f.vy>0))f.vy=0;
+    const maxAltitude=Number.isFinite(settings.maxAltitude)?settings.maxAltitude:430;
+    f.y=clamp(f.y+f.vy*dt,minAltitude,maxAltitude);
+    if((f.y===minAltitude&&f.vy<0)||(f.y===maxAltitude&&f.vy>0))f.vy=0;
 
     // Bank follows ACTUAL angular rate, not the key's Boolean state.
     // When the key releases, the body retains angular momentum briefly.
